@@ -1,0 +1,29 @@
+# Raw footage, renders and work caches never go to git (this repo is public)
+videoi/
+*.mov
+*.MOV
+*.mp4
+*.MP4
+*.mkv
+*.webm
+*.wav
+*.webp
+.kcut/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# OS
+Thumbs.db
+.DS_Store

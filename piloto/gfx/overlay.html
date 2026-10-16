@@ -1,0 +1,366 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: Inter; font-weight: 900; src: url("inter-latin-900-normal.woff2") format("woff2"); }
+  @font-face { font-family: Inter; font-weight: 800; src: url("inter-latin-800-normal.woff2") format("woff2"); }
+  @font-face { font-family: Inter; font-weight: 600; src: url("inter-latin-600-normal.woff2") format("woff2"); }
+  :root { --lime: #E5FF1F; --ink: #0B0B0E; --capblue: #2FA8FF; }
+  html, body { margin: 0; width: 1080px; height: 1920px; background: transparent; overflow: hidden; }
+  body { font-family: Inter, sans-serif; position: relative; }
+  .layer { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+  .abs { position: absolute; will-change: transform, opacity; }
+  .center { left: 0; width: 1080px; text-align: center; }
+  .stroke { paint-order: stroke fill; -webkit-text-stroke: 12px var(--ink); }
+  .big { font-weight: 900; text-transform: uppercase; letter-spacing: -2px; line-height: 1; }
+  #cap { left: 70px; width: 870px; top: 1185px; text-align: center; }
+  #cap .w { display: inline-block; margin: 0 9px; font-weight: 900; font-size: 76px; letter-spacing: -1px;
+            color: #fff; paint-order: stroke fill; -webkit-text-stroke: 11px var(--ink);
+            text-shadow: 0 6px 18px rgba(0,0,0,.45); }
+  #cap .w.on { color: var(--capblue); }
+  .pill { display: inline-block; padding: 14px 30px; border-radius: 999px; background: var(--ink);
+          color: var(--lime); font-weight: 800; font-size: 40px; letter-spacing: .5px;
+          box-shadow: 0 0 0 4px var(--lime), 0 10px 30px rgba(0,0,0,.4); }
+  .step { display: inline-flex; align-items: center; gap: 18px; padding: 14px 28px 14px 16px; border-radius: 22px;
+          background: rgba(11,11,14,.92); box-shadow: 0 0 0 3px var(--lime); }
+  .step b { background: var(--lime); color: var(--ink); font-weight: 900; font-size: 30px; padding: 8px 16px;
+            border-radius: 12px; letter-spacing: 1px; }
+  .step span { color: #fff; font-weight: 800; font-size: 42px; }
+  .letter { display: inline-block; }
+</style>
+</head>
+<body>
+<div class="layer" id="root">
+  <!-- hook -->
+  <div class="abs center big stroke" id="hook1" style="top:690px;font-size:104px;color:#fff">Esto lo hizo</div>
+  <div class="abs center big stroke" id="hook2" style="top:800px;font-size:270px;color:var(--lime)">la IA</div>
+  <div class="abs center" id="hook3" style="top:1105px"><span class="pill">hecho con Higgsfield</span></div>
+  <!-- higgsfield title -->
+  <div class="abs center" id="hf" style="top:1080px">
+    <div style="position:relative;display:inline-block;padding:6px 26px">
+      <div id="hfbar" style="position:absolute;left:0;top:18px;height:132px;width:100%;background:var(--lime);border-radius:14px;transform-origin:left center"></div>
+      <div class="big" id="hftxt" style="position:relative;font-size:132px;color:var(--ink)">Higgsfield</div>
+    </div>
+  </div>
+  <!-- ferrari / lamborghini -->
+  <div class="abs center big stroke" id="fer" style="top:330px;font-size:150px;color:#fff;font-style:italic">Ferrari</div>
+  <div class="abs center big stroke" id="lam" style="top:330px;font-size:118px;color:var(--lime);font-style:italic">Lamborghini</div>
+  <!-- screen steps -->
+  <div class="abs center" id="step" style="top:262px"><div class="step"><b id="stepn">PASO 1</b><span id="stept">Entra a higgsfield.ai</span></div></div>
+  <!-- editado -->
+  <div class="abs center big stroke" id="ed1" style="top:980px;font-size:150px;color:#fff">Editado</div>
+  <div class="abs center big stroke" id="ed2" style="top:1120px;font-size:118px;color:var(--lime)">100% con IA</div>
+  <!-- claude code mascot (tracked on palm) -->
+  <div class="abs" id="palmGlow" style="left:0;top:0;width:280px;height:80px;display:none;border-radius:50%;
+       background:radial-gradient(ellipse at center, rgba(255,160,110,.85), rgba(217,119,87,.4) 45%, rgba(217,119,87,0) 70%);filter:blur(5px)"></div>
+  <div class="abs" id="mascot" style="left:0;top:0;width:280px;height:180px;display:none;transform-origin:50% 100%">
+    <img id="logo" style="position:absolute;left:0;top:0;width:100%;height:100%;filter:drop-shadow(0 12px 14px rgba(0,0,0,.45)) drop-shadow(0 0 22px rgba(217,119,87,.55))" alt="">
+    <div id="lidL" style="position:absolute;left:22.3%;top:21.6%;width:5.7%;height:19.2%;background:#e0744e;border-radius:3px;transform-origin:50% 0;transform:scaleY(0)"></div>
+    <div id="lidR" style="position:absolute;left:62.3%;top:25%;width:5.9%;height:19.8%;background:#e0744e;border-radius:3px;transform-origin:50% 0;transform:scaleY(0)"></div>
+  </div>
+  <svg class="abs" id="spark" width="1080" height="1920" style="left:0;top:0;display:none"></svg>
+  <!-- globe -->
+  <canvas class="abs" id="globe" width="560" height="560" style="left:0;top:0"></canvas>
+  <!-- holographic board (opens with the hands) -->
+  <svg class="abs" id="beams" width="1080" height="1920" style="left:0;top:0;display:none">
+    <defs><filter id="bl"><feGaussianBlur stdDeviation="6"/></filter></defs>
+    <polygon id="beamL" fill="rgba(111,246,255,.45)" filter="url(#bl)"/>
+    <polygon id="beamR" fill="rgba(111,246,255,.45)" filter="url(#bl)"/>
+  </svg>
+  <div class="abs" id="holo" style="left:0;top:0;width:860px;height:500px;display:none">
+    <div style="position:absolute;inset:0;border-radius:22px;border:3px solid rgba(111,246,255,.95);overflow:hidden;
+         background:linear-gradient(180deg, rgba(111,246,255,.24), rgba(40,120,140,.10));
+         box-shadow:0 0 48px rgba(111,246,255,.65), inset 0 0 80px rgba(111,246,255,.28)">
+      <div id="holoGrid" style="position:absolute;inset:-40px 0 0 0;background-image:linear-gradient(rgba(111,246,255,.17) 1px,transparent 1px),linear-gradient(90deg,rgba(111,246,255,.17) 1px,transparent 1px);background-size:40px 40px"></div>
+      <div style="position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(255,255,255,.07) 0 2px,transparent 2px 6px)"></div>
+      <div id="holoSweep" style="position:absolute;left:0;width:100%;height:110px;background:linear-gradient(180deg,transparent,rgba(160,250,255,.32),transparent)"></div>
+      <div id="holoLabel" style="position:absolute;left:36px;top:26px;font-weight:800;font-size:30px;letter-spacing:7px;color:rgba(170,252,255,.95)">LA PALABRA</div>
+      <div style="position:absolute;right:32px;top:30px;font-weight:600;font-size:22px;letter-spacing:4px;color:rgba(170,252,255,.7)">IA · EN VIVO</div>
+      <div style="position:absolute;left:36px;right:36px;bottom:30px;height:4px;background:rgba(111,246,255,.25)"><div id="holoBar" style="height:100%;width:0;background:#E5FF1F;box-shadow:0 0 12px #E5FF1F"></div></div>
+      <div id="hola" class="big" style="position:absolute;left:0;width:100%;top:135px;text-align:center;font-size:230px;color:#EFFEFF;
+           text-shadow:0 0 16px rgba(111,246,255,.95),0 0 48px rgba(111,246,255,.7)"><span class="letter" id="h0">H</span><span class="letter" id="h1">O</span><span class="letter" id="h2">L</span><span class="letter" id="h3">A</span><span id="cursor" style="display:inline-block;width:18px;height:180px;background:#E5FF1F;margin-left:12px;vertical-align:-6px;box-shadow:0 0 14px #E5FF1F"></span></div>
+    </div>
+    <div style="position:absolute;left:-10px;top:-10px;width:56px;height:56px;border-left:6px solid #E5FF1F;border-top:6px solid #E5FF1F"></div>
+    <div style="position:absolute;right:-10px;top:-10px;width:56px;height:56px;border-right:6px solid #E5FF1F;border-top:6px solid #E5FF1F"></div>
+    <div style="position:absolute;left:-10px;bottom:-10px;width:56px;height:56px;border-left:6px solid #E5FF1F;border-bottom:6px solid #E5FF1F"></div>
+    <div style="position:absolute;right:-10px;bottom:-10px;width:56px;height:56px;border-right:6px solid #E5FF1F;border-bottom:6px solid #E5FF1F"></div>
+  </div>
+  <!-- por sí sola -->
+  <div class="abs center big stroke" id="ps1" style="top:930px;font-size:140px;color:#fff">Por</div>
+  <div class="abs center big stroke" id="ps2" style="top:1060px;font-size:140px;color:#fff">sí</div>
+  <div class="abs center big stroke" id="ps3" style="top:1190px;font-size:170px;color:var(--lime)">sola</div>
+  <!-- outro -->
+  <div class="abs center big stroke" id="out1" style="top:740px;font-size:110px;color:#fff">Mañana</div>
+  <div class="abs center big stroke" id="out2" style="top:860px;font-size:215px;color:var(--lime)">Parte 2</div>
+  <div class="abs center" id="out3" style="top:1110px"><span class="pill">Sígueme para no perdértela</span></div>
+  <!-- captions -->
+  <div class="abs" id="cap"></div>
+</div>
+<script>
+const CUES = /*@CUES@*/null;
+const CAPS = /*@CAPS@*/null;
+const PALM = /*@PALM@*/null;
+const LOGO_SRC = /*@LOGO@*/null;
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, t0, d) => clamp((t - t0) / d);
+const outCubic = x => 1 - Math.pow(1 - x, 3);
+const inCubic = x => x * x * x;
+const outBack = x => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const $ = id => document.getElementById(id);
+function show(el, on) { el.style.display = on ? "" : "none"; }
+// pop-in at t0, hold, pop-out ending at t1
+function popState(t, t0, t1, inDur = 0.22, outDur = 0.16) {
+  if (t < t0 || t >= t1) return null;
+  const a = outBack(prog(t, t0, inDur));
+  const b = prog(t, t1 - outDur, outDur);
+  return { s: (0.6 + 0.4 * a) * (1 + 0.12 * b), o: clamp(prog(t, t0, inDur * 0.6)) * (1 - inCubic(b)) };
+}
+function apply(el, st, extra = "") {
+  if (!st) { show(el, false); return; }
+  show(el, true);
+  el.style.opacity = st.o;
+  el.style.transform = `scale(${st.s}) ${extra}`;
+}
+
+// ---------- captions ----------
+let capKey = null;
+function captions(t) {
+  const cap = $("cap");
+  const ch = CAPS.find(c => t >= c.s && t < c.e);
+  if (!ch) { cap.innerHTML = ""; capKey = null; return; }
+  const key = ch.s;
+  if (capKey !== key) {
+    cap.innerHTML = ch.words.map((w, i) => `<span class="w" data-i="${i}">${w.w}</span>`).join("");
+    capKey = key;
+  }
+  const a = outBack(prog(t, ch.s, 0.14));
+  cap.style.transform = `scale(${0.86 + 0.14 * a})`;
+  cap.style.opacity = clamp(prog(t, ch.s, 0.06));
+  let active = -1;
+  ch.words.forEach((w, i) => { if (t >= w.s) active = i; });
+  cap.querySelectorAll(".w").forEach((el, i) => {
+    const on = i === active;
+    el.classList.toggle("on", on);
+    const k = on ? outBack(prog(t, ch.words[i].s, 0.12)) : 0;
+    el.style.transform = `scale(${1 + 0.07 * k})`;
+  });
+}
+
+// ---------- globe ----------
+function drawGlobe(t, t0) {
+  const cv = $("globe"), g = cv.getContext("2d");
+  g.clearRect(0, 0, cv.width, cv.height);
+  const cx = 280, cy = 280, R = 190;
+  const rot = (t - t0) * 1.4 + 0.6, tilt = 0.38;
+  const proj = (lat, lon) => {
+    const x = Math.cos(lat) * Math.sin(lon + rot), y = Math.sin(lat), z = Math.cos(lat) * Math.cos(lon + rot);
+    const y2 = y * Math.cos(tilt) - z * Math.sin(tilt), z2 = y * Math.sin(tilt) + z * Math.cos(tilt);
+    return [cx + R * x, cy - R * y2, z2];
+  };
+  // halo
+  const grd = g.createRadialGradient(cx, cy, R * 0.6, cx, cy, R * 1.45);
+  grd.addColorStop(0, "rgba(229,255,31,0.22)"); grd.addColorStop(1, "rgba(229,255,31,0)");
+  g.fillStyle = grd; g.beginPath(); g.arc(cx, cy, R * 1.45, 0, 7); g.fill();
+  g.fillStyle = "rgba(11,11,14,0.55)"; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fill();
+  const line = (pts) => {
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0, z0] = pts[i - 1], [x1, y1, z1] = pts[i];
+      const front = (z0 + z1) / 2 > 0;
+      g.strokeStyle = front ? "rgba(229,255,31,0.95)" : "rgba(229,255,31,0.18)";
+      g.lineWidth = front ? 3 : 1.5;
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    }
+  };
+  for (let la = -60; la <= 60; la += 30) {
+    const pts = []; for (let lo = 0; lo <= 360; lo += 6) pts.push(proj(la * Math.PI / 180, lo * Math.PI / 180)); line(pts);
+  }
+  for (let lo = 0; lo < 180; lo += 30) {
+    const pts = []; for (let la = 0; la <= 360; la += 6) pts.push(proj(la * Math.PI / 180, lo * Math.PI / 180)); line(pts);
+  }
+  // deterministic "city" dots
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 70; i++) {
+    const la = Math.asin(rnd() * 2 - 1), lo = rnd() * Math.PI * 2;
+    const [x, y, z] = proj(la, lo);
+    if (z > 0.05) { g.fillStyle = `rgba(255,255,255,${0.35 + 0.65 * z})`; g.beginPath(); g.arc(x, y, 2.2 + 2 * z, 0, 7); g.fill(); }
+  }
+  // ring
+  g.strokeStyle = "rgba(229,255,31,0.9)"; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke();
+  g.save(); g.translate(cx, cy); g.rotate(-0.35); g.scale(1, 0.28);
+  g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = 5; g.beginPath(); g.arc(0, 0, R * 1.32, 0, 7); g.stroke(); g.restore();
+}
+const GLOBE_POS = { x: 330, y: 760 };
+
+// ---------- palm-tracked logo ----------
+function palmAt(t) {
+  if (!PALM || !PALM.length) return null;
+  let best = PALM[0];
+  for (const p of PALM) if (Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
+  return best;
+}
+
+function render(t) {
+  // hook
+  const H = CUES.hook;
+  const out = prog(t, H.end - 0.22, 0.22);
+  apply($("hook1"), t < H.end ? { s: (0.7 + 0.3 * outBack(prog(t, 0.05, 0.25))) * (1 + 0.2 * out), o: clamp(prog(t, 0.05, 0.1)) * (1 - out) } : null);
+  apply($("hook2"), t < H.end ? { s: (0.4 + 0.6 * outBack(prog(t, 0.22, 0.3))) * (1 + 0.25 * out), o: clamp(prog(t, 0.22, 0.08)) * (1 - out) } : null);
+  apply($("hook3"), popState(t, 0.62, H.end));
+  // higgsfield title
+  const h0 = CUES.higgsfield;
+  const hs = popState(t, h0 - 0.04, h0 + 1.0, 0.2, 0.15);
+  apply($("hf"), hs);
+  if (hs) $("hfbar").style.transform = `scaleX(${outCubic(prog(t, h0 - 0.04, 0.32))})`;
+  // ferrari / lambo
+  const fsp = { t: CUES.ferrari - 0.013, end: CUES.ferrari + 1.154 };
+  apply($("fer"), popState(t, fsp.t, CUES.lambo), "rotate(-4deg)");
+  apply($("lam"), popState(t, CUES.lambo, fsp.end), "rotate(-4deg)");
+  // screen steps
+  const S = CUES.screen, rel = t - S.t;
+  const steps = [[0.07, 1.5, "PASO 1", "Entra a higgsfield.ai"], [1.5, 2.55, "PASO 2", "Genjutsu · Motion Transfer"],
+                 [2.55, 3.5, "PASO 3", "Escribe tu prompt"], [3.5, 4.24, "RESULTADO", "La IA cambia el personaje"]];
+  const cur = steps.find(s => rel >= s[0] && rel < s[1]);
+  if (cur && t < S.end) {
+    $("stepn").textContent = cur[2]; $("stept").textContent = cur[3];
+    const st = popState(t, S.t + cur[0], S.t + cur[1], 0.18, 0.1);
+    apply($("step"), st);
+  } else show($("step"), false);
+  // editado 100% con IA (with chroma-split entrance)
+  const e0 = CUES.editado;
+  const es1 = popState(t, e0 - 0.03, e0 + 1.25, 0.18, 0.14), es2 = popState(t, e0 + 0.12, e0 + 1.25, 0.2, 0.14);
+  const gl = 1 - prog(t, e0, 0.22);
+  $("ed1").style.textShadow = gl > 0 ? `${14 * gl}px 0 rgba(255,0,80,.8), ${-14 * gl}px 0 rgba(0,220,255,.8)` : "none";
+  apply($("ed1"), es1); apply($("ed2"), es2);
+  // logo on palm -> flies into the globe
+  const L0 = CUES.logo, M0 = CUES.mundo;
+  // 3D Claude Code mascot: drops onto the palm, squash & stretch, idles (bob, 3D sway, blink), hops into the globe
+  const mascot = $("mascot"), glow = $("palmGlow"), spark = $("spark");
+  if (LOGO_SRC && t >= L0 && t < M0 + 0.12) {
+    show(mascot, true);
+    const TAKE = 30.733, MW = 280, MH = 180, tl = t - L0;
+    const p = palmAt(Math.min(t, TAKE));
+    const feet = { x: p.x, y: p.y - 26 };
+    let x = feet.x, y = feet.y, sx = 1, sy = 1, rz = 0, ry = 0, o = 1;
+    if (tl < 0.24) {                       // fall onto the palm
+      const u = tl / 0.24; y = feet.y - 430 * (1 - u * u); sx = 0.9; sy = 1.12; o = clamp(tl / 0.05);
+    } else if (tl < 0.36) {                // squash on landing
+      const k = Math.sin((tl - 0.24) / 0.12 * Math.PI); sx = 1 + 0.24 * k; sy = 1 - 0.28 * k;
+    } else if (tl < 0.62) {                // stretch rebound, small hop, settle
+      const u = (tl - 0.36) / 0.26, k = Math.sin(u * Math.PI);
+      sx = 1 - 0.08 * k * (1 - u); sy = 1 + 0.14 * k * (1 - u); y = feet.y - 30 * k;
+    }
+    if (tl >= 0.62 && t < TAKE - 0.15) {   // idle: bob + 3D sway
+      const ti = tl - 0.62;
+      y = feet.y - 7 * (0.5 - 0.5 * Math.cos(ti * 6.2));
+      ry = 18 * Math.sin(ti * 2.7); rz = 3 * Math.sin(ti * 3.6);
+    }
+    if (t >= TAKE - 0.15 && t < TAKE) {    // anticipation crouch
+      const u = (t - (TAKE - 0.15)) / 0.15; sx = 1 + 0.16 * u; sy = 1 - 0.22 * u;
+    }
+    let standing = t < TAKE;
+    if (t >= TAKE) {                       // hop + arc flight into the globe, spinning and shrinking
+      const q = palmAt(TAKE), st = { x: q.x, y: q.y - 26 };
+      const u = prog(t, TAKE, M0 - TAKE), e = outCubic(u), arc = Math.sin(Math.PI * Math.min(1, u * 1.1));
+      x = st.x + (GLOBE_POS.x - st.x) * e;
+      y = st.y + (GLOBE_POS.y + 60 - st.y) * e - 300 * arc;
+      const sc = 1 - 0.6 * e; sx = sc * (1 - 0.12 * arc); sy = sc * (1 + 0.18 * arc);
+      rz = -360 * outCubic(u); o = 1 - prog(t, M0, 0.12);
+    }
+    mascot.style.opacity = o;
+    mascot.style.transform = `translate(${x - MW / 2}px, ${y - MH}px) perspective(900px) rotateY(${ry}deg) rotateZ(${rz}deg) scale(${sx}, ${sy})`;
+    // blinks
+    let lid = 0;
+    for (const b of [L0 + 0.95, L0 + 1.55]) { const d = t - b; if (d >= 0 && d < 0.15) lid = Math.sin(d / 0.15 * Math.PI); }
+    $("lidL").style.transform = $("lidR").style.transform = `scaleY(${lid})`;
+    // warm glow on the palm while it stands there
+    const go = standing ? clamp(prog(t, L0 + 0.2, 0.12)) * (tl < 0.36 && tl >= 0.24 ? 1 : 0.8) : 1 - prog(t, TAKE, 0.2);
+    show(glow, go > 0.01);
+    glow.style.opacity = go;
+    glow.style.transform = `translate(${feet.x - 140}px, ${feet.y - 40}px) scale(${sx}, 1)`;
+    // twinkling sparkles around it
+    const pts = [[-175, -120, 22], [160, -150, 18], [190, -40, 14], [-195, 0, 16], [-70, -205, 13], [95, -225, 20], [10, -255, 12]];
+    const so = standing ? clamp(prog(t, L0 + 0.3, 0.2)) : 1 - prog(t, TAKE, 0.25);
+    show(spark, so > 0.01);
+    if (so > 0.01) {
+      const cy = y - MH * 0.45;
+      spark.innerHTML = pts.map(([dx, dy, r], i) => {
+        const k = Math.pow(Math.max(0, Math.sin(tl * 7 + i * 1.7)), 2) * so;
+        if (k < 0.02) return "";
+        const sx2 = x + dx, sy2 = cy + dy, s2 = r * (0.4 + 0.6 * k);
+        return `<path d="M${sx2} ${sy2 - s2} Q${sx2} ${sy2} ${sx2 + s2} ${sy2} Q${sx2} ${sy2} ${sx2} ${sy2 + s2} Q${sx2} ${sy2} ${sx2 - s2} ${sy2} Q${sx2} ${sy2} ${sx2} ${sy2 - s2}Z"
+                 fill="rgba(255,236,210,${0.95 * k})" style="filter:drop-shadow(0 0 8px rgba(255,150,90,.9))"/>`;
+      }).join("");
+    }
+  } else { show(mascot, false); show(glow, false); show(spark, false); }
+  // globe
+  const gcv = $("globe");
+  const gs = popState(t, M0, M0 + 2.33, 0.4, 0.2);
+  if (gs) {
+    show(gcv, true); drawGlobe(t, M0);
+    gcv.style.opacity = gs.o;
+    gcv.style.transform = `translate(${GLOBE_POS.x - 280}px, ${GLOBE_POS.y - 280}px) scale(${gs.s}) rotate(${(1 - outCubic(prog(t, M0, 0.5))) * -90}deg)`;
+  } else show(gcv, false);
+  // holographic board: born between the hands when they open, HOLA typed inside on the word
+  const B0 = CUES.holo, B1 = CUES.holo_end, h = CUES.hola;
+  const holo = $("holo"), beams = $("beams");
+  if (t >= B0 && t < B1) {
+    show(holo, true);
+    const HANDS = { l: [270, 405], r: [765, 360] };  // where the palms open (A1 101.9 s)
+    const born = { x: (HANDS.l[0] + HANDS.r[0]) / 2, y: (HANDS.l[1] + HANDS.r[1]) / 2 };
+    const fin = { x: 540, y: 860 };
+    const u = outCubic(prog(t, B0, 0.45)), uy = outBack(prog(t, B0 + 0.08, 0.42));
+    const cl = prog(t, B1 - 0.22, 0.22);
+    const cx = born.x + (fin.x - born.x) * u, cy = born.y + (fin.y - born.y) * u;
+    const sx = (0.14 + 0.86 * u) * (1 + 0.08 * cl), sy = Math.max(0.03, (0.05 + 0.95 * uy) * (1 - 0.97 * inCubic(cl)));
+    const flick = t < B0 + 0.32 ? 0.55 + 0.45 * Math.abs(Math.sin((t - B0) * 95)) : 1;
+    holo.style.opacity = flick * (1 - inCubic(prog(t, B1 - 0.08, 0.08)));
+    holo.style.transform = `translate(${cx - 430}px, ${cy - 250}px) perspective(1400px) rotateX(9deg) scale(${sx}, ${sy})`;
+    $("holoGrid").style.transform = `translateY(${((t - B0) * 32) % 40}px)`;
+    $("holoSweep").style.top = `${(((t - B0) * 430) % 640) - 110}px`;
+    $("holoLabel").style.opacity = clamp(prog(t, B0 + 0.3, 0.15));
+    $("holoBar").style.width = `${100 * clamp(prog(t, B0 + 0.3, B1 - B0 - 0.5))}%`;
+    // light beams from the opened hands into the board's top corners
+    const bo = clamp(1 - prog(t, B0 + 0.15, 0.5)) * 0.9;
+    show(beams, bo > 0.01);
+    if (bo > 0.01) {
+      const left = cx - 430 * sx, right = cx + 430 * sx, top = cy - 250 * sy, bot = cy + 250 * sy;
+      $("beamL").setAttribute("points", `${HANDS.l[0]},${HANDS.l[1]} ${left},${top} ${left},${bot}`);
+      $("beamR").setAttribute("points", `${HANDS.r[0]},${HANDS.r[1]} ${right},${top} ${right},${bot}`);
+      beams.style.opacity = bo;
+    }
+    const lt = [h - 0.36, h - 0.24, h - 0.12, h];
+    lt.forEach((ti, i) => {
+      const el = $("h" + i), on = t >= ti;
+      el.style.display = on ? "inline-block" : "none";
+      const k = outBack(prog(t, ti, 0.16));
+      const glitch = t - ti < 0.08 ? (i % 2 ? 6 : -6) : 0;
+      el.style.transform = `translate(${glitch}px, ${(1 - k) * 50}px) scale(${0.6 + 0.4 * k})`;
+      el.style.color = i === 3 && on ? "#E5FF1F" : "#EFFEFF";
+    });
+    $("cursor").style.opacity = t < lt[0] - 0.05 ? (Math.floor((t - B0) * 5) % 2 === 0 ? 1 : 0)
+                                                : (t < h ? 1 : (Math.floor((t - h) * 4) % 2 === 0 ? 1 : 0));
+  } else { show(holo, false); show(beams, false); }
+  // por sí sola
+  const p0 = CUES.porsisola, pend = p0 + 1.62;
+  apply($("ps1"), popState(t, p0, pend)); apply($("ps2"), popState(t, p0 + 1.17, pend)); apply($("ps3"), popState(t, p0 + 1.31, pend, 0.24));
+  // outro
+  const O = CUES.outro;
+  apply($("out1"), popState(t, O.t + 0.1, O.end + 1)); apply($("out2"), popState(t, O.t + 0.25, O.end + 1, 0.3));
+  apply($("out3"), popState(t, O.t + 0.75, O.end + 1));
+  captions(t);
+}
+
+window.seek = (t) => { render(t); return true; };
+(async () => {
+  const logo = $("logo");
+  if (LOGO_SRC) { logo.src = LOGO_SRC; await logo.decode().catch(() => {}); }
+  await document.fonts.load("900 80px Inter"); await document.fonts.load("800 40px Inter"); await document.fonts.load("600 40px Inter");
+  await document.fonts.ready;
+  render(0);
+  window.ready = true;
+})();
+</script>
+</body>
+</html>
