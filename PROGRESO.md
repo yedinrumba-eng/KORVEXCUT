@@ -14,17 +14,24 @@
 - [x] **S0.3** — Piloto 01 editado de punta a punta (v1→v4)
       · verificado: `qa.py salida/v4.mp4` → 1469/1469 frames, A/V 0 ms, −14.4 LUFS, pico −1.4 dBFS
 
-### F1 — Núcleo (slices propuestos; los fija el spec `docs/specs/001-*.md`)
+### F1a — Motor `kcut` (spec [`docs/specs/001-motor-kcut.md`](docs/specs/001-motor-kcut.md), aprobado 16/10/2026)
 
-- [ ] **S1.1** — `kcut doctor`: ffmpeg/ffprobe con filtros requeridos, Python 3.12, faster-whisper + modelo, Chromium de Playwright, fuentes
-- [ ] **S1.2** — `kcut ingest`: inventario, nombres ASCII, HDR→SDR, intermedios CFR, sincronía multicam por onda
-- [ ] **S1.3** — `kcut transcribe` + `pack` + `view`: palabras con caché por hash, frases, silencios por energía, PNG de onda + palabras
-- [ ] **S1.4** — EDL en frames enteros + `kcut render` base (cortes, cámaras, zoom/encuadre, inserts)
-- [ ] **S1.5** — Capa de gráficos: motor HTML determinista con alfa + subtítulos karaoke
-- [ ] **S1.6** — Audio: voz (limpieza + loudnorm), SFX sintetizados, música con ducking
-- [ ] **S1.7** — `kcut qa`: frames, A/V, loudness, negros/congelados, re-transcripción contra **todo** lo hablado, hoja de contacto
-- [ ] **S1.8** — Plugin: marketplace, skill orquestador, agentes (cortador, crítico), comandos `nuevo` / `version` / `estado`
-- [ ] **S1.9** — Aceptación: editar un **segundo video distinto** con el plugin instalado, sin intervención a mano
+- [ ] **S1.1** — Andamiaje del paquete + `kcut doctor`
+- [ ] **S1.2** — `kcut new` + `kcut ingest` (inventario, HDR/VFR, sincronía multicam, proxies)
+- [ ] **S1.3** — `kcut transcribe` + `kcut pack`
+- [ ] **S1.4** — `kcut view` + `kcut frames`
+- [ ] **S1.5** — EDL en frames + `kcut edl check` + `kcut render` base (cámaras, insertos, looks, mezzanines por tramo)
+- [ ] **S1.6** — Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
+- [ ] **S1.7** — Componentes de lucimiento (pasos, sticker, holograma, globo)
+- [ ] **S1.8** — Audio: voz, SFX sintetizados, música, ducking, loudness
+- [ ] **S1.9** — `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
+- [ ] **S1.10** — `kcut storyboard` (Puerta 1 visual)
+
+Cada slice se cierra con sus criterios del spec en ✅ y la salida real pegada.
+
+### F1b — Experiencia (spec 002, por escribir)
+
+Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente buscador de assets, comandos `/korvexcut:*`, prueba de aceptación con un segundo video real.
 
 ---
 
