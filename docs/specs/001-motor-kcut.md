@@ -102,7 +102,10 @@ tests/__init__.py  conftest.py  unit/__init__.py  integration/__init__.py  e2e/_
 ```
 
 Reglas de código: una entidad por archivo, **≤ 300 líneas por archivo** (si un archivo se pasa,
-se parte y se avisa en el reporte; no se comprime código para caber). Type hints completos,
+se parte y se avisa en el reporte; no se comprime código para caber). Vale también para `tests/`:
+`tests/unit/test_doctor_checks.py` se pasó de 300 líneas y se parte (p. ej. `TestDoctorCommand` →
+`tests/unit/test_doctor_command.py`), conservando los node ids de los criterios S1.1-14 y S1.1-15
+(`tests/unit/test_doctor_checks.py::test_whisper_model_not_cached` y `::test_chromium_hint_derived`). (001.2) Type hints completos,
 `mypy --strict` limpio, ruff limpio. Cero `TODO`, cero funciones vacías, cero `pass` de relleno.
 Comentarios y docstrings en inglés; mensajes al usuario (`*_es`, salida humana) en español.
 `piloto/` no se toca.
@@ -216,6 +219,11 @@ devuelve el código.
 ### 0.8 Procesos externos (`src/kcut/proc.py`)
 
 - `subprocess` siempre con `list[str]`, `shell=False`. Pasar un `str` → `TypeError` (testeado).
+  `args[0]` debe ser una ruta absoluta (de `tool_path` o `sys.executable`); si no → `ValueError`
+  "usa tool_path" (testeado). (001.2)
+- Un `ChildProcess` que sale del `with` **sin** excepción con el hijo todavía vivo no lo mata en
+  silencio: espera hasta `grace_s`; si termina, bien; si no, `kill()` y `ToolError` diciendo que no
+  se esperó al hijo. Si sale por excepción: `kill()` + `wait()` como antes. (001.2)
 - Todo ffmpeg lleva `-hide_banner -nostdin`; `-y` solo cuando el destino es un `.partial`/temporal.
 - stderr de **cada** hijo va a su propio archivo temporal (nunca un handle compartido, nunca `PIPE`
   sin leer) y se agrega al log del comando cuando el hijo termina (0.11). Solo se devuelve en
@@ -238,6 +246,8 @@ devuelve el código.
   `shutil.which` (si no, un `ffmpeg.exe` plantado en la carpeta de crudo se ejecuta), ruta final
   absoluta, y en Windows solo sufijo `.exe` o `.com` (un `.bat`/`.cmd` pasa por `cmd.exe`, que
   re-parsea los argumentos: `x&whoami` se ejecutó). Si no → `MissingDependency` (7). (001.1)
+  La ruta se resuelve **primero** (sigue symlinks) y el sufijo se revisa sobre la ruta **resuelta**:
+  un symlink `x.exe` que apunta a un `.cmd` se rechaza. (001.2)
 
 ### 0.9 Archivos, rutas y JSON
 
@@ -287,9 +297,9 @@ devuelve el código.
 
 ### 0.12 Dependencias
 
-Runtime (aprobadas, nada más): `numpy>=1.26`, `scipy>=1.11`, `opencv-python>=4.9`, `Pillow>=10.3`,
-`faster-whisper>=1.0`, `playwright>=1.55.1` (pisos por CVE conocidos debajo de esas versiones,
-001.1). Versiones exactas en `requirements.lock` (S1.1), que se usa como `-c` al instalar.
+Runtime (aprobadas, nada más): `numpy>=1.26`, `scipy>=1.11`, `opencv-python>=4.9`, `Pillow>=12.3`,
+`faster-whisper>=1.0`, `playwright>=1.55.1` (pisos de seguridad: Pillow 10.3.0–12.2.0 tiene
+avisos OSV, 001.2; el de Playwright viene de 001.1). Versiones exactas en `requirements.lock` (S1.1), que se usa como `-c` al instalar.
 Stdlib para todo lo demás (`tomllib`, `argparse`, `wave`, `difflib`, `hashlib`, `html`, `base64`,
 `concurrent.futures`, `tempfile`, `threading`).
 Dev (Carril C): `pytest>=8`, `pytest-cov>=5`, `pytest-timeout>=2.3`, `ruff>=0.6`, `mypy>=1.10`.
@@ -392,13 +402,15 @@ Jerarquía de 0.5 (`KcutError`, `CheckFailed`, `UsageError`, `ProjectError`, `To
 
 #### `src/kcut/proc.py` — CREAR (reglas reforzadas en 001.1)
 - `tool_path(name: Literal["ffmpeg", "ffprobe"]) -> Path`, sin caché, en este orden:
-  1. Si existe `KCUT_FFMPEG`/`KCUT_FFPROBE`: debe ser ruta absoluta, existir y ser archivo; en
-     Windows con sufijo `.exe` o `.com` (sin distinguir mayúsculas). Si no → `MissingDependency` (7)
-     que dice cuál regla falló.
-  2. Si no: en Windows `os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"` **antes** de
-     `shutil.which(name)`. Resultado `None`, ruta no absoluta o, en Windows, sufijo distinto de
-     `.exe`/`.com` (`.bat`, `.cmd`) → `MissingDependency` (7).
-  3. Devuelve la ruta absoluta resuelta.
+  1. Candidato: `KCUT_FFMPEG`/`KCUT_FFPROBE` si existe (debe ser ruta absoluta); si no, en Windows
+     `os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"` **antes** de `shutil.which(name)`
+     (`None` o ruta no absoluta → `MissingDependency` (7)).
+  2. Se resuelve **primero**: `Path(candidato).resolve(strict=True)` (sigue symlinks); si no existe o
+     no es archivo → 7. (001.2)
+  3. **Después**, sobre la ruta ya resuelta, en Windows el sufijo debe ser `.exe` o `.com` (sin
+     distinguir mayúsculas): `.bat`, `.cmd`, o un symlink `x.exe` que apunta a un `.cmd` → 7. El
+     mensaje dice cuál regla falló. (001.2)
+  4. Devuelve la ruta resuelta.
 - `scrub_media_metadata(text: str) -> str` (pura): (a) quita cada línea `^\s*Metadata:\s*$` y todas
   las siguientes con más sangría que ella; (b) quita toda línea `clave : valor` cuya clave, sin
   distinguir mayúsculas, contenga `location`, `gps`, `com.apple.`, `make`, `model` o
@@ -413,16 +425,21 @@ Jerarquía de 0.5 (`KcutError`, `CheckFailed`, `UsageError`, `ProjectError`, `To
   sin esperar más (en Windows `kill()` no mata nietos; se anota en el log). Al terminar, por la
   vía que sea, el stderr del hijo se agrega al log (0.11). Con `check=True` y código ≠ 0 →
   `ToolError` con las últimas 20 líneas del stderr **de ese hijo**, pasadas por `scrub_media_metadata`.
-- `popen(args: list[str], *, log: Path, stdin_pipe: bool = False, stdout_pipe: bool = False) -> ChildProcess`:
+- `popen(args: list[str], *, log: Path, stdin_pipe: bool = False, stdout_pipe: bool = False, grace_s: float = 5.0) -> ChildProcess`:
   `class ChildProcess` (context manager) con `stdin`, `stdout`, `pid`,
   `wait(timeout_s: float | None = None, grace_s: float = 5.0) -> int` (misma regla de tiempo duro;
   al final agrega su stderr al log y cierra su temporal), `kill() -> None`,
-  `stderr_tail(n: int = 20) -> str` (solo de este hijo, con `scrub_media_metadata`); si sale del
-  `with` por excepción: `kill()` + `wait()`.
+  `stderr_tail(n: int = 20) -> str` (solo de este hijo, con `scrub_media_metadata`).
+  Salida del `with` (001.2): **por excepción** → `kill()` + `wait()` y la excepción sigue;
+  **sin excepción** con el hijo ya terminado → se cierra normal (stderr al log); **sin excepción**
+  con el hijo vivo → espera hasta `grace_s`; si termina, normal; si no, `kill()` + `wait()` y
+  `ToolError` "el proceso <pid> no se espero: se mato al salir" (nunca se mata en silencio y se
+  sigue como si nada).
 - Log: cabecera `$ ...` al arrancar y bloque de stderr + `[exit ...]` al terminar, bajo un
   `threading.Lock` por ruta de log resuelta (diccionario de locks protegido por un lock global), en
   modo append, `encoding="utf-8"`, `newline="\n"`.
-- Ambas: `TypeError` si `args` no es `list[str]`.
+- Ambas: `TypeError` si `args` no es `list[str]`; `ValueError("args[0] debe ser una ruta absoluta: usa tool_path")`
+  si `Path(args[0])` no es absoluto, antes de lanzar nada. (001.2)
 
 #### `src/kcut/commands/__init__.py` — CREAR (docstring de una línea)
 
@@ -455,7 +472,7 @@ requeridos pasan, 1 si no.
   `filters_optional` (no requerido), `encoders` (requerido), `libs` (requerido: importan `numpy`,
   `scipy`, `cv2`, `PIL`, `faster_whisper`, `playwright`; detalle con versiones),
   `whisper_model` (requerido: `faster_whisper.utils.download_model(model_name, local_files_only=True)` no lanza; se llama a través del módulo (`import faster_whisper.utils as fw_utils` y `fw_utils.download_model(...)`) para que el test lo pueda reemplazar; fix: "kcut transcribe --allow-download baja el modelo (~1.5 GB para medium); pide OK antes"),
-  `chromium` (requerido: `sync_playwright()` lanza Chromium headless, `set_content("<p>ok</p>")`, cierra, en ≤ 30 s; fix derivado de lo instalado, sin ninguna versión escrita a mano en `checks.py` (001.1): `f"Playwright {importlib.metadata.version('playwright')} necesita su Chromium: {sys.executable} -m playwright install chromium (descarga: pide OK)"`),
+  `chromium` (requerido: `sync_playwright()` lanza Chromium headless, `set_content("<p>ok</p>")`, cierra, en ≤ 30 s; fix derivado de lo instalado, sin ninguna versión escrita a mano en `checks.py` (001.1): `f"Playwright {importlib.metadata.version('playwright')} necesita su Chromium: \"{sys.executable}\" -m playwright install chromium (descarga: pide OK)"`; la ruta del intérprete va entre comillas porque trae espacios, 001.2),
   `fonts` (requerido: existen los 4 archivos de `assets/fonts` vía `importlib.resources` y `ImageFont.load_default(size=16)` es `FreeTypeFont`),
   `disk` (no requerido: ≥ 5 GB libres en el cwd).
 
@@ -505,6 +522,12 @@ llama `[sys.executable, "-I", "-X", "utf8", "-m", "kcut", *args]` con `encoding=
 | 15 | Pista de instalación de Chromium derivada de la versión instalada, sin versión escrita a mano | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/unit/test_doctor_checks.py::test_chromium_hint_derived" -q` → `1 passed` | ❌ |
 | 16 | `requirements.lock`: raíces fijadas sobre sus pisos, `playwright==1.63.0`, sin dev, pins = versiones instaladas | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_requirements_lock.py -q` → exit 0 | ❌ |
 | 17 | El lock resuelve | `.venv/Scripts/python.exe -m pip install --dry-run -e . -c requirements.lock` → exit 0 | ❌ |
+| 18 | `run`/`popen` rechazan un `args[0]` no absoluto con `ValueError` antes de lanzar | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/unit/test_proc.py::test_rejects_relative_argv0" -q` → `1 passed` | ❌ |
+| 19 | Salir del `with` sin excepción con el hijo vivo → espera `grace_s` y luego `ToolError` (no kill silencioso); hijo que termina a tiempo → sin error; salida por excepción → kill + wait | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_proc.py -q -k child_exit` → exit 0, 3 passed | ❌ |
+| 20 | `tool_path` resuelve primero y revisa el sufijo sobre la ruta resuelta: symlink `ffmpeg.exe` → `.cmd` rechazado con exit 7 | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/unit/test_tool_path.py::test_symlink_exe_to_cmd_rejected" -q -ra` → `1 passed` (o `1 skipped` con motivo de privilegio de symlink) | ❌ |
+| 21 | La pista de Chromium cita la ruta del intérprete entre comillas | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/unit/test_doctor_checks.py::test_chromium_hint_quoted" -q` → `1 passed` | ❌ |
+| 22 | Lock con `Pillow>=12.3` (el test de lock aplica el piso nuevo) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_requirements_lock.py -q` → exit 0 | ❌ |
+| 23 | Ningún archivo `.py` de `src/` ni de `tests/` pasa de 300 líneas, y los node ids de los criterios 14 y 15 siguen existiendo | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0; y `.venv/Scripts/python.exe -I -X utf8 -m pytest --collect-only -q "tests/unit/test_doctor_checks.py::test_whisper_model_not_cached" "tests/unit/test_doctor_checks.py::test_chromium_hint_derived"` → 2 tests | ❌ |
 
 ### Tests S1.1
 `tests/unit/test_ffmpeg_caps.py` (textos reales recortados de `ffmpeg -filters`/`-encoders`/`-version`
@@ -531,6 +554,17 @@ el fix la nombra, y `checks.py` no contiene ningún literal que case con la rege
 `tests/unit/test_requirements_lock.py` (las 6 raíces fijadas con `==` y por encima de su piso de
 0.12, comparando tuplas numéricas; `playwright==1.63.0`; ninguna herramienta dev; ninguna línea
 `kcut`; cada pin igual a `importlib.metadata.version()` del entorno que corre el test).
+Agregados en 001.2: en `tests/unit/test_proc.py`, `test_rejects_relative_argv0` (`run(["ffmpeg",
+"-version"])` y `popen(["ffmpeg"], ...)` → `ValueError` sin lanzar proceso) y `test_child_exit_*`,
+que **reemplazan** el test que fijaba el kill silencioso: (a) `with popen([sys.executable, "-c",
+"import time; time.sleep(30)"], ..., grace_s=0.5): pass` → `ToolError` y el hijo ya no vive;
+(b) un hijo que termina en 0.1 s dentro de `grace_s=2` → sin error; (c) una excepción dentro del
+`with` → sale esa excepción, el hijo muerto. En `tests/unit/test_tool_path.py`,
+`test_symlink_exe_to_cmd_rejected` (`KCUT_FFMPEG` = symlink `ffmpeg.exe` → `real.cmd` →
+`MissingDependency` con exit 7; skip con motivo si `os.symlink` lanza `OSError` por falta de
+privilegio). En `tests/unit/test_doctor_checks.py`, `test_chromium_hint_quoted` (el fix contiene
+`f'"{sys.executable}" -m playwright install chromium'`). `test_requirements_lock.py` usa el piso
+`Pillow>=12.3`.
 
 ---
 
@@ -2092,3 +2126,27 @@ S1.1 se reabre: el criterio 1 cambió y los criterios 9–17 son nuevos. S1.2 su
     en los slices): documentar que el usuario corre `kcut ...` (entry point) o
     `python -I -X utf8 -m kcut`, nunca `python -m kcut` a secas desde una carpeta de crudo: el cwd
     entra a `sys.path` y un `cv2.py` plantado ahí se importaría.
+
+### 001.2 — 16/10/2026 — ronda 3 de S1.1 (aprobado por Yedin)
+
+S1.1 suma los criterios 18–23. El resto del spec no cambia.
+
+1. **Piso de Pillow** (§0.12, S1.1 `requirements.lock` y su test): `Pillow>=10.3` → `Pillow>=12.3`.
+   OSV consultado en vivo el 16/10/2026: Pillow 10.3.0–12.2.0 tiene entre 26 y 38 avisos, entre ellos
+   lectura/escritura fuera de límites (HIGH) en `paste`/`crop` e inyección de comandos en
+   `WindowsViewer`; 12.3.0 tiene 0. Si el `.venv` de referencia tiene un Pillow menor, se actualiza
+   y se regenera el lock. El piso `playwright>=1.55.1` se mantiene, pero **no** está respaldado por
+   un aviso de OSV: no hace daño. Criterio S1.1-22.
+2. **`args[0]` absoluto** (§0.8, S1.1 `proc.run`/`popen`): si no es ruta absoluta → `ValueError`
+   "usa tool_path" antes de lanzar nada. Criterio S1.1-18.
+3. **Salida de `ChildProcess`** (§0.8, S1.1): salir del `with` sin excepción con el hijo vivo ya no lo
+   mata en silencio: espera `grace_s`; si no terminó, `kill()` + `ToolError`. La salida por
+   excepción sigue igual (kill + wait). `popen` recibe `grace_s`. Los tests `test_child_exit_*`
+   reemplazan el que fijaba el kill silencioso. Criterio S1.1-19.
+4. **`tool_path` resuelve antes de revisar el sufijo** (§0.8, S1.1): el `.exe`/`.com` se exige sobre
+   la ruta resuelta, así un symlink `x.exe` → `.cmd` se rechaza. Criterio S1.1-20.
+5. **Pista de Chromium con comillas** (S1.1 `checks.py`): `"<sys.executable>" -m playwright install chromium`,
+   porque la ruta trae espacios. Criterio S1.1-21.
+6. **Tamaño de los tests** (§0.2): `tests/unit/test_doctor_checks.py` pasó de 300 líneas; se parte
+   (p. ej. `TestDoctorCommand` → `tests/unit/test_doctor_command.py`) sin romper los node ids de los
+   criterios 14 y 15. Criterio S1.1-23.
