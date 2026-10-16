@@ -39,12 +39,12 @@ Desde la raíz del repo (Git Bash o PowerShell, mismas rutas con `/`):
 
 ```
 py -3.12 -m venv .venv
-.venv/Scripts/python.exe -m pip install -e ".[dev]" "playwright==1.63.0"
+.venv/Scripts/python.exe -m pip install -e ".[dev]" -c requirements.lock
 ```
 
-- `playwright==1.63.0` solo en el comando de instalación (no en `pyproject.toml`): es la versión
-  cuyo Chromium (`chromium-1243`) ya está en `%LOCALAPPDATA%\ms-playwright`; otra versión pediría
-  bajar otro navegador.
+- `requirements.lock` (raíz del repo, commiteado, S1.1) fija la versión exacta de cada dependencia
+  de runtime y de sus transitivas. Fija `playwright==1.63.0`, cuyo Chromium (`chromium-1243`) ya
+  está en `%LOCALAPPDATA%\ms-playwright`; otra versión pediría bajar otro navegador. (001.1)
 
 - `requires-python = ">=3.12,<3.13"` en `pyproject.toml`: pip debe rechazar 3.14.
 - Todos los comandos de verificación de este spec usan `.venv/Scripts/python.exe -I -X utf8`
@@ -176,7 +176,7 @@ Comentarios y docstrings en inglés; mensajes al usuario (`*_es`, salida humana)
 | 4 | `ToolError` | ffmpeg/ffprobe/Chromium terminó con error |
 | 5 | `GateError` | estrategia no aprobada; recurso sin aprobar en el manifiesto |
 | 6 | `LockedError` | otro proceso está renderizando la misma salida |
-| 7 | `MissingDependency` | ffmpeg, modelo de Whisper o Chromium no disponibles en tiempo de ejecución |
+| 7 | `MissingDependency` | ffmpeg, modelo de Whisper o Chromium no disponibles en tiempo de ejecución, o binario rechazado por seguridad (ruta no absoluta, `.bat`/`.cmd` en Windows) |
 | 10 | `InternalError` | excepción no prevista (traceback completo al log, mensaje corto al usuario) |
 | 130 | — | Ctrl+C: se terminan los procesos hijos, se borran los `.partial`, se liberan locks |
 
@@ -217,8 +217,15 @@ devuelve el código.
 
 - `subprocess` siempre con `list[str]`, `shell=False`. Pasar un `str` → `TypeError` (testeado).
 - Todo ffmpeg lleva `-hide_banner -nostdin`; `-y` solo cuando el destino es un `.partial`/temporal.
-- stderr de los hijos va a un archivo de log (nunca `PIPE` sin leer: se traba el proceso). Solo
-  se captura stderr en memoria cuando se parsea (`-filters`, `loudnorm`, `ebur128`, `blackdetect`).
+- stderr de **cada** hijo va a su propio archivo temporal (nunca un handle compartido, nunca `PIPE`
+  sin leer) y se agrega al log del comando cuando el hijo termina (0.11). Solo se devuelve en
+  memoria cuando se parsea (`-filters`, `loudnorm`, `ebur128`, `blackdetect`). (001.1)
+- **Privacidad de metadatos** (001.1): los MOV del iPhone traen ubicación GPS y modelo del equipo,
+  y la salida de kcut llega al contexto de un LLM. Todo ffmpeg/ffprobe que abre medios del usuario
+  lleva `-loglevel error` (`-v error` en ffprobe), y los intermedios que se escriben desde esos
+  medios llevan `-map_metadata -1`. Todo texto de un hijo que vaya a un mensaje de error, a
+  `--json` o al log pasa antes por `proc.scrub_media_metadata`. El JSON crudo de ffprobe nunca se
+  guarda ni se imprime; de sus `tags` solo se lee `rotate`.
 - **Ninguna ruta de archivo dentro de un filtergraph** (los `C:` de Windows rompen el parser).
   Los archivos entran por `-i`; lo que ffmpeg mide se lee de stderr; textos y etiquetas se dibujan
   con Pillow, nunca con `drawtext`.
@@ -226,7 +233,11 @@ devuelve el código.
   `fnum(x: float) -> str` (`f"{x:.6f}"` sin ceros sobrantes; NaN/inf → `ValueError`) y los colores
   se validan `^#[0-9A-Fa-f]{6}$` y se pasan como `0xRRGGBB`.
 - Constructores de argumentos = funciones puras que devuelven `list[str]` (testeadas sin ejecutar).
-- Binarios: `KCUT_FFMPEG` / `KCUT_FFPROBE` (variables de entorno, opcionales) o `shutil.which`.
+- Binarios: `KCUT_FFMPEG` / `KCUT_FFPROBE` (variables de entorno, opcionales) o `shutil.which`, con
+  las reglas de `proc.tool_path` (S1.1): en Windows `NoDefaultCurrentDirectoryInExePath=1` antes de
+  `shutil.which` (si no, un `ffmpeg.exe` plantado en la carpeta de crudo se ejecuta), ruta final
+  absoluta, y en Windows solo sufijo `.exe` o `.com` (un `.bat`/`.cmd` pasa por `cmd.exe`, que
+  re-parsea los argumentos: `x&whoami` se ejecutó). Si no → `MissingDependency` (7). (001.1)
 
 ### 0.9 Archivos, rutas y JSON
 
@@ -255,11 +266,19 @@ devuelve el código.
 8. Nombres de caché cortos (slug ≤ 40 caracteres) para no pegar con rutas largas. Sin symlinks.
 9. Ctrl+C: los hijos comparten consola y reciben la señal; el padre espera 5 s y luego `kill()`.
 10. URLs de archivo para Chromium con `Path.as_uri()` (codifica espacios y acentos).
+11. Búsqueda de ejecutables sin el cwd (`NoDefaultCurrentDirectoryInExePath=1`) y sin `.bat`/`.cmd`
+    (0.8). (001.1)
+12. Varios hijos que heredan el mismo handle de log se pisan en Windows (2 hijos × 200 líneas
+    dejaron 220 líneas en vez de 402): cada hijo escribe su stderr a su propio temporal (0.11). (001.1)
 
 ### 0.11 Logs, progreso y locks
 
-- Log por comando: `.kcut/logs/<comando>-<YYYYmmdd-HHMMSS>.log` (UTF-8): línea de cada comando
-  externo (argumentos unidos solo para lectura), stderr de los hijos, tiempos por paso, tracebacks.
+- Log por comando: `.kcut/logs/<comando>-<YYYYmmdd-HHMMSS>.log` (UTF-8): stderr de los hijos,
+  tiempos por paso, tracebacks. Formato por hijo (001.1): al arrancar, una línea de cabecera
+  `$ <argumentos unidos con subprocess.list2cmdline>`; al terminar, en un solo bloque, su stderr
+  completo (pasado por `scrub_media_metadata`) y la línea `[exit <código> en <s> s]`. Cabecera y
+  bloque se escriben en modo append bajo un `threading.Lock` por ruta de log resuelta, así que
+  dos hijos concurrentes nunca se pisan. La cola de un error sale solo del stderr de ese hijo.
 - Progreso a stderr como mucho cada 2 s: `render v1: 640/1469 frames (43%) - 18.2 fps - faltan 45 s`.
 - Lock por salida: `.kcut/locks/build-vN.lock`, abierto y bloqueado sin espera durante todo el
   comando (`render`, `mix`, `build`, `graphics capture` comparten `build-vN`); si no se puede
@@ -268,9 +287,11 @@ devuelve el código.
 
 ### 0.12 Dependencias
 
-Runtime (aprobadas, nada más): `numpy>=1.26`, `scipy>=1.11`, `opencv-python>=4.9`, `Pillow>=10.1`,
-`faster-whisper>=1.0`, `playwright>=1.45`. Stdlib para todo lo demás (`tomllib`, `argparse`,
-`wave`, `difflib`, `hashlib`, `html`, `base64`, `concurrent.futures`).
+Runtime (aprobadas, nada más): `numpy>=1.26`, `scipy>=1.11`, `opencv-python>=4.9`, `Pillow>=10.3`,
+`faster-whisper>=1.0`, `playwright>=1.55.1` (pisos por CVE conocidos debajo de esas versiones,
+001.1). Versiones exactas en `requirements.lock` (S1.1), que se usa como `-c` al instalar.
+Stdlib para todo lo demás (`tomllib`, `argparse`, `wave`, `difflib`, `hashlib`, `html`, `base64`,
+`concurrent.futures`, `tempfile`, `threading`).
 Dev (Carril C): `pytest>=8`, `pytest-cov>=5`, `pytest-timeout>=2.3`, `ruff>=0.6`, `mypy>=1.10`.
 Herramientas externas: ffmpeg/ffprobe ≥ 7 build full. `flite` (filtro de ffmpeg, ya incluido en el
 build) se usa **solo en tests** para sintetizar voz.
@@ -327,6 +348,22 @@ el dueño mira `edit/storyboard.html` y aprueba (Puerta 1: Claude pone `aprobado
 - `[tool.pytest.ini_options]`: `testpaths = ["tests"]`, `addopts = "-ra --strict-markers"`,
   `timeout = 300`, `markers = ["ffmpeg: necesita ffmpeg", "chromium: necesita Chromium de Playwright", "whisper: necesita el modelo local", "flite: necesita el filtro flite", "slow: tarda mas de 5 s", "e2e: punta a punta"]`.
 
+#### `requirements.lock` — CREAR (raíz del repo, commiteado; 001.1)
+- Una línea `nombre==versión` por cada distribución de la **clausura de runtime**: las 6 de 0.12 y
+  todas sus dependencias transitivas, con la versión instalada en el `.venv` de referencia. Orden
+  alfabético sin distinguir mayúsculas. Primera línea: `# kcut runtime lock - <DD/MM/AAAA> - Python <x.y.z> - <plataforma>`.
+- Sin la línea de `kcut` (editable) y sin herramientas dev (`pytest`, `pytest-cov`, `pytest-timeout`,
+  `ruff`, `mypy`, `coverage`, `iniconfig`, `pluggy`, `mypy_extensions`) salvo que una dependencia de
+  runtime las requiera.
+- Generación (comando de un solo uso desde el `.venv` de referencia; el script no se commitea):
+  clausura con `importlib.metadata.requires()` recursivo desde las 6 raíces, ignorando requisitos
+  con marcador `extra ==` y evaluando los demás marcadores con
+  `pip._vendor.packaging.requirements.Requirement(r).marker.evaluate()` (marcador `None` = se
+  incluye); versión de cada una con `importlib.metadata.version()`.
+- Debe fijar `playwright==1.63.0` (su Chromium ya está en disco). Si el venv de referencia tiene
+  otra versión de Playwright → BLOQUEADO. Se regenera solo cuando cambia una dependencia, y eso
+  pasa por el dueño.
+
 #### `src/kcut/__init__.py` — CREAR
 Solo `__version__ = "0.1.0"`.
 
@@ -353,19 +390,46 @@ Jerarquía de 0.5 (`KcutError`, `CheckFailed`, `UsageError`, `ProjectError`, `To
 - `class Progress`: `__init__(self, label: str, total: int, unit: str)`, `update(self, done: int) -> None`
   (stderr, máx. cada 2 s, con velocidad y tiempo restante), `close(self) -> None`.
 
-#### `src/kcut/proc.py` — CREAR
-- `tool_path(name: Literal["ffmpeg", "ffprobe"]) -> Path` → `MissingDependency` si no está.
-- `@dataclass(frozen=True) class RunResult: returncode: int; stdout: bytes; stderr: str`.
-- `run(args: list[str], *, log: Path | None = None, timeout_s: float | None = None, check: bool = True, capture_stderr: bool = False) -> RunResult`.
-  Con `check=True` y código ≠ 0 → `ToolError` con las últimas 20 líneas de stderr.
-- `popen(args: list[str], *, log: Path, stdin_pipe: bool = False, stdout_pipe: bool = False) -> subprocess.Popen[bytes]`.
+#### `src/kcut/proc.py` — CREAR (reglas reforzadas en 001.1)
+- `tool_path(name: Literal["ffmpeg", "ffprobe"]) -> Path`, sin caché, en este orden:
+  1. Si existe `KCUT_FFMPEG`/`KCUT_FFPROBE`: debe ser ruta absoluta, existir y ser archivo; en
+     Windows con sufijo `.exe` o `.com` (sin distinguir mayúsculas). Si no → `MissingDependency` (7)
+     que dice cuál regla falló.
+  2. Si no: en Windows `os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"` **antes** de
+     `shutil.which(name)`. Resultado `None`, ruta no absoluta o, en Windows, sufijo distinto de
+     `.exe`/`.com` (`.bat`, `.cmd`) → `MissingDependency` (7).
+  3. Devuelve la ruta absoluta resuelta.
+- `scrub_media_metadata(text: str) -> str` (pura): (a) quita cada línea `^\s*Metadata:\s*$` y todas
+  las siguientes con más sangría que ella; (b) quita toda línea `clave : valor` cuya clave, sin
+  distinguir mayúsculas, contenga `location`, `gps`, `com.apple.`, `make`, `model` o
+  `creation_time`; (c) reemplaza cualquier coordenada ISO 6709 (`[+-]\d{1,3}\.\d+[+-]\d{1,3}\.\d+`)
+  por `[ubicacion omitida]`.
+- `@dataclass(frozen=True) class RunResult: returncode: int; stdout: bytes; stderr: str`
+  (`stderr` crudo del hijo solo si `capture_stderr=True`; si no, `""`).
+- `run(args: list[str], *, log: Path | None = None, timeout_s: float | None = None, check: bool = True, capture_stderr: bool = False, grace_s: float = 5.0) -> RunResult`:
+  stdout por `PIPE`; stderr a un `tempfile.TemporaryFile()` propio de ese hijo. `communicate(timeout=timeout_s)`;
+  si vence: `kill()` y `communicate(timeout=grace_s)`; si vuelve a vencer (un nieto mantiene el
+  pipe abierto), cierra `proc.stdout` y lanza `ToolError` "se paso del tiempo (<timeout_s> s)"
+  sin esperar más (en Windows `kill()` no mata nietos; se anota en el log). Al terminar, por la
+  vía que sea, el stderr del hijo se agrega al log (0.11). Con `check=True` y código ≠ 0 →
+  `ToolError` con las últimas 20 líneas del stderr **de ese hijo**, pasadas por `scrub_media_metadata`.
+- `popen(args: list[str], *, log: Path, stdin_pipe: bool = False, stdout_pipe: bool = False) -> ChildProcess`:
+  `class ChildProcess` (context manager) con `stdin`, `stdout`, `pid`,
+  `wait(timeout_s: float | None = None, grace_s: float = 5.0) -> int` (misma regla de tiempo duro;
+  al final agrega su stderr al log y cierra su temporal), `kill() -> None`,
+  `stderr_tail(n: int = 20) -> str` (solo de este hijo, con `scrub_media_metadata`); si sale del
+  `with` por excepción: `kill()` + `wait()`.
+- Log: cabecera `$ ...` al arrancar y bloque de stderr + `[exit ...]` al terminar, bajo un
+  `threading.Lock` por ruta de log resuelta (diccionario de locks protegido por un lock global), en
+  modo append, `encoding="utf-8"`, `newline="\n"`.
 - Ambas: `TypeError` si `args` no es `list[str]`.
 
 #### `src/kcut/commands/__init__.py` — CREAR (docstring de una línea)
 
 #### `src/kcut/commands/doctor.py` — CREAR
-Comando `doctor`. Fuera de un proyecto usa el modelo `medium`; dentro de un proyecto (S1.2 en
-adelante) usa `transcribe.model` del `kcut.toml`. Exit 0 si todos los requeridos pasan, 1 si no.
+Comando `doctor`. En S1.1 usa siempre el modelo `medium`; leer `transcribe.model` del `kcut.toml`
+dentro de un proyecto lo agrega S1.2 (`commands/doctor.py — MODIFICAR`). Exit 0 si todos los
+requeridos pasan, 1 si no.
 
 #### `src/kcut/doctor/__init__.py` — CREAR (docstring)
 
@@ -373,8 +437,12 @@ adelante) usa `transcribe.model` del `kcut.toml`. Exit 0 si todos los requeridos
 - `parse_version(text: str) -> tuple[int, int, int] | None`: regex `ffmpeg version n?(\d+)\.(\d+)(?:\.(\d+))?`;
   builds tipo `N-12345-g...` → `None`.
 - `parse_filters(text: str) -> frozenset[str]`: líneas de `ffmpeg -filters`, regex
-  `^\s[T.][S.]C?\s+([A-Za-z0-9_]+)\s+[AVN|]+->[AVN|]+\s`.
-- `parse_encoders(text: str) -> frozenset[str]`: regex `^\s[VAS][F.][S.][X.][B.][D.]\s+(\S+)\s`.
+  `^\s[T.][S.][C.]?\s+([A-Za-z0-9_]+)\s+[AVN|]+->[AVN|]+\s` (001.1: acepta las dos maquetas,
+  ffmpeg 7.x con tres banderas, p. ej. ` ... aresample         A->A       Audio resampling and converting.`,
+  y ffmpeg 8.x con dos, p. ej. ` .. acompressor       A->A       Audio compressor.`; la anterior
+  `[T.][S.]C?` solo leía 10 de 42 filtros en un ffmpeg n7.1 real). El mínimo sigue siendo ffmpeg 7.
+- `parse_encoders(text: str) -> frozenset[str]`: regex `^\s[VAS][F.][S.][X.][B.][D.]\s+([^\s=]\S*)\s`
+  (001.1: el grupo excluye `=`, así las líneas de leyenda ` V..... = Video` no se cuentan como encoders).
 
 #### `src/kcut/doctor/checks.py` — CREAR
 - `@dataclass(frozen=True) class CheckResult: id: str; required: bool; ok: bool; detail: str; fix_es: str | None`.
@@ -386,8 +454,8 @@ adelante) usa `transcribe.model` del `kcut.toml`. Exit 0 si todos los requeridos
   `ffprobe` (requerido), `filters` (requerido: faltantes listados; fix: "usa el build full de gyan.dev"),
   `filters_optional` (no requerido), `encoders` (requerido), `libs` (requerido: importan `numpy`,
   `scipy`, `cv2`, `PIL`, `faster_whisper`, `playwright`; detalle con versiones),
-  `whisper_model` (requerido: `faster_whisper.utils.download_model(model_name, local_files_only=True)` no lanza; fix: "kcut transcribe --allow-download baja el modelo (~1.5 GB para medium); pide OK antes"),
-  `chromium` (requerido: `sync_playwright()` lanza Chromium headless, `set_content("<p>ok</p>")`, cierra, en ≤ 30 s; fix: `.venv/Scripts/python.exe -m playwright install chromium` (descarga: pide OK)),
+  `whisper_model` (requerido: `faster_whisper.utils.download_model(model_name, local_files_only=True)` no lanza; se llama a través del módulo (`import faster_whisper.utils as fw_utils` y `fw_utils.download_model(...)`) para que el test lo pueda reemplazar; fix: "kcut transcribe --allow-download baja el modelo (~1.5 GB para medium); pide OK antes"),
+  `chromium` (requerido: `sync_playwright()` lanza Chromium headless, `set_content("<p>ok</p>")`, cierra, en ≤ 30 s; fix derivado de lo instalado, sin ninguna versión escrita a mano en `checks.py` (001.1): `f"Playwright {importlib.metadata.version('playwright')} necesita su Chromium: {sys.executable} -m playwright install chromium (descarga: pide OK)"`),
   `fonts` (requerido: existen los 4 archivos de `assets/fonts` vía `importlib.resources` y `ImageFont.load_default(size=16)` es `FreeTypeFont`),
   `disk` (no requerido: ≥ 5 GB libres en el cwd).
 
@@ -420,7 +488,7 @@ llama `[sys.executable, "-I", "-X", "utf8", "-m", "kcut", *args]` con `encoding=
 
 | # | Tiene que cumplirse | Se comprueba con | Estado |
 |---|---|---|---|
-| 1 | El paquete instala en un venv 3.12 | `.venv/Scripts/python.exe -m pip install -e ".[dev]" "playwright==1.63.0"` → exit 0 | ❌ |
+| 1 | El paquete instala en un venv 3.12 con el lock | `.venv/Scripts/python.exe -m pip install -e ".[dev]" -c requirements.lock` → exit 0 | ❌ |
 | 2 | Versión | `.venv/Scripts/python.exe -I -X utf8 -m kcut --version` → `kcut 0.1.0` | ❌ |
 | 3 | Doctor pasa en la máquina de referencia | `.venv/Scripts/python.exe -I -X utf8 -m kcut doctor --json` → exit 0 y `"ok": true` | ❌ |
 | 4 | Doctor detecta un filtro faltante | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_doctor_checks.py -q` → exit 0, "passed", sin "failed" | ❌ |
@@ -428,14 +496,41 @@ llama `[sys.executable, "-I", "-X", "utf8", "-m", "kcut", *args]` con `encoding=
 | 6 | CLI: exit codes, `--json` en error, `run` rechaza strings | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_cli.py tests/unit/test_proc.py -q` → exit 0 | ❌ |
 | 7 | Lint, formato y tipos | `.venv/Scripts/python.exe -I -X utf8 -m ruff check src tests` y `... -m ruff format --check src tests` y `... -m mypy` → exit 0 los tres | ❌ |
 | 8 | Python 3.14 rechazado | `py -3.14 -m pip install --dry-run --no-deps -e .` → falla con "requires a different Python" | ❌ |
+| 9 | Parsers con ffmpeg 7.1 y 8.x reales: conjuntos exactos de filtros y encoders; leyendas no parseadas | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_ffmpeg_caps.py -q` → exit 0, sin "failed" | ❌ |
+| 10 | `tool_path`: no elige un `ffmpeg.exe` plantado en el cwd, devuelve ruta absoluta, rechaza `.cmd`/`.bat` (env y `which`) con exit 7 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_tool_path.py -q` → exit 0 | ❌ |
+| 11 | Log concurrente: 2 hijos × 200 líneas → 400 líneas + 2 cabeceras `$`; cola de error solo del hijo que falló | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_proc_logging.py -q` → exit 0 | ❌ |
+| 12 | Timeout duro con un nieto que retiene el pipe → `ToolError` en < `timeout + grace + 3` s | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_proc_timeout.py -q -ra` → exit 0 (passed, o skipped con motivo si el nieto no se pudo lanzar) | ❌ |
+| 13 | `scrub_media_metadata` quita bloques `Metadata:`, claves de ubicación/modelo y coordenadas ISO 6709 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_scrub.py -q` → exit 0 | ❌ |
+| 14 | Modelo válido pero no bajado (`download_model` reemplazado para que lance) → check `whisper_model` en `ok: false` con `local_files_only=True` | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/unit/test_doctor_checks.py::test_whisper_model_not_cached" -q` → `1 passed` | ❌ |
+| 15 | Pista de instalación de Chromium derivada de la versión instalada, sin versión escrita a mano | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/unit/test_doctor_checks.py::test_chromium_hint_derived" -q` → `1 passed` | ❌ |
+| 16 | `requirements.lock`: raíces fijadas sobre sus pisos, `playwright==1.63.0`, sin dev, pins = versiones instaladas | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_requirements_lock.py -q` → exit 0 | ❌ |
+| 17 | El lock resuelve | `.venv/Scripts/python.exe -m pip install --dry-run -e . -c requirements.lock` → exit 0 | ❌ |
 
 ### Tests S1.1
 `tests/unit/test_ffmpeg_caps.py` (textos reales recortados de `ffmpeg -filters`/`-encoders`/`-version`
-de 8.1.1 y un `N-xxxxx`), `tests/unit/test_doctor_checks.py` (monkeypatch de `proc.run` para
+de 8.1.1, de 7.1 y un `N-xxxxx`; igualdad **exacta** de conjuntos; las líneas de leyenda no se
+parsean), `tests/unit/test_doctor_checks.py` (monkeypatch de `proc.run` para
 simular filtros faltantes → `ok: false` y exit 1), `tests/unit/test_cli.py` (`--version`, subcomando
 inexistente → 2, `ProjectError` simulado → 3 con JSON de error), `tests/unit/test_proc.py`
 (`run("ffmpeg -version")` → `TypeError`), `tests/integration/test_doctor_live.py` (marcador `ffmpeg`:
 `doctor --json` real).
+Agregados en 001.1: `tests/unit/test_tool_path.py` (Windows: un `ffmpeg.exe` falso en un cwd
+temporal no se elige; resultado absoluto; `KCUT_FFMPEG` apuntando a un `.cmd` o `.bat` →
+`MissingDependency` con `exit_code == 7`; `shutil.which` simulado devolviendo un `.bat` → rechazado),
+`tests/unit/test_scrub.py` (bloque `Metadata:` real de un MOV con `com.apple.quicktime.location.ISO6709`
+y `com.apple.quicktime.model` → no queda ninguna de las dos ni la coordenada; líneas sin metadatos
+intactas), `tests/integration/test_proc_logging.py` (dos hijos `sys.executable -c` concurrentes,
+200 líneas de stderr cada uno, mismo log → las 400 líneas y las 2 cabeceras `$`; la cola del
+`ToolError` de un hijo que falla no trae líneas del otro), `tests/integration/test_proc_timeout.py`
+(un hijo que lanza un nieto que hereda su stdout y duerme 60 s; `run(..., timeout_s=1)` →
+`ToolError` en < `1 + grace_s + 3` s; skip si el nieto no se pudo lanzar),
+`tests/unit/test_doctor_checks.py` (caso `test_whisper_model_not_cached`: `fw_utils.download_model`
+reemplazado por una función que lanza → `ok: false`, el fix nombra `--allow-download` y se pasó
+`local_files_only=True`; caso `test_chromium_hint_derived`: con la versión de Playwright simulada
+el fix la nombra, y `checks.py` no contiene ningún literal que case con la regex `1\.\d+\.\d+`),
+`tests/unit/test_requirements_lock.py` (las 6 raíces fijadas con `==` y por encima de su piso de
+0.12, comparando tuplas numéricas; `playwright==1.63.0`; ninguna herramienta dev; ninguna línea
+`kcut`; cada pin igual a `importlib.metadata.version()` del entorno que corre el test).
 
 ---
 
@@ -641,6 +736,9 @@ donde `M` = `bt601` si `color_space` ∈ {`smpte170m`, `bt470bg`}, si no `bt709`
 HDR → `fps=F,scale=W:H:flags=lanczos,` + `HDR_TO_SDR`.
 
 #### `src/kcut/ff/args.py` — CREAR (puro, cada uno devuelve `list[str]`)
+Todos los de ffmpeg empiezan con `-hide_banner -nostdin -loglevel error`; `wav_args`, `proxy_args`
+y `mezz_args` llevan además `-map_metadata -1` antes de la salida (los intermedios no heredan
+ubicación ni modelo del equipo). (001.1)
 - `ffprobe_args(ffprobe: Path, src: Path) -> list[str]`: `-v error -print_format json -show_format -show_streams`.
 - `wav_args(ffmpeg, src, dst, sr: Literal[16000, 48000]) -> list[str]`:
   `-i src -map 0:a:0 -vn -ac 1 -af aresample=SR:resampler=soxr:first_pts=0 -c:a pcm_s16le dst`.
@@ -667,6 +765,9 @@ HDR → `fps=F,scale=W:H:flags=lanczos,` + `HDR_TO_SDR`.
 - `start_ms` = `round((stream.start_time - format.start_time) * 1000)`.
 - Stream de video con `codec_name` ∈ {`png`, `mjpeg`, `webp`, `bmp`, `tiff`, `gif`} y duración < 0.5 s
   no cuenta como video (portada adjunta).
+- Solo se conservan los campos de los dataclasses; de `tags` solo se lee `rotate`. El JSON crudo de
+  ffprobe nunca se escribe a disco, a `--json`, a mensajes ni al log (trae `location`, `make`,
+  `model`). (001.1)
 
 #### `src/kcut/ingest/naming.py` — CREAR (puro)
 `slugify(name: str) -> str` (NFKD, sin marcas, minúsculas, todo lo que no sea `[a-z0-9]` → `-`,
@@ -781,7 +882,17 @@ aprobado_por:
 `--json` → `{"ok": true, "inventory": ".kcut/inventory.json", "clips": 5, "by_class": {"video_voz": 2, ...}, "sync": {...}, "warnings": [...], "elapsed_s": 12.4}`.
 
 #### `src/kcut/cli.py` — MODIFICAR
-Agregar `"kcut.commands.new"`, `"kcut.commands.ingest"` a `COMMAND_MODULES`.
+- Agregar `"kcut.commands.new"`, `"kcut.commands.ingest"` a `COMMAND_MODULES`.
+- (001.1) `InternalError` (incluye toda excepción no prevista convertida en `InternalError`): si
+  hay proyecto (`--project` o subiendo desde el cwd; buscarlo aquí no lanza si no existe), el
+  traceback completo va a `.kcut/logs/<comando>-<YYYYmmdd-HHMMSS>.log` y el mensaje corto dice la
+  ruta de ese log; sin proyecto, el traceback va a stderr solo con `-v`. El traceback nunca entra al
+  JSON de `--json`.
+
+#### `src/kcut/commands/doctor.py` — MODIFICAR (001.1)
+Dentro de un proyecto (`--project` o subiendo desde el cwd) usa `transcribe.model` de `kcut.toml`.
+Si `kcut.toml` no carga, usa `medium` y agrega el check no requerido `project_config` con
+`ok: false` y el error. Fuera de un proyecto, `medium`.
 
 #### `src/kcut/doctor/checks.py` — MODIFICAR
 Agregar después de `encoders`: `tonemap_chain` (requerido: ffmpeg corre `HDR_TO_SDR` sobre
@@ -835,6 +946,9 @@ HLG, DOVI perfil 8). `screen_sdr_pc.json` = h264 1894×866 30/1 `color_range pc`
 | 9 | Re-ingest idempotente: mismos ids, sin regenerar proxies (mtime igual) | mismo archivo (caso `test_reingest_stable`) → passed | ❌ |
 | 10 | Doctor con `tonemap_chain` y `soxr` | `.venv/Scripts/python.exe -I -X utf8 -m kcut doctor --json` → exit 0, ids `tonemap_chain` y `soxr` con `"ok": true` | ❌ |
 | 11 | Lint, formato, tipos | `ruff check`, `ruff format --check`, `mypy` como en S1.1 → exit 0 | ❌ |
+| 12 | `InternalError` dentro de un proyecto deja el traceback en `.kcut/logs/` y no en stderr; fuera de proyecto, traceback en stderr solo con `-v`; nunca en `--json` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_cli_internal_error.py -q` → exit 0 | ❌ |
+| 13 | Doctor dentro de un proyecto usa `transcribe.model` (`base` en un `kcut.toml` de prueba → el check `whisper_model` nombra `base`); `kcut.toml` roto → `project_config` con `ok: false` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_doctor_project.py -q` → exit 0 | ❌ |
+| 14 | Privacidad: un `.mov` sintético hecho con `-movflags use_metadata_tags -metadata com.apple.quicktime.location.ISO6709=+18.4861-069.9312/ -metadata com.apple.quicktime.model=iPhone15` (precondición del test: el ffprobe crudo sí muestra ambos valores) → ni `.kcut/inventory.json`, ni `kcut ingest --json`, ni los intermedios (`ffprobe` de su wav16 y su proxy), ni el log, ni el mensaje de un `ToolError` provocado sobre ese archivo contienen `18.4861`, `iPhone15` ni `Metadata:` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_media_privacy.py -q` → exit 0 | ❌ |
 
 ---
 
@@ -1425,8 +1539,16 @@ Según las tablas de arriba.
 
 #### `src/kcut/gfx/capture.py` — CREAR (técnica de `piloto/capture.py`)
 - `active_frames(resolved) -> list[int]`: unión de `[start_f, end_f)` de los cues y de los chunks.
+- `launch_options() -> dict[str, object]` (única fuente de las opciones de lanzamiento, 001.1):
+  `{"headless": True, "chromium_sandbox": True}`. Si con `chromium_sandbox=True` Chromium no
+  arranca en Windows, el implementador devuelve **BLOQUEADO** con el error; no se quita el sandbox
+  en silencio.
+- Bloqueo de red (001.1): antes de `goto`, `page.route("**/*", handler)` donde el handler hace
+  `route.abort()` para toda URL que no empiece con `file://` o `data:` y `route.continue_()` para
+  esas dos.
 - `capture(page_html, work_dir, frames, fps, size, out_dir, progress) -> list[int]`: escribe
-  `work_dir/page.html`, Chromium headless, viewport `W×H`, `device_scale_factor=1`, `goto(as_uri())`,
+  `work_dir/page.html`, Chromium headless con `launch_options()` y el bloqueo de red, viewport `W×H`,
+  `device_scale_factor=1`, `goto(as_uri())`,
   espera `window.kcutReady === true` (20 s), CDP `Emulation.setDefaultBackgroundColorOverride` con
   `a=0`, por frame `page.evaluate("t => window.seek(t)", f / fps)` + `Page.captureScreenshot`
   (`format png`, `optimizeForSpeed true`) → `out_dir/{f:06d}.png`. PNG con alfa máximo 0 se borra
@@ -1435,6 +1557,10 @@ Según las tablas de arriba.
 - Índice `.kcut/build/vN/gfx/index.json` = `{"fps": 30, "frames": [0, 1, 2], "hash": "<sha256>"}`,
   `hash` = sha256 de (data JSON + runtime + componentes + fuentes). Mismo hash → no recaptura
   (salvo `--force`).
+
+#### `src/kcut/doctor/checks.py` — MODIFICAR (001.1)
+El check `chromium` lanza con `gfx.capture.launch_options()`, así doctor prueba las mismas opciones
+que usa la captura.
 
 #### `src/kcut/gfx/overlay.py` — CREAR (lección 7)
 `class OverlaySource`: `__init__(self, index_path: Path, W: int, H: int)`;
@@ -1469,6 +1595,7 @@ title 40–80, `pill` label 90–150, `cierre` endcard 315–345; captions activ
 | 6 | Cada componente base, en el frame central de su cue, deja ≥ 1000 píxeles con alfa > 0 dentro de la franja de ancho completo entre `(y-0.1)·H` y `(y+0.1)·H` (con su `y` efectivo) y < 1 % de sus píxeles con alfa fuera de ella; los subtítulos, igual con `captions.y` | `... -m pytest tests/integration/test_components_base.py -q` → exit 0 | ❌ |
 | 7 | Render con gráficos: mismo nº de frames; en el frame 60 la caja del título difiere (diferencia media > 2) del render `--no-graphics` | `... -m pytest tests/integration/test_render_graphics.py -q` → exit 0 | ❌ |
 | 8 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 9 | Endurecimiento de Chromium: `launch` recibe `chromium_sandbox=True` (comprobado con un doble que registra los kwargs) y arranca de verdad en Windows; una página con `<img src="http://127.0.0.1:<puerto>/x.png">` pasada por `capture_stills` produce 0 peticiones al servidor HTTP local del test, mientras una imagen `data:` sí se pinta | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_capture_hardening.py -q` → exit 0 | ❌ |
 
 ---
 
@@ -1919,3 +2046,49 @@ validación de rutas, constructores de argumentos de ffmpeg, correcciones, manif
 
 Ninguna. Las decisiones que tomé para cerrar huecos están en la tabla DS1–DS15 (0.13); si el dueño
 cambia alguna en el gate, se ajusta el spec antes de arrancar S1.1.
+
+## Cambios
+
+### 001.1 — 16/10/2026 — parche tras revisión de S1.1 (aprobado por Yedin)
+
+S1.1 se reabre: el criterio 1 cambió y los criterios 9–17 son nuevos. S1.2 suma los criterios
+12–14 y S1.6 el 9. El resto del spec no cambia.
+
+1. **Regex de filtros** (S1.1 `doctor/ffmpeg_caps.py`): `[T.][S.]C?` → `[T.][S.][C.]?`. Acepta
+   ffmpeg 7.x (tres banderas) y 8.x (dos). Con la anterior, un ffmpeg n7.1 real listaba 42 filtros y
+   se leían 10. El mínimo sigue en ffmpeg 7 (decisión del dueño). Tests con líneas reales de 7.1 y 8.x.
+2. **Regex de encoders** (S1.1): el grupo `(\S+)` pasa a `([^\s=]\S*)` para no contar las líneas de
+   leyenda (`V..... = Video` agregaba `=`). Tests con igualdad exacta de conjuntos y un caso de leyenda.
+3. **`proc.tool_path`** (§0.5, §0.8, §0.10.11, S1.1; seguridad ALTO + MEDIO): en Windows
+   `NoDefaultCurrentDirectoryInExePath=1` antes de `shutil.which` (un `ffmpeg.exe` plantado en la
+   carpeta de crudo se ejecutaba); la ruta final debe ser absoluta; en Windows solo `.exe`/`.com`, con
+   `.bat`/`.cmd` rechazados tanto desde `which` como desde `KCUT_FFMPEG`/`KCUT_FFPROBE` (`cmd.exe`
+   re-parsea: `x&whoami` se ejecutó). Fallo → `MissingDependency` (7). Tests: criterio S1.1-10.
+4. **Log de hijos** (§0.8, §0.10.12, §0.11, S1.1; verificador ALTO): stderr de cada hijo a su propio
+   temporal, agregado al log al terminar bajo un lock por ruta de log; la cola de un error sale solo
+   de ese hijo; `popen` devuelve `ChildProcess`. Test: criterio S1.1-11.
+5. **Timeout duro** (S1.1 `proc.run` y `ChildProcess.wait`): `kill()` + `communicate(timeout=grace_s)`;
+   si sigue trabado, se cierran los pipes y `ToolError`. Test con un nieto que retiene el pipe
+   (skip si no se puede reproducir): criterio S1.1-12.
+6. **S1.2 agregados**: (a) `cli.py — MODIFICAR`: traceback de `InternalError` al log del proyecto, o a
+   stderr solo con `-v` si no hay proyecto; (b) `commands/doctor.py — MODIFICAR`: dentro de un
+   proyecto usa `transcribe.model` (S1.1 queda con `medium` fijo). Criterios S1.2-12 y S1.2-13.
+7. **Privacidad de metadatos** (§0.8, S1.1 `scrub_media_metadata`, S1.2 `ff/args.py` y `probe.py`):
+   `-loglevel error` en todo comando sobre medios del usuario, `-map_metadata -1` en los
+   intermedios, limpieza de errores/`--json`/log, y el JSON crudo de ffprobe nunca sale. Tests:
+   criterios S1.1-13 y S1.2-14 (archivo sintético con ubicación y modelo).
+8. **Chromium endurecido** (S1.6 `gfx/capture.py`, y el check `chromium` de doctor usa las mismas
+   opciones): `chromium_sandbox=True` y `page.route` que aborta todo lo que no sea `file://` o
+   `data:`. Si el sandbox no funciona en Windows → BLOQUEADO, no se quita en silencio. Criterio S1.6-9.
+9. **Dependencias** (§0.1, §0.12, S1.1): pisos `Pillow>=10.3` y `playwright>=1.55.1` (CVE conocidos
+   debajo); nuevo `requirements.lock` commiteado con la clausura de runtime fijada desde el venv de
+   referencia; instalación con `-c requirements.lock` (sale el argumento `"playwright==1.63.0"`
+   aparte; el lock lo fija); la pista de instalación de Chromium del doctor sale de la versión
+   instalada, sin una segunda versión escrita a mano en `checks.py`. Criterios S1.1-1 (cambiado),
+   S1.1-15, S1.1-16 y S1.1-17.
+10. **Hueco de test** (S1.1): el caso "modelo válido pero no bajado" se prueba reemplazando
+    `download_model` para que lance, no con un nombre de modelo inválido. Criterio S1.1-14.
+11. **Pendiente para el `sdd-archiver`** (fuera del alcance del implementador; el README no se toca
+    en los slices): documentar que el usuario corre `kcut ...` (entry point) o
+    `python -I -X utf8 -m kcut`, nunca `python -m kcut` a secas desde una carpeta de crudo: el cwd
+    entra a `sys.path` y un `cv2.py` plantado ahí se importaría.
