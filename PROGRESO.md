@@ -16,7 +16,8 @@
 
 ### F1a — Motor `kcut` (spec [`docs/specs/001-motor-kcut.md`](docs/specs/001-motor-kcut.md), aprobado 16/10/2026)
 
-- [ ] **S1.1** — Andamiaje del paquete + `kcut doctor`
+- [x] **S1.1** — Andamiaje del paquete + `kcut doctor`
+      · verificado: `kcut doctor --json` → 11/11 ok · `pytest -q -ra` → 154 passed, 1 skipped
 - [ ] **S1.2** — `kcut new` + `kcut ingest` (inventario, HDR/VFR, sincronía multicam, proxies)
 - [ ] **S1.3** — `kcut transcribe` + `kcut pack`
 - [ ] **S1.4** — `kcut view` + `kcut frames`
@@ -42,6 +43,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 13/10/2026 | S0.1 | Reporte de 4 repos + mapa de lo que hay en la máquina | lectura de código con `gh api` (no ejecución) |
 | 14/10/2026 | S0.3 | Piloto v1 (48.4 s) | `qa.py` → 1452 frames, A/V 0 ms, −14.2 LUFS |
 | 15/10/2026 | S0.3 | Piloto v2–v4: subtítulos azules, beat en el inserto, mascota 3D rastreada sobre la palma, holograma, música con ducking | `qa.py` → 1469 frames, A/V 0 ms, −14.4 LUFS |
+| 16/10/2026 | S1.1 | Paquete kcut 0.1.0 + `kcut doctor`; 3 rondas de revisión (3 ALTO cerrados) | `kcut doctor --json` → exit 0; `pytest -q -ra` → 154 passed, 1 skipped |
 
 ---
 
@@ -86,12 +88,82 @@ OpenCV 5 ya no trae `CascadeClassifier`. En el piloto el encuadre por cara se de
 - **Cura real:** YuNet (`cv2.FaceDetectorYN`, modelo de ~230 KB, requiere aprobar la descarga) o MediaPipe — ~3 h.
 - **Cuándo:** F2.
 
-### 6. El QA compara solo contra los subtítulos ⚪
+### 6. `proc._validate` acepta un `.cmd`/`.bat` absoluto 🟡
+
+cmd.exe re-interpreta los argumentos.
+
+- **Mitigado hoy por:** ffmpeg/ffprobe pasan por `tool_path`, que rechaza scripts.
+- **Cura real:** rechazar `.bat`/`.cmd` también en `_validate` + test — 0.5 h.
+- **Cuándo:** antes de que S1.x lance otros programas.
+
+### 7. El QA compara solo contra los subtítulos ⚪
 
 Las palabras tapadas a propósito por un gráfico grande salen como "diferencias".
 
 - **Cura real:** comparar contra todas las palabras conservadas del EDL — ~1 h.
 - **Cuándo:** S1.7.
+
+### 8. `proc._finalize` lee todo el stderr del hijo a memoria ⚪
+
+Con 100 MB de stderr, el pico llega a ~500 MB.
+
+- **Mitigado hoy por:** `-loglevel error`.
+- **Cura real:** leer solo los últimos N MB para la cola y volcar al log por trozos — 1 h.
+- **Cuándo:** S1.5 (cuando el render corra ffmpeg sobre material real).
+
+### 9. `scrub_media_metadata` solo entiende el formato `clave : valor` de ffmpeg ⚪
+
+No reconoce `TAG:k=v` ni el JSON de ffprobe. La regex ISO 6709 solo cubre grados decimales, y descarta líneas como "Unable to make progress: ..." por contener "make".
+
+- **Mitigado hoy por:** el JSON crudo de ffprobe nunca sale (S1.2 hará lista blanca en `probe.py`).
+- **Cura real:** comparar por palabra completa y ampliar formatos — 1 h.
+- **Cuándo:** S1.2.
+
+### 10. `requirements.lock` sin hashes y con dos pins muy recientes ⚪
+
+Pins: `filelock==4.2.0` y `truststore==0.10.5`.
+
+- **Mitigado hoy por:** OSV en vivo el 16/10/2026: 0 avisos para las 30 versiones del lock.
+- **Cura real:** re-correr OSV en una semana; considerar `--require-hashes` — 0.5 h.
+- **Cuándo:** 23/10/2026 (re-chequeo OSV).
+
+### 11. Tests con `sleep` largo que lanzan `sys.executable` del venv pueden dejar huérfanos en Windows ⚪
+
+El `python.exe` del venv es un lanzador con hijo.
+
+- **Mitigado hoy por:** solo afecta a tests; producción solo lanza `.exe` de ffmpeg/ffprobe, y los huérfanos terminan solos al acabar su `sleep`.
+- **Cura real:** lanzar el intérprete base o matar el árbol en los tests — 0.5 h.
+- **Cuándo:** S1.2 (al tocar los tests de `proc`).
+
+### 12. Pista de `fonts` en `doctor/checks.py` dice "Pillow >= 10.1" ⚪
+
+El piso real es 12.3.
+
+- **Mitigado hoy por:** es solo texto de ayuda; el piso real lo aplican `pyproject.toml` y `requirements.lock`.
+- **Cura real:** actualizar la pista a Pillow >= 12.3 — 0.1 h.
+- **Cuándo:** S1.2 (primer cambio a `doctor/checks.py`).
+
+### 13. Captura de ffmpeg 7.x en `tests/unit/test_ffmpeg_caps.py` es de n7.0.1 (no 7.1) ⚪
+
+Las descripciones están reescritas.
+
+- **Mitigado hoy por:** las columnas que se parsean son reales, y el verificador comprobó con 3 binarios reales: n7.0.1 16/16, n7.1 42/42, 8.1.1 576/576.
+- **Cura real:** agregar captura real de un 7.1 — 0.5 h.
+- **Cuándo:** S1.2.
+
+### 14. `run()` usa miembros privados de `ChildProcess` ⚪
+
+- **Mitigado hoy por:** está en el mismo módulo; mypy strict y los tests cubren el uso.
+- **Cura real:** hacer método público — 0.5 h.
+- **Cuándo:** cuando S1.5 lo use.
+
+### 15. README: indicar cómo correr `kcut` ⚪
+
+Nunca `python -m kcut` desde una carpeta de crudo: un `cv2.py` plantado se importaría.
+
+- **Mitigado hoy por:** el ejecutable `kcut.exe` no pone la carpeta actual en `sys.path`, y HANDOFF y el spec usan `-I -X utf8`.
+- **Cura real:** indicar que se corre `kcut ...` o `python -I -X utf8 -m kcut` — 0.2 h.
+- **Cuándo:** S1.9 / spec 002.
 
 ---
 
@@ -150,6 +222,24 @@ Las palabras tapadas a propósito por un gráfico grande salen como "diferencias
 
 ### 11. `asplit` con una salida sin conectar revienta ffmpeg
 - **Fix:** mandar la salida sobrante a `anullsink`.
+
+### 12. `shutil.which` en Windows busca primero en la carpeta actual
+- **Síntoma:** un `ffmpeg.exe` plantado en una carpeta de footage se ejecutaba.
+- **Por qué engañaba:** en la terminal de Claude Code la variable `NoDefaultCurrentDirectoryInExePath=1` ya estaba puesta y los tests pasaban.
+- **Fix:** `toolpath.py` pone esa variable, exige ruta absoluta resuelta y solo `.exe`/`.com`.
+
+### 13. En Windows, dos procesos hijos que heredan el mismo handle de log se pisan (no hay `O_APPEND`)
+- **Síntoma:** de 402 líneas quedaban 220.
+- **Fix:** stderr de cada hijo a su propio temporal, agregado al log bajo un lock.
+
+### 14. La expresión de filtros de ffmpeg cambió entre la 7 y la 8 (tercera bandera)
+- **Síntoma:** con ffmpeg 7.1 se leían 10 de 42 filtros.
+- **Por qué engañaba:** los tests solo tenían líneas del formato 8.
+- **Fix:** `[T.][S.][C.]?` + capturas reales de las dos versiones.
+
+### 15. Un piso de dependencia "de memoria" puede quedarse corto
+- **Síntoma:** se recomendó `Pillow>=10.3` y OSV en vivo mostró avisos hasta 12.2.
+- **Fix:** consultar OSV en vivo antes de fijar pisos.
 
 ---
 

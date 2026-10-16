@@ -2,16 +2,16 @@
 
 > Lo primero que se lee al retomar. Si esto está desactualizado, la sesión arranca ciega.
 
-Actualizado: 16/10/2026 · Por: Claude (coordinador) · Slice cerrado: S0.3 (piloto 01)
+Actualizado: 16/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.1
 
 ---
 
 ## Dónde vamos
 
-El piloto 01 está terminado (v4 en revisión de Yedin) y probó el pipeline completo en Windows. **El plugin instalable todavía no existe**: los scripts del piloto están amarrados a ese video.
+`kcut` 0.1.0 es instalable en modo desarrollo y `kcut doctor` está verificado (11/11 ok). **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
 
 **Fase actual:** F1 — Núcleo (spec 001 Motor + spec 002 Experiencia)
-**Próximo paso:** spec `docs/specs/001-motor-kcut.md` (10 slices, plan aprobado en el Gate 1 el 16/10) → Gate 2 de Yedin → S1.1 `kcut doctor`.
+**Próximo paso:** S1.2 — `kcut new` + `kcut ingest` (spec 001.2; incluye los ítems S1.2 del parche 001.1: traceback de `InternalError` al log, `doctor` leyendo `transcribe.model`, `-loglevel error` / `-map_metadata -1`, lista blanca en `probe.py`) → verificación según los criterios S1.2 del spec.
 
 ---
 
@@ -20,12 +20,14 @@ El piloto 01 está terminado (v4 en revisión de Yedin) y probó el pipeline com
 | Pieza | Qué hace | Verificado con | Fecha |
 |---|---|---|---|
 | Piloto 01 v4 | Reel 9:16 de 49 s: multicam, cortes, subtítulos, gráficos, música, SFX | `qa.py` → 1469/1469 frames, A/V 0 ms, −14.4 LUFS, pico −1.4 dBFS | 15/10 |
+| S1.1 | Paquete kcut + `kcut doctor` | `kcut doctor --json` → 11/11 ok; `pytest -q -ra` → 154 passed, 1 skipped | 16/10 |
 
 ## Qué está escrito pero SIN verificar
 
 | Archivo | Qué falta | Por qué |
 |---|---|---|
 | `piloto/*` | Correr en otra máquina | Son scripts de referencia con rutas y tiempos del piloto, no el producto |
+| Test de symlink (`pytest -q -ra` → 1 skipped) | Correrlo con privilegio de administrador | Necesita privilegio de administrador en Windows; sin él se salta |
 
 ---
 
@@ -43,12 +45,22 @@ El piloto 01 está terminado (v4 en revisión de Yedin) y probó el pipeline com
 - **D10** — Looks básicos de color y contraste en el motor de F1.
 - **D11** — Piloto 01: los primeros 14 s se quedan como están.
 - **D12** — El borrador de la Puerta 1 es un **storyboard visual**: frame real + gráfico encima + texto + sonido por momento (`kcut storyboard`, S1.10), antes de cualquier render completo.
+- **D13** — Soportar ffmpeg 7 y 8 (Yedin, 16/10/2026).
+- **D14** — Dependencias con pisos + `requirements.lock` de versiones exactas; `Pillow>=12.3` (Yedin, 16/10/2026).
 
 ---
 
 ## Cómo levantarlo
 
-No hay versión instalable todavía. Cuando exista F1:
+Hoy (desarrollo, kcut 0.1.0):
+
+```
+py -3.12 -m venv .venv
+.venv/Scripts/python.exe -m pip install -e ".[dev]" -c requirements.lock
+.venv/Scripts/python.exe -I -X utf8 -m kcut doctor
+```
+
+Cuando exista el plugin (spec 002):
 
 ```
 /plugin marketplace add yedinrumba-eng/KORVEXCUT

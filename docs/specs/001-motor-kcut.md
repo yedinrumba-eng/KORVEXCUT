@@ -60,6 +60,7 @@ py -3.12 -m venv .venv
 pyproject.toml                                  S1.1
 src/kcut/__init__.py  __main__.py  cli.py       S1.1
 src/kcut/errors.py  console.py  proc.py         S1.1
+src/kcut/toolpath.py  scrub.py                  S1.1 (partidos de proc.py por la regla de 300 líneas; proc los re-exporta)
 src/kcut/commands/__init__.py  doctor.py        S1.1
 src/kcut/doctor/__init__.py  ffmpeg_caps.py  checks.py          S1.1
 src/kcut/assets/fonts/inter-latin-{600,800,900}-normal.woff2  OFL-Inter.txt   S1.1
