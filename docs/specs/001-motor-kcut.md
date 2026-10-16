@@ -902,7 +902,7 @@ desde cero) con el aviso `inventory_invalid`; nunca se confía en él. Formato `
   `fftconvolve(m, b[::-1], "full")`; para cada lag `k` (en muestras de envolvente, `lag = k - (len(b) - 1)`)
   el valor normalizado es `corr[k] / overlap(lag)`, con `overlap(lag) = min(len(m), lag + len(b)) - max(0, lag)`
   (001.4: se normaliza por el **solape en ese lag**, no por `min(len)`, para no castigar solapes
-  parciales). Se ignoran los lags con solape menor que `min(10 s, 0.5 × duración del más corto)`.
+  parciales). Se ignoran los lags con solape menor que `min(10 s, 0.75 × duración del más corto)` (001.5).
   `score` = máximo normalizado, `offset_ms = lag*hop_ms` de ese máximo, `second` = máximo
   normalizado fuera de ±2000 ms del pico, `ratio = score/second` (`inf` si `second <= 0`).
   `min_score` y `min_ratio` se aplican igual que antes.
@@ -2295,3 +2295,7 @@ S1.5 los criterios 14–15. No hay entrada 001.3 en esta rama: la agrega otra ra
 11. **Árbol** (§0.2): se agregan `ingest/inventory_model.py`, `ingest/sync_stage.py`,
     `doctor/result.py`, `doctor/chain_checks.py` (partidos por la regla de 300 líneas); `fnum` vive
     en `ff/args.py`. Criterio S1.2-28.
+
+### 001.5 — 16/10/2026 — piso de solape de la sincronía (aprobado por Yedin)
+
+- S1.2 `sync.py`: el piso de solape pasa de `min(10 s, 0.5 × el más corto)` a `min(10 s, 0.75 × el más corto)`. Con 0.5, un pico secundario en un solape chico se inflaba al normalizar por el solape (cámara B sintética: ratio 1.39 < `min_ratio` 1.5, rechazada, contradiciendo S1.2-7). Con 0.75: ratio 1.77, aceptada con offset 1200 ms. En clips largos (≥ 13.4 s el más corto) el piso sigue siendo 10 s, así que el caso de 75 s de solape (S1.2-22) no cambia. Lo reportó el implementador como BLOQUEADO; Yedin eligió la opción A.
