@@ -11,8 +11,10 @@ import pytest
 from kcut import proc
 from kcut.errors import MissingDependency, ToolError
 
-PY = sys.executable
-SLEEPER = [PY, "-c", "import time; time.sleep(60)"]
+# The venv python.exe on Windows is a launcher that runs the base interpreter as its own child:
+# killing the launcher would leave that child sleeping. The base interpreter is one process.
+PY = getattr(sys, "_base_executable", sys.executable)
+SLEEPER = [PY, "-c", "import time; time.sleep(60)  # kcut-test-sleeper"]
 
 
 class TestArgumentValidation:
@@ -187,10 +189,28 @@ def test_rejects_relative_argv0(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     assert not log.exists()
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="solo Windows pasa un .bat/.cmd por cmd.exe")
+@pytest.mark.parametrize("name", ["evil.bat", "EVIL.CMD", "evil.Bat ", "evil.cmd.", "evil.bat. ."])
+def test_rejects_bat_and_cmd_on_windows(
+    name: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """cmd.exe re-parses a script's arguments (x&whoami ran); Windows drops trailing dots/spaces."""
+    spawned: list[object] = []
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: spawned.append(a))
+    script = str(tmp_path / name)
+    log = tmp_path / "x.log"
+    with pytest.raises(ValueError, match=re.escape("no se lanza un .bat/.cmd")):
+        proc.run([script, "x&whoami"], log=log)
+    with pytest.raises(ValueError, match=re.escape("no se lanza un .bat/.cmd")):
+        proc.popen([script], log=log)
+    assert spawned == []
+    assert not log.exists()
+
+
 def test_child_exit_alive_waits_grace_then_raises_tool_error(tmp_path: Path) -> None:
     """Leaving the with normally while the child lives: wait grace_s, kill, never silent."""
     started = time.monotonic()
-    sleeper = [PY, "-c", "import time; time.sleep(30)"]
+    sleeper = [PY, "-c", "import time; time.sleep(30)  # kcut-test-sleeper"]
     with (
         pytest.raises(ToolError, match="no se espero") as info,
         proc.popen(sleeper, log=tmp_path / "a.log", grace_s=0.5) as child,

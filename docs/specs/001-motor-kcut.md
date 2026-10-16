@@ -2151,3 +2151,47 @@ S1.1 suma los criterios 18–23. El resto del spec no cambia.
 6. **Tamaño de los tests** (§0.2): `tests/unit/test_doctor_checks.py` pasó de 300 líneas; se parte
    (p. ej. `TestDoctorCommand` → `tests/unit/test_doctor_command.py`) sin romper los node ids de los
    criterios 14 y 15. Criterio S1.1-23.
+
+### 001.3 — 16/10/2026 — deuda pagada (aprobado por Yedin: arreglar deuda de inmediato)
+
+Refinamientos del contrato de S1.1 (deudas 6, 8, 9, 11, 12 y 13 de `PROGRESO.md`). La deuda 15
+(README: cómo correr `kcut`, pendiente del punto 11 de 001.1) también se pagó; no cambia el
+contrato. El resto del spec no cambia.
+
+1. **`_validate` rechaza `.bat`/`.cmd`** (§0.8, S1.1 `proc.run`/`popen`; deuda 6): en Windows, un
+   `args[0]` absoluto cuyo nombre termina en `.bat` o `.cmd` (sin importar mayúsculas, y quitando
+   antes los puntos y espacios finales, que Windows ignora: `x.bat ` también pasaba por `cmd.exe`)
+   → `ValueError` antes de lanzar nada. Test: `tests/unit/test_proc.py::test_rejects_bat_and_cmd_on_windows`.
+2. **stderr por trozos con cola acotada** (§0.8, §0.11; deuda 8): `_finalize` ya no lee el stderr
+   entero a memoria. El log recibe el stderr completo, por trozos de 1 MB, limpiado línea por línea
+   (las líneas no se parten antes de limpiar, así un bloque `Metadata:` no se pierde entre trozos);
+   una sola línea de más de 1 MB conserva su primer MB y la marca `[... X MB omitidos]`. En memoria
+   (cola de error y `capture_stderr`) quedan solo los últimos 8 MB, empezando en una línea entera y
+   precedidos de la línea `[... X MB omitidos]` cuando se cortó; las líneas con sangría justo
+   después del corte también se van (podrían ser de un bloque `Metadata:` cuyo encabezado quedó
+   fuera, y el filtro no las reconocería). La lógica vive en
+   `src/kcut/childlog.py` (nuevo: partido de `proc.py` por la regla de 300 líneas). Tests:
+   `tests/integration/test_proc_stderr_cap.py`.
+3. **Reglas de `scrub_media_metadata`** (§0.8; deuda 9): (a) claves sensibles por palabra completa
+   y solo en claves cortas (hasta 3 palabras antes de `:`), así "Unable to make progress: ..." y
+   "Could not determine model: ..." se conservan; (b) también se limpian las líneas
+   `TAG:<clave>=<valor>` y los pares JSON `"<clave>": "<valor>"`; (c) ISO 6709 también en las formas
+   compactas DM/DMS que terminan en `/` (`+181030-0695555/`, `+1810.5-06955.9/`) y con altitud final.
+   Una sola lista de claves para todos los formatos: palabras `location`, `iso6709`, `make`, `model`,
+   `creation_time`, `serial`, `artist`, `comment`, `title`, `description`, `encoded_by`, `copyright`;
+   prefijos `com.apple.` y `gps`. `scrub.MetadataScrubber` es el mismo filtro con estado entre
+   trozos. Tests: `tests/unit/test_scrub.py`.
+4. **Tests con el intérprete base** (§0.2; deuda 11): los tests que lanzan hijos con `sleep` largo
+   usan `sys._base_executable`, no el `python.exe` del venv (en Windows es un lanzador cuyo hijo
+   sobrevive al `kill()`); el nieto del test de timeout se mata por su PID registrado con
+   `taskkill /T`. Test: `tests/integration/test_proc_timeout.py::test_killing_the_child_leaves_no_sleeping_interpreter`.
+5. **Pistas del doctor derivadas** (S1.1 `checks.py`; deuda 12): la pista de `fonts` toma el piso de
+   Pillow de los metadatos instalados de kcut (salen de `pyproject.toml`; hoy `Pillow >= 12.3`);
+   `checks.py` no escribe ninguna versión de Pillow a mano. Test:
+   `tests/unit/test_doctor_checks.py::test_fonts_hint_derived`.
+6. **Capturas reales de ffmpeg n7.1** (S1.1 tests; deuda 13): `tests/data/ffmpeg-n7.1-filters.txt`
+   y `tests/data/ffmpeg-n7.1-encoders.txt` son la salida entera y sin tocar de
+   `-hide_banner -filters` y `-hide_banner -encoders` del ffmpeg n7.1 de
+   `@remotion/compositor-win32-x64-msvc` 4.0.503; los tests comparan conjuntos exactos (42 filtros,
+   19 encoders). El docstring ya no dice que las líneas de n7.0.1 son textuales (sus descripciones
+   están reescritas). Se mantiene la cobertura de 8.1.1 y 7.0.1.
