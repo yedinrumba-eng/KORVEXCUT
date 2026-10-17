@@ -3,6 +3,7 @@
 import importlib.metadata
 import re
 import sys
+import tomllib
 from collections import namedtuple
 from pathlib import Path
 
@@ -233,3 +234,25 @@ def test_chromium_hint_quoted(monkeypatch: pytest.MonkeyPatch) -> None:
     result = checks.check_chromium()
     assert result.fix_es is not None
     assert f'"{sys.executable}" -m playwright install chromium' in result.fix_es
+
+
+def test_fonts_hint_derived(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Pillow floor in the fonts hint is the one pyproject.toml declares, never typed twice."""
+    pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    deps = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["dependencies"]
+    floor = next(dep.partition(">=")[2] for dep in deps if dep.lower().startswith("pillow>="))
+    monkeypatch.setattr(checks, "_FONT_FILES", (*checks._FONT_FILES, "no-existe.woff2"))
+    assert checks.check_fonts().fix_es == (
+        f"reinstala el paquete (pip install -e .) y usa Pillow >= {floor} con FreeType"
+    )
+    real_requires = importlib.metadata.requires
+
+    def fake_requires(name: str) -> list[str] | None:
+        if name == "kcut":
+            return ["numpy>=1.26", "Pillow>=99.1", 'pytest>=8; extra == "dev"']
+        return real_requires(name)
+
+    monkeypatch.setattr(importlib.metadata, "requires", fake_requires)
+    assert "usa Pillow >= 99.1 con FreeType" in (checks.check_fonts().fix_es or "")
+    source = Path(checks.__file__).read_text(encoding="utf-8")
+    assert re.search(r"Pillow\s*>=\s*\d", source) is None

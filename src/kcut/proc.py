@@ -1,6 +1,8 @@
 """External process helpers: argument lists only, one stderr file per child (spec 0.8, 0.11)."""
 
+import os
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -9,18 +11,24 @@ from pathlib import Path
 from types import TracebackType
 from typing import IO, NoReturn, Self
 
+from kcut import childlog
 from kcut.errors import MissingDependency, ToolError
 from kcut.logfile import append_log as append_log
+from kcut.logfile import log_writer
 from kcut.scrub import scrub_media_metadata as scrub_media_metadata
 from kcut.toolpath import tool_path as tool_path
 
 _TAIL_LINES = 20
 _DEFAULT_GRACE_S = 5.0
+_CMD_SCRIPT_SUFFIXES = (".bat", ".cmd")
 
 
 @dataclass(frozen=True)
 class RunResult:
-    """Outcome of `run`. `stderr` is the child's raw stderr only with `capture_stderr=True`."""
+    """Outcome of `run`. `stderr` is the child's raw stderr only with `capture_stderr=True`.
+
+    A stderr longer than `childlog.TAIL_CAP_BYTES` keeps only its end, after a marker line.
+    """
 
     returncode: int
     stdout: bytes
@@ -163,22 +171,23 @@ class ChildProcess:
         self._finalize()
 
     def _finalize(self) -> None:
-        """Move this child's stderr into the log (one block) and close its temp file."""
+        """Keep this child's stderr tail, stream all of it into the log as one block, close it."""
         if self._stderr_text is not None:
             return
-        self._stderr_file.seek(0)
-        raw = self._stderr_file.read()
-        self._stderr_file.close()
-        self._stderr_text = raw.decode("utf-8", errors="replace")
-        if self._log is None:
-            return
-        code = self._popen.returncode
-        elapsed = time.monotonic() - self._start
-        body = scrub_media_metadata(self._stderr_text).replace("\r\n", "\n")
-        if body and not body.endswith("\n"):
-            body += "\n"
-        footer = f"[exit {'?' if code is None else code} en {elapsed:.1f} s]\n"
-        append_log(self._log, body + (self._note + "\n" if self._note else "") + footer)
+        try:
+            size = self._stderr_file.seek(0, os.SEEK_END)
+            self._stderr_text = childlog.read_tail(self._stderr_file, size)
+            if self._log is None:
+                return
+            code = self._popen.returncode
+            elapsed = time.monotonic() - self._start
+            footer = f"[exit {'?' if code is None else code} en {elapsed:.1f} s]\n"
+            with log_writer(self._log) as fh:
+                ends_line = childlog.copy_scrubbed(self._stderr_file, size, fh)
+                note = self._note + "\n" if self._note else ""
+                fh.write(("" if ends_line else "\n") + note + footer)
+        finally:
+            self._stderr_file.close()
 
 
 def run(
@@ -235,6 +244,11 @@ def _validate(args: object) -> None:
         raise ValueError("args must not be empty")
     if not Path(args[0]).is_absolute():
         raise ValueError("args[0] debe ser una ruta absoluta: usa tool_path")
+    # Windows drops trailing dots and spaces from a name and runs a .bat/.cmd through cmd.exe,
+    # which re-parses the arguments: `x&whoami` would run.
+    name = Path(args[0]).name.rstrip(". ").lower()
+    if sys.platform == "win32" and name.endswith(_CMD_SCRIPT_SUFFIXES):
+        raise ValueError(f"en Windows no se lanza un .bat/.cmd: cmd.exe re-interpreta {args[0]!r}")
 
 
 def _name(args: list[str]) -> str:

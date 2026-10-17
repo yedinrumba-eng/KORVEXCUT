@@ -3,14 +3,18 @@
 A log lives in `.kcut/logs/`, a folder a hostile project could fill with links. So the log is
 created with `O_EXCL` under a unique name, and before **every** append it must still be a
 regular file with a single link that resolves inside the real cache. If not, nothing is written
-there: the text goes to stderr with a warning.
+there: the text goes to stderr with a warning. A child's stderr block streams in through
+`log_writer` (001.3) and passes the same checks as a one-shot `append_log`.
 """
 
 import os
 import stat
 import sys
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import IO
 
 from kcut.paths import is_inside
 
@@ -56,36 +60,43 @@ def unsafe_reason(log: Path) -> str | None:
 
 
 def append_log(log: Path, text: str) -> None:
-    """Append `text` to a command log under the per-path lock shared by every writer of it."""
+    """Append `text` to a command log as one block (see `log_writer`)."""
+    with log_writer(log) as fh:
+        fh.write(text)
+
+
+@contextmanager
+def log_writer(log: Path) -> Iterator[IO[str]]:
+    """Yield a handle that appends one block to `log`; the caller may write it in pieces.
+
+    The whole block goes under the per-path lock shared by every writer of that log, after the
+    checks every append passes: `unsafe_reason`, then the open handle must still be a lone regular
+    file. If a check fails, the handle is stderr, with a warning printed once per log.
+    """
     key = os.path.normcase(str(log.resolve()))
     with _LOG_LOCKS_GUARD:
         lock = _LOG_LOCKS.setdefault(key, threading.Lock())
     with lock:
         reason = unsafe_reason(log)
         if reason is None:
-            reason = _append_checked(log, text)
-        if reason is not None:
-            _to_stderr(log, reason, text)
+            log.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(log, os.O_WRONLY | os.O_APPEND | os.O_CREAT | _BINARY)
+            try:
+                info = os.fstat(fd)
+                if stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+                    with os.fdopen(fd, "a", encoding="utf-8", newline="\n", closefd=False) as fh:
+                        yield fh
+                    return
+                reason = f"tiene {info.st_nlink} enlaces duros"
+            finally:
+                os.close(fd)
+        yield _to_stderr(log, reason)
 
 
-def _append_checked(log: Path, text: str) -> str | None:
-    """Open for append, confirm on the open handle that it is still a lone regular file, write."""
-    log.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(log, os.O_WRONLY | os.O_APPEND | os.O_CREAT | _BINARY)
-    try:
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-            return f"tiene {info.st_nlink} enlaces duros"
-        with os.fdopen(fd, "a", encoding="utf-8", newline="\n", closefd=False) as fh:
-            fh.write(text)
-    finally:
-        os.close(fd)
-    return None
-
-
-def _to_stderr(log: Path, reason: str, text: str) -> None:
+def _to_stderr(log: Path, reason: str) -> IO[str]:
+    """Warn once per log that it is not written, and hand back stderr to write to instead."""
     key = os.path.normcase(str(log))
     if key not in _WARNED:
         _WARNED.add(key)
         print(f"[AVISO] no escribo en el log {log}: {reason}", file=sys.stderr)
-    sys.stderr.write(text)
+    return sys.stderr

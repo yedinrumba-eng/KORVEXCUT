@@ -46,6 +46,20 @@ Detalle completo en [`docs/piloto/`](docs/piloto/README.md). Las lecciones pagad
 
 Windows 10/11 (también macOS/Linux), [Claude Code](https://claude.com/claude-code), ffmpeg ≥ 7 (build "full"), Python 3.12, `faster-whisper`, `numpy`, `scipy`, `opencv-python`, `Pillow`, `playwright` + Chromium. `kcut doctor` va a revisar todo y decir qué falta.
 
+## Desarrollo
+
+Para trabajar en el motor `kcut` desde este repo (sigue en pre-alpha: esto es para desarrollar, no para usarlo en videos reales):
+
+```
+py -3.12 -m venv .venv
+.venv/Scripts/python.exe -m pip install -e ".[dev]" -c requirements.lock
+.venv/Scripts/kcut doctor
+```
+
+- `requirements.lock` fija la versión exacta de cada dependencia: instala siempre con `-c requirements.lock`.
+- `kcut doctor` revisa Python, ffmpeg/ffprobe, librerías, modelo de Whisper, Chromium, fuentes y disco, y dice qué falta.
+- Corre el motor como `kcut ...` o como `.venv/Scripts/python.exe -I -X utf8 -m kcut ...`. **Nunca** `python -m kcut` a secas desde una carpeta de material crudo: sin `-I`, Python mete la carpeta actual en `sys.path` y un `cv2.py` plantado ahí se importaría y correría. El `-X utf8` va porque `-I` ignora `PYTHONUTF8`.
+
 ## Estructura
 
 ```

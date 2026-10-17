@@ -1,12 +1,88 @@
-"""Parsers of ffmpeg capabilities, fed with text captured from real ffmpeg runs.
+"""Parsers of ffmpeg capabilities, fed with text from real ffmpeg runs.
 
-Two real captures: ffmpeg 8.1.1 (gyan full build, two flag columns) and ffmpeg n7.0.1 (Playwright
-build, three flag columns). Both are trimmed or whole outputs with the original CRLF endings.
+- ffmpeg 8.1.1 (gyan full build, two flag columns): trimmed capture with CRLF endings; the filter
+  lines are verbatim, two encoder descriptions (libx264, libsvtav1) are shortened.
+- ffmpeg n7.0.1 (Playwright build, three flag columns): flags, names and I/O columns as the real
+  binary prints them, but the descriptions were rewritten, so these lines are not verbatim.
+- ffmpeg n7.1 (the `--enable-small` build bundled with @remotion/compositor-win32-x64-msvc
+  4.0.503, three flag columns, descriptions `(null)`): whole, untouched stdout of
+  `-hide_banner -filters` and `-hide_banner -encoders` in `tests/data/`.
 """
+
+from pathlib import Path
 
 import pytest
 
 from kcut.doctor.ffmpeg_caps import parse_encoders, parse_filters, parse_version
+
+DATA = Path(__file__).resolve().parents[1] / "data"
+FILTERS_71 = (DATA / "ffmpeg-n7.1-filters.txt").read_text(encoding="utf-8")
+ENCODERS_71 = (DATA / "ffmpeg-n7.1-encoders.txt").read_text(encoding="utf-8")
+FILTERS_71_NAMES = {
+    "acopy",
+    "adelay",
+    "aformat",
+    "amerge",
+    "amix",
+    "anull",
+    "apad",
+    "aresample",
+    "asetpts",
+    "asetrate",
+    "atempo",
+    "atrim",
+    "loudnorm",
+    "pan",
+    "silencedetect",
+    "volume",
+    "anullsrc",
+    "sine",
+    "colorspace",
+    "copy",
+    "crop",
+    "fieldorder",
+    "format",
+    "hflip",
+    "null",
+    "palettegen",
+    "paletteuse",
+    "rotate",
+    "scale",
+    "split",
+    "tinterlace",
+    "tonemap",
+    "transpose",
+    "trim",
+    "vflip",
+    "zscale",
+    "nullsrc",
+    "concat",
+    "abuffer",
+    "buffer",
+    "abuffersink",
+    "buffersink",
+}
+ENCODERS_71_NAMES = {
+    "libaom-av1",
+    "gif",
+    "libx264",
+    "h264_nvenc",
+    "libx265",
+    "hevc_nvenc",
+    "mjpeg",
+    "png",
+    "prores_ks",
+    "rawvideo",
+    "libvpx",
+    "libvpx-vp9",
+    "aac",
+    "libfdk_aac",
+    "libmp3lame",
+    "opus",
+    "libopus",
+    "pcm_s16le",
+    "pcm_s24le",
+}
 
 VERSION_811 = (
     "ffmpeg version 8.1.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\r\n"
@@ -149,6 +225,11 @@ class TestParseFilters:
     def test_ffmpeg_7_three_flag_columns_exact_set(self) -> None:
         assert parse_filters(FILTERS_701) == FILTERS_701_NAMES
 
+    def test_ffmpeg_71_real_whole_capture_exact_set(self) -> None:
+        assert len(FILTERS_71_NAMES) == 42
+        assert FILTERS_71.count("->") == 42
+        assert parse_filters(FILTERS_71) == FILTERS_71_NAMES
+
     def test_spec_examples_of_both_layouts(self) -> None:
         seven = " ... aresample         A->A       Audio resampling and converting.\n"
         eight = " .. acompressor       A->A       Audio compressor.\n"
@@ -171,9 +252,15 @@ class TestParseEncoders:
     def test_ffmpeg_7_exact_set(self) -> None:
         assert parse_encoders(ENCODERS_701) == ENCODERS_701_NAMES
 
+    def test_ffmpeg_71_real_whole_capture_exact_set(self) -> None:
+        """This build prints no description: names are followed only by padding or the codec."""
+        assert len(ENCODERS_71_NAMES) == 19
+        assert parse_encoders(ENCODERS_71) == ENCODERS_71_NAMES
+
     def test_legend_lines_are_never_encoders(self) -> None:
         assert parse_encoders(ENCODER_LEGEND) == frozenset()
         assert "=" not in parse_encoders(ENCODERS_811)
+        assert "=" not in parse_encoders(ENCODERS_71)
 
     def test_empty_text(self) -> None:
         assert parse_encoders("") == frozenset()

@@ -220,7 +220,7 @@ def check_fonts() -> CheckResult:
             True,
             False,
             "; ".join(problems),
-            "reinstala el paquete (pip install -e .) y usa Pillow >= 10.1 con FreeType",
+            f"reinstala el paquete (pip install -e .) y usa {_declared('Pillow')} con FreeType",
         )
     return CheckResult("fonts", True, True, f"{len(_FONT_FILES)} archivos, FreeType ok", None)
 
@@ -266,6 +266,19 @@ def _chromium_fix() -> str:
         f"Playwright {version} necesita su Chromium: "
         f'"{sys.executable}" -m playwright install chromium (descarga: pide OK)'
     )
+
+
+def _declared(dist: str) -> str:
+    """`<dist> >= <floor>` as kcut's own metadata declares it (from pyproject.toml)."""
+    try:
+        requirements = importlib.metadata.requires("kcut") or []
+    except importlib.metadata.PackageNotFoundError:
+        requirements = []
+    for raw in requirements:
+        name, _, floor = raw.partition(">=")
+        if name.strip().lower() == dist.lower() and floor:
+            return f"{dist} >= {floor.split(';')[0].split(',')[0].strip()}"
+    return dist
 
 
 def _budget_ms(start: float) -> float:
