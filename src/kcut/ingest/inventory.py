@@ -45,6 +45,7 @@ from kcut.schema_util import (
 )
 
 _VIDEO_KEYS = video_keys()
+MAX_DRIFT_WINDOWS = 100_000  # the windows of the drift check: far above any real clip
 
 
 def _text(d: dict[str, Any], key: str, path: str) -> str:
@@ -219,12 +220,12 @@ def _member(d: dict[str, Any], path: str) -> SyncMember:
     only_keys(d, keys, path)
     return SyncMember(
         id=req_str(d, "id", path),
-        offset_ms=req_int(d, "offset_ms", path),
+        offset_ms=req_int(d, "offset_ms", path, -MAX_LAG_MS, MAX_LAG_MS),
         score=req_float(d, "score", path),
         second=req_float(d, "second", path),
         ratio=opt_float(d, "ratio", path, None),
-        drift_ms=opt_int(d, "drift_ms", path, None),
-        drift_windows=req_int(d, "drift_windows", path, 0),
+        drift_ms=opt_int(d, "drift_ms", path, None, -MAX_LAG_MS, MAX_LAG_MS),
+        drift_windows=req_int(d, "drift_windows", path, 0, MAX_DRIFT_WINDOWS),
         method=_text(d, "method", path),
         refine_corr=opt_float(d, "refine_corr", path, None),
         sync_version=opt_int(d, "sync_version", path, 1, 1, 1000),

@@ -1,5 +1,6 @@
 """Hand-written strict validation helpers. Every message names the data path (Spanish)."""
 
+import decimal
 import math
 import re
 from collections.abc import Iterable
@@ -8,6 +9,7 @@ from typing import Any
 from kcut.errors import ProjectError
 
 _HEX = re.compile(r"#[0-9A-Fa-f]{6}")
+_SHOWN_DIGITS = 20  # an integer out of range with more digits is cut to this many in messages
 _KINDS = {
     bool: "booleano",
     int: "entero",
@@ -198,11 +200,23 @@ def _list(v: object, where: str) -> list[Any]:
 def _check_range(v: float, where: str, lo: float | None, hi: float | None) -> None:
     if lo is not None and hi is not None:
         if not lo <= v <= hi:
-            raise SchemaError(where, f"debe estar entre {lo} y {hi} (vino {v})")
+            raise SchemaError(where, f"debe estar entre {lo} y {hi} (vino {_shown(v)})")
     elif lo is not None and v < lo:
-        raise SchemaError(where, f"debe ser como mínimo {lo} (vino {v})")
+        raise SchemaError(where, f"debe ser como mínimo {lo} (vino {_shown(v)})")
     elif hi is not None and v > hi:
-        raise SchemaError(where, f"debe ser como máximo {hi} (vino {v})")
+        raise SchemaError(where, f"debe ser como máximo {hi} (vino {_shown(v)})")
+
+
+def _shown(v: float) -> str:
+    """A value out of range as it goes into the message. An integer of more than 20 digits shows
+    its first 20 and how many it has (`str()` of one over 4300 digits raises ValueError, and a
+    hostile file could carry thousands of digits)."""
+    if isinstance(v, int):
+        digits = decimal.Decimal(abs(v)).as_tuple().digits  # exact; no str() of the whole number
+        if len(digits) > _SHOWN_DIGITS:
+            head = "".join(str(d) for d in digits[:_SHOWN_DIGITS])
+            return f"{'-' if v < 0 else ''}{head}… ({len(digits)} dígitos)"
+    return str(v)
 
 
 def _describe(v: object) -> str:

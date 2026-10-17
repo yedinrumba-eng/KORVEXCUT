@@ -125,3 +125,33 @@ class TestColorsAndChoices:
     def test_one_of(self) -> None:
         assert one_of("a", ("a", "b"), "p") == "a"
         assert "debe ser uno de: a, b (vino 'c')" in _msg(lambda: one_of("c", ("a", "b"), "p"))
+
+
+class TestLongValue:
+    """A huge integer outside its range gives a short message that counts its digits (001.8)."""
+
+    def test_long_value_of_5000_digits_gives_a_short_message_with_the_digit_count(self) -> None:
+        message = _msg(lambda: req_int({"lag": 10**4999}, "lag", "sync", -100, 100))
+        assert len(message) < 200
+        assert message.startswith("sync.lag: debe estar entre -100 y 100 (vino ")
+        assert "10000000000000000000… (5000 dígitos)" in message
+
+    def test_long_value_negative_keeps_the_sign_and_does_not_count_it(self) -> None:
+        message = _msg(lambda: req_int({"n": -(10**4999)}, "n", "", 0))
+        assert "debe ser como mínimo 0 (vino -10000000000000000000… (5000 dígitos))" in message
+
+    def test_long_value_shows_the_first_20_digits(self) -> None:
+        message = _msg(lambda: opt_int({"n": 10**29 + 234567890}, "n", "", None, hi=5))
+        assert message == "n: debe ser como máximo 5 (vino 10000000000000000000… (30 dígitos))"
+
+    def test_long_value_is_cut_from_the_21st_digit(self) -> None:
+        whole = _msg(lambda: req_int({"n": 12345678901234567890}, "n", "", hi=5))
+        cut = _msg(lambda: req_int({"n": 123456789012345678901}, "n", "", hi=5))
+        assert whole == "n: debe ser como máximo 5 (vino 12345678901234567890)"
+        assert cut == "n: debe ser como máximo 5 (vino 12345678901234567890… (21 dígitos))"
+
+    def test_long_value_cut_applies_to_integers_only(self) -> None:
+        float_message = _msg(lambda: req_float({"x": 1e30}, "x", "", hi=5.0))
+        int_message = _msg(lambda: req_float({"x": 10**30}, "x", "", hi=5.0))
+        assert float_message.endswith("(vino 1e+30)")
+        assert int_message.endswith("(vino 10000000000000000000… (31 dígitos))")

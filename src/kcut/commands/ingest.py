@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 from kcut.console import Out, Progress
-from kcut.ingest.inventory import Inventory, Notice
+from kcut.ingest.inventory import Inventory, Notice, SyncRejected
 from kcut.ingest.run import run_ingest
 from kcut.ingest.sync_reasons import SYNC_METHODS, rejection_text
 from kcut.project import open_project
@@ -15,6 +15,7 @@ from kcut.timebase import fmt_s
 
 NAME = "ingest"
 HELP_ES = "Inventaría crudo/, extrae audio, crea proxies y sincroniza cámaras"
+_NO_SYNC = "sin sincronía"  # also the whole text of a rejection whose reason kcut does not write
 
 
 def add_parser(
@@ -69,11 +70,11 @@ def _document(inventory: Inventory, notices: list[Notice], elapsed_s: float) -> 
                     "score": m.score,
                     "ratio": m.ratio,
                     "drift_ms": m.drift_ms,
-                    "method": m.method,
+                    "method": m.method if m.method in SYNC_METHODS else None,
                 }
                 for m in sync.members
             ],
-            "rejected": [{"id": r.id, "reason": r.reason} for r in sync.rejected],
+            "rejected": [{"id": r.id, "reason": _reason_text(r)} for r in sync.rejected],
         },
         "warnings": [
             *_clip_warning_docs(inventory),
@@ -81,6 +82,13 @@ def _document(inventory: Inventory, notices: list[Notice], elapsed_s: float) -> 
         ],
         "elapsed_s": elapsed_s,
     }
+
+
+def _reason_text(rejected: SyncRejected) -> str:
+    """The fixed text of a rejection, as in the human line. The `reason` stored in the inventory
+    is free text that Claude would read as data; it is never copied out (001.8, point 2)."""
+    text = rejection_text(rejected.reason, rejected.lag_a_ms, rejected.lag_b_ms)
+    return text if text is not None else _NO_SYNC
 
 
 def _clip_warning_docs(inventory: Inventory) -> list[dict[str, Any]]:
@@ -123,4 +131,4 @@ def _human_lines(out: Out, inventory: Inventory, fps: int) -> None:
     for rejected in sync.rejected:
         # a fixed text per motive: the stored `reason` itself is never printed (001.7, point 12)
         text = rejection_text(rejected.reason, rejected.lag_a_ms, rejected.lag_b_ms)
-        out.line("AVISO", f"{rejected.id}: sin sincronía" + (f" - {text}" if text else ""))
+        out.line("AVISO", f"{rejected.id}: {_NO_SYNC}" + (f" - {text}" if text else ""))

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import NoReturn, cast
 
 from kcut import __version__
-from kcut.console import Out, setup_streams
+from kcut.console import Out, safe_text, setup_streams
 from kcut.errors import InternalError, KcutError, ProjectError, UsageError
 from kcut.logfile import CreatedLog, append_log, create_run_log, remove_if_empty, set_log_root
 from kcut.paths import Layout, log_path
@@ -115,7 +115,8 @@ def _run_log(explicit: str | None, command: str) -> Path | None:
     log = log_path(layout.logs, command)
     created = create_run_log(log)
     if created is None:
-        print(f"[AVISO] no pude crear el log {log}; esta corrida no deja log", file=sys.stderr)
+        notice = f"[AVISO] no pude crear el log {log}; esta corrida no deja log"
+        print(safe_text(notice), file=sys.stderr)
         return None
     _CREATED_LOGS.append(created)
     set_log_root(layout.cache)
@@ -140,7 +141,7 @@ def _internal(
         if append_log(target, f"[traceback]\n{text}"):
             message = f"{message}. Detalle técnico en {target}"  # only if it reached the log
     elif verbose or locate_project(_option_value(args, raw)) is not None:
-        print(text, file=sys.stderr)  # a project whose log could not be made: do not lose it
+        print(safe_text(text), file=sys.stderr)  # no log could be made: do not lose the traceback
     else:
         message = f"{message}. Usa -v para ver el detalle"
     short = scrub_media_metadata(message).strip() or "Error interno"
@@ -166,7 +167,7 @@ def _exit_code(exc: SystemExit) -> int:
         return 0
     if isinstance(code, int):
         return code
-    print(code, file=sys.stderr)
+    print(safe_text(str(code)), file=sys.stderr)
     return 1
 
 
@@ -176,5 +177,5 @@ def _report(exit_code: int, kind: str, message: str, json_mode: bool) -> int:
             {"ok": False, "error": {"exit_code": exit_code, "kind": kind, "message": message}}
         )
     else:
-        print(f"[ERROR] {message}", file=sys.stderr)
+        print(safe_text(f"[ERROR] {message}"), file=sys.stderr)
     return exit_code

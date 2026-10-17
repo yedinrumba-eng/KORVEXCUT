@@ -4,10 +4,16 @@ import io
 import json
 import sys
 import time
+import unicodedata
 from collections.abc import Mapping
 
 _TAGS = frozenset({"OK", "FALTA", "AVISO", "ERROR", "INFO"})
 _PROGRESS_INTERVAL_S = 2.0
+# Control, format, line separator, paragraph separator and surrogate characters: on a terminal
+# they change the title, clear the screen, flip the text direction or forge a line.
+_ESCAPED_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Cs"})
+_LAST_LATIN1 = 0xFF
+_LAST_BMP = 0xFFFF
 
 
 def setup_streams() -> None:
@@ -15,6 +21,39 @@ def setup_streams() -> None:
     for stream in (sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper):
             stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+def safe_text(text: str) -> str:
+    r"""`text` with every Cc, Cf, Zl, Zp or Cs character swapped for its visible escape: `\xNN`
+    up to U+00FF, `\uNNNN` up to U+FFFF, `\UNNNNNNNN` above. The newline stays. Text without such
+    characters comes back identical.
+
+    Every line kcut prints goes through here: file names, ids and keys of `inventory.json` are not
+    trusted and must not reach the terminal as escape sequences (spec 001.8, point 1).
+    """
+    return "".join(_visible(ch) for ch in text)
+
+
+def _visible(ch: str) -> str:
+    if ch == "\n" or unicodedata.category(ch) not in _ESCAPED_CATEGORIES:
+        return ch
+    code = ord(ch)
+    if code <= _LAST_LATIN1:
+        return f"\\x{code:02x}"
+    if code <= _LAST_BMP:
+        return f"\\u{code:04x}"
+    return f"\\U{code:08x}"
+
+
+def _clean(value: object) -> object:
+    """A copy of a JSON-like value with `safe_text` applied to every string, keys included."""
+    if isinstance(value, str):
+        return safe_text(value)
+    if isinstance(value, Mapping):
+        return {_clean(k): _clean(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_clean(item) for item in value]
+    return value
 
 
 class Out:
@@ -28,16 +67,18 @@ class Out:
         if tag not in _TAGS:
             raise ValueError(f"unknown tag: {tag!r}")
         if not self.json_mode:
-            print(f"[{tag}] {text}")
+            print(f"[{tag}] {safe_text(text)}")
 
     def result(self, obj: Mapping[str, object]) -> None:
-        """Print the one JSON document to stdout; silent in human mode."""
+        """Print the one JSON document to stdout; silent in human mode. Every string of `obj`,
+        keys included, goes through `safe_text` first; `ensure_ascii` stays off, so accents do
+        not change."""
         if self.json_mode:
-            print(json.dumps(obj, ensure_ascii=False, indent=1))
+            print(json.dumps(_clean(obj), ensure_ascii=False, indent=1))
 
     def warn(self, text: str) -> None:
         """Print a warning to stderr, in both modes."""
-        print(f"[AVISO] {text}", file=sys.stderr)
+        print(f"[AVISO] {safe_text(text)}", file=sys.stderr)
 
 
 class Progress:
@@ -73,8 +114,8 @@ class Progress:
         rate_unit = "fps" if self.unit == "frames" else f"{self.unit}/s"
         remaining = max(self.total - self._done, 0)
         eta = f" - faltan {round(remaining / rate)} s" if rate > 0 and remaining > 0 else ""
-        print(
+        line = (
             f"{self.label}: {self._done}/{self.total} {self.unit} ({pct}%)"
-            f" - {rate:.1f} {rate_unit}{eta}",
-            file=sys.stderr,
+            f" - {rate:.1f} {rate_unit}{eta}"
         )
+        print(safe_text(line), file=sys.stderr)
