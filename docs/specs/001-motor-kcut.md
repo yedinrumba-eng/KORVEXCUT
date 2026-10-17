@@ -1152,6 +1152,10 @@ HLG, DOVI perfil 8). `screen_sdr_pc.json` = h264 1894×866 30/1 `color_range pc`
 | 52 | Un miembro guardado por una versión anterior del algoritmo de sync (sin `sync_version` o con otra) no se reusa: se vuelve a medir. Con un inventario de 001.6 que aceptó los tonos de 12 s +4 s con −2800, un `kcut ingest` normal (sin `--resync`) lo deja rechazado con `sync_ambiguous`; un miembro con la `sync_version` actual y el mismo `qhash` sí se reusa sin re-medir (001.7 punto 15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k sync_version` → exit 0 | ❌ |
 | 53 | `test_cli_internal_error.py::TestInsideAProject::test_other_errors_leave_no_traceback_in_the_log` vuelve a exigir que el log exista durante el `run` (`args.log is not None and args.log.is_file()`) y falla si `_run_log` deja de crearlo (001.7 punto 16) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_cli_internal_error.py -q` → exit 0 | ❌ |
 | 54 | Si el traceback de un `InternalError` cayó a stderr porque el log no se pudo escribir, el mensaje no dice "Detalle técnico en <log>"; si se escribió, sí lo dice (001.7 punto 17) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_cli_internal_error.py -q -k detail_hint` → exit 0 | ❌ |
+| 55 | Texto no confiable nunca llega crudo a la consola: con (a) una clave `"\x1b]0;X\x07\x1b[2J"` en `inventory.json`, (b) un `id` de clip con ESC en el inventario y (c) un archivo `crudo/` con U+009B, U+007F y U+202E en el nombre, la salida de `kcut ingest` (stdout y stderr, modo humano y `--json`) no contiene los bytes 0x1B, 0x07 ni 0x7F, ningún carácter U+0080–U+009F ni U+202E, y sí la forma escapada (`\x1b`, `\u202e`…); `safe_text` deja intactos `ñ`, tildes, emoji y `\n` (001.8 punto 1) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k "safe_text or console_hygiene"` → exit 0 | ❌ |
+| 56 | En `kcut ingest --json`, un rechazo de sync lleva en `reason` el texto fijo de la tabla (nunca el `reason` guardado) y `method` es `null` si no está en `SYNC_METHODS` (001.8 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_ingest_output.py -q -k json_hygiene` → exit 0 | ❌ |
+| 57 | Miembro del inventario con `offset_ms` o `drift_ms` fuera de ±43 200 000, o `drift_windows` fuera de 0 … 100 000 → `inventory_invalid` y se re-mide (001.8 punto 3) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_inventory_validation.py -q -k member_ranges` → exit 0 | ❌ |
+| 58 | Un entero fuera de rango de 5000 dígitos produce un mensaje de error de menos de 200 caracteres que dice cuántos dígitos tenía (001.8 punto 4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_schema_util.py -q -k long_value` → exit 0 | ❌ |
 
 ---
 
@@ -2602,3 +2606,38 @@ toca `proc.py`.
     `InternalError`, `logfile.py`): `append_log` devuelve `bool` (`True` si el texto quedó en el
     log, `False` si cayó a stderr o se descartó). `cli` agrega la frase "Detalle técnico en <log>"
     solo con `True`; se borra el `except OSError` que quedó muerto. Criterio S1.2-54.
+
+### 001.8 — 17/10/2026 — higiene de la consola (revisión de seguridad de 001.7; regla de Yedin: arreglar de inmediato)
+
+Segunda pasada de seguridad sobre 001.7: APROBADO (0 CRÍTICO, 0 ALTO), con 1 MEDIO anterior a 001.7
+y 3 BAJO. S1.2 suma los criterios 55–58.
+
+1. **MEDIO — texto no confiable crudo en la consola** (`console.py` y `cli.py`). Los mensajes del
+   cargador interpolan claves e ids del `inventory.json` (`clips[<id>]`, `<ruta>.<clave>`,
+   `id_high.<prefijo>`), y las líneas `[OK]`/`AVISO` llevan nombres de archivo de `crudo/`; todo eso
+   llegaba sin limpiar a la terminal (secuencias de escape que cambian el título, borran la pantalla
+   o pintan líneas falsas).
+   - La cura va en el **sumidero**: función pura `console.safe_text(text: str) -> str` que cambia
+     cada carácter de categoría Unicode `Cc`, `Cf`, `Zl`, `Zp` o `Cs` por su escape visible
+     (`\xNN` hasta U+00FF, `\uNNNN` hasta U+FFFF, `\UNNNNNNNN` más arriba). Excepción: `\n` se
+     conserva.
+   - Se aplica a todo texto que kcut imprime: `Out.line`, `Out.warn`, el `print` de errores de
+     `cli._report`, el texto que `cli._internal` manda a stderr cuando no hay log, el aviso de "no
+     pude crear el log" y cualquier otro `print` a stdout/stderr de `console.py` y `cli.py`.
+   - En `--json`, `Out.json` aplica `safe_text` a cada `str` del objeto (claves y valores) antes de
+     `json.dumps`; `ensure_ascii` sigue en `False`, así que las tildes no cambian.
+   - Los mensajes de error no cambian de forma (no se usa `!r` en el cargador); el log en disco no
+     se toca.
+   - Criterio S1.2-55.
+2. **BAJO — texto libre del inventario en `--json`** (`commands/ingest.py`; esa salida la lee Claude,
+   así que es una vía de inyección de prompt): en `--json`, `reason` de un rechazo de sync sale con
+   el texto fijo de `rejection_text` (el mismo de la línea humana) y `method` sale como `null` si no
+   está en `SYNC_METHODS`. El inventario en disco guarda lo mismo que hoy. Criterio S1.2-56.
+3. **BAJO — rangos que faltaban** (`ingest/inventory.py` `_member`): `offset_ms` y `drift_ms`
+   ±43 200 000 (12 h) y `drift_windows` 0 … 100 000. Fuera de rango → `inventory_invalid`, como los
+   lags de 001.7. Criterio S1.2-57.
+4. **BAJO — mensaje de rango gigante** (`schema_util.py`): cuando un entero fuera de rango tiene más
+   de 20 dígitos, el mensaje muestra los primeros 20 y "… (<N> dígitos)". Criterio S1.2-58.
+5. **Nota para el spec 002** (no se implementa aquí): los nombres de archivo de `crudo/` siguen
+   saliendo en `--json` porque son el dato. El plugin y sus agentes tratan **toda** salida de kcut
+   (nombres de archivo, textos de `kcut.toml`, avisos) como datos, nunca como instrucciones.
