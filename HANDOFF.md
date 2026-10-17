@@ -2,16 +2,16 @@
 
 > Lo primero que se lee al retomar. Si esto está desactualizado, la sesión arranca ciega.
 
-Actualizado: 16/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.1
+Actualizado: 17/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.2
 
 ---
 
 ## Dónde vamos
 
-`kcut` 0.1.0 es instalable en modo desarrollo y `kcut doctor` está verificado (11/11 ok). **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
+`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`, 11/11 ok) y S1.2 (`kcut new` + `kcut ingest`, `pytest -q -ra` → 1238 passed, 3 skipped). **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
 
 **Fase actual:** F1 — Núcleo (spec 001 Motor + spec 002 Experiencia)
-**Próximo paso:** S1.2 — `kcut new` + `kcut ingest` (spec 001.2; incluye los ítems S1.2 del parche 001.1: traceback de `InternalError` al log, `doctor` leyendo `transcribe.model`, `-loglevel error` / `-map_metadata -1`, lista blanca en `probe.py`) → verificación según los criterios S1.2 del spec.
+**Próximo paso:** S1.3 — `kcut transcribe` + `kcut pack`. Arranca con **paso 0** = spec 001.10 (4 ítems de endurecimiento de seguridad de la revisión de 001.8/001.9). Después: transcripción con faster-whisper `medium` local, silencios por energía, frases y marcadores → verificación según los criterios S1.3 1–15 del spec.
 
 ---
 
@@ -21,13 +21,14 @@ Actualizado: 16/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.1
 |---|---|---|---|
 | Piloto 01 v4 | Reel 9:16 de 49 s: multicam, cortes, subtítulos, gráficos, música, SFX | `qa.py` → 1469/1469 frames, A/V 0 ms, −14.4 LUFS, pico −1.4 dBFS | 15/10 |
 | S1.1 | Paquete kcut + `kcut doctor` | `kcut doctor --json` → 11/11 ok; `pytest -q -ra` → 154 passed, 1 skipped | 16/10 |
+| S1.2 | kcut new + kcut ingest (layout del proyecto y `kcut.toml`, inventario con ids estables, probe HDR/VFR, proxies bt709, sincronía de audio multicam con piso de solape, guardas de refinado débil y de ambigüedad, `SYNC_VERSION`, logs seguros por corrida, validación de caché no confiable, scrub de metadatos, consola limpia) | pytest -q -ra → 1238 passed, 3 skipped; suite rápida 1108 passed en 70 s | 17/10 |
 
 ## Qué está escrito pero SIN verificar
 
 | Archivo | Qué falta | Por qué |
 |---|---|---|
 | `piloto/*` | Correr en otra máquina | Son scripts de referencia con rutas y tiempos del piloto, no el producto |
-| Test de symlink (`pytest -q -ra` → 1 skipped) | Correrlo con privilegio de administrador | Necesita privilegio de administrador en Windows; sin él se salta |
+| Test de symlink (`pytest -q -ra` → 3 skipped) | Correrlo con privilegio de administrador | Necesita privilegio de administrador en Windows; sin él se salta |
 
 ---
 
@@ -47,6 +48,10 @@ Actualizado: 16/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.1
 - **D12** — El borrador de la Puerta 1 es un **storyboard visual**: frame real + gráfico encima + texto + sonido por momento (`kcut storyboard`, S1.10), antes de cualquier render completo.
 - **D13** — Soportar ffmpeg 7 y 8 (Yedin, 16/10/2026).
 - **D14** — Dependencias con pisos + `requirements.lock` de versiones exactas; `Pillow>=12.3` (Yedin, 16/10/2026).
+- **D15** — Piso de solape de la sincronía en 0.75 del clip más corto (Yedin, 16/10/2026, spec 001.5).
+- **D16** — Umbral de correlación fina `min_refine_corr` 0.1, configurable; y el EDL guardará el `qhash` de cada fuente para negarse a cortar un archivo que cambió (Yedin, 16/10/2026, spec 001.6).
+- **D17** — Clips cortos con dos desfases posibles se rechazan como `sync_ambiguous` en vez de aceptarse callados (Yedin, 17/10/2026, spec 001.7).
+- **D18** — Toda salida de kcut a consola o `--json` pasa por `safe_text`, y el `--json` no repite texto libre del proyecto. Esa salida la lee Claude, así que es una vía de inyección de prompt (coordinador, 17/10/2026, spec 001.8).
 
 ---
 
@@ -59,6 +64,9 @@ py -3.12 -m venv .venv
 .venv/Scripts/python.exe -m pip install -e ".[dev]" -c requirements.lock
 .venv/Scripts/python.exe -I -X utf8 -m kcut doctor
 ```
+
+- Suite rápida (≈1 min): `.venv/Scripts/python.exe -I -X utf8 -m pytest -m "not slow" -q`
+- Suite completa (≈6–10 min): `.venv/Scripts/python.exe -I -X utf8 -m pytest -q`
 
 Cuando exista el plugin (spec 002):
 

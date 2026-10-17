@@ -18,7 +18,8 @@
 
 - [x] **S1.1** — Andamiaje del paquete + `kcut doctor`
       · verificado: `kcut doctor --json` → 11/11 ok · `pytest -q -ra` → 154 passed, 1 skipped
-- [ ] **S1.2** — `kcut new` + `kcut ingest` (inventario, HDR/VFR, sincronía multicam, proxies)
+- [x] **S1.2** — `kcut new` + `kcut ingest` (inventario, HDR/VFR, sincronía multicam, proxies)
+      · verificado: `pytest -q -ra` → 1238 passed, 3 skipped · suite rápida → 1108 passed en 70 s
 - [ ] **S1.3** — `kcut transcribe` + `kcut pack`
 - [ ] **S1.4** — `kcut view` + `kcut frames`
 - [ ] **S1.5** — EDL en frames + `kcut edl check` + `kcut render` base (cámaras, insertos, looks, mezzanines por tramo)
@@ -44,6 +45,8 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 14/10/2026 | S0.3 | Piloto v1 (48.4 s) | `qa.py` → 1452 frames, A/V 0 ms, −14.2 LUFS |
 | 15/10/2026 | S0.3 | Piloto v2–v4: subtítulos azules, beat en el inserto, mascota 3D rastreada sobre la palma, holograma, música con ducking | `qa.py` → 1469 frames, A/V 0 ms, −14.4 LUFS |
 | 16/10/2026 | S1.1 | Paquete kcut 0.1.0 + `kcut doctor`; 3 rondas de revisión (3 ALTO cerrados) | `kcut doctor --json` → exit 0; `pytest -q -ra` → 154 passed, 1 skipped |
+| 16/10/2026 | S1.2 | kcut new + kcut ingest; 3 rondas de revisión (1 CRÍTICO, 2 ALTO cerrados); parches 001.4–001.6 | ronda 3: pytest → 987 passed, 3 skipped |
+| 17/10/2026 | S1.2 | Merge de la deuda de S1.1 (001.3) y deuda de S1.2 pagada (001.7–001.9): sync ambiguo, logs, higiene de consola, topes de 48 h | pytest -q -ra → 1238 passed, 3 skipped |
 
 ---
 
@@ -65,14 +68,14 @@ Tone-mapping `zscale` + `tonemap` en CPU a 1440×2560. La vía GPU (`libplacebo`
 
 - **Mitigado hoy por:** corre en segundo plano y solo sobre las ventanas útiles del crudo.
 - **Cura real:** convertir solo los tramos del EDL aprobado; probar `tonemap_opencl` — ~3 h.
-- **Cuándo:** S1.2.
+- **Cuándo:** S1.5 (mezzanines por tramo del EDL). S1.2 solo convierte los proxies, que son chicos.
 
 ### 3. Intermedio a 1440×2560 deja poco margen para reencuadrar 🟡
 
 Con zoom 1.55 se escala un poco hacia arriba.
 
 - **Cura real:** intermedio a 1800×3200, o recortar desde el 4K solo los planos con zoom — ~2 h.
-- **Cuándo:** S1.2.
+- **Cuándo:** S1.5 (DS12 del spec: la resolución del mezzanine sale del zoom máximo usado).
 
 ### 4. Muletillas en español sin medir 🟡
 
@@ -238,6 +241,23 @@ Entre comprobar que el log vacío es el mismo archivo y borrarlo, alguien con ac
 - **Cura real:** borrar por handle (`FILE_FLAG_DELETE_ON_CLOSE` / `SetFileInformationByHandle`) en Windows — 2 h. No vale la pena hoy.
 - **Cuándo:** solo si kcut llega a correr en una carpeta compartida con otros usuarios.
 
+### 23. Hallazgos de la revisión de 001.7 (higiene de consola, rangos) ✅ pagada
+
+- Seguridad: secuencias de escape del inventario llegaban a la terminal; texto libre del inventario en `--json` (inyección de prompt); rangos faltantes.
+- **Pagada 17/10/2026** (001.8, commit `7119577`): pytest → 1211 passed, 3 skipped.
+
+### 24. Deuda vista al implementar 001.8 ✅ pagada
+
+- Float gigante tumbaba el cargador; fallback del log a stderr sin limpiar; tope de 12 h inconsistente con `max_duration_h` de 48 h.
+- **Pagada 17/10/2026** (001.9, commit `f59f68e`): pytest → 1238 passed, 3 skipped; seguridad → APROBADO, 0 hallazgos en el diff.
+
+### 25. Notas de seguridad fuera del diff de 001.8/001.9 🟡
+
+- Prosa del atacante en el aviso `inventory_invalid` del `--json` (MEDIO); `sync.manual` sin rango; entero gigante en `kcut.toml` da error interno; selectores de variación sin escapar.
+- **Mitigado hoy por:** todavía no hay proyectos reales con kcut.
+- **Cura real:** spec 001.10, paso 0 de S1.3 — 1.5 h.
+- **Cuándo:** ahora, primer paso de S1.3.
+
 ---
 
 ## Lecciones ya pagadas
@@ -318,6 +338,16 @@ Entre comprobar que el log vacío es el mismo archivo y borrarlo, alguien con ac
 - **Síntoma:** un script de edición del spec metió un surrogate suelto (`\ud800`) en el texto; `write_text` lanzó `UnicodeEncodeError` y el spec quedó en 0 bytes (17/10/2026). Se recuperó con `git show HEAD:...` y re-aplicando los cambios.
 - **Por qué engaña:** el archivo se abre en modo `w` (vacío) **antes** de codificar; el error llega tarde y parece que "no se escribió nada".
 - **Fix:** codificar primero (`data = s.encode("utf-8")`), escribir a `<archivo>.tmp` y `os.replace`. Es la misma regla que ya sigue `jsonio` para `inventory.json`.
+
+### 17. En Windows, dentro de un venv, `sys.executable` es un lanzador
+- **Síntoma:** `kill()` mataba al lanzador y el intérprete real seguía vivo, con los pipes agarrados.
+- **Por qué engaña:** `kill()` vuelve sin error y el proceso que mataste sí murió; el que sigue vivo es otro, el que lanzó el lanzador.
+- **Fix:** en tests que matan al hijo, usar `sys._base_executable` (no ve los paquetes del venv).
+
+### 18. Las herramientas de escritura pueden convertir escapes `\uXXXX` en caracteres crudos
+- **Síntoma:** al escribir tests de higiene, escapes como U+2028 o U+202E quedaron como caracteres invisibles dentro del `.py`.
+- **Por qué engaña:** el archivo se ve igual en el editor.
+- **Fix:** después de editar tests con caracteres raros, escanear los `.py` tocados buscando Cc/Cf/Zl/Zp/Cs crudos.
 
 ---
 
