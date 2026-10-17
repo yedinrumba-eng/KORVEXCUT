@@ -61,6 +61,7 @@ pyproject.toml                                  S1.1
 src/kcut/__init__.py  __main__.py  cli.py       S1.1
 src/kcut/errors.py  console.py  proc.py         S1.1
 src/kcut/toolpath.py  scrub.py                  S1.1 (partidos de proc.py por la regla de 300 líneas; proc los re-exporta)
+src/kcut/logfile.py                             S1.2 (partido de proc.py por la regla de 300 líneas en 001.6; proc lo re-exporta)
 src/kcut/commands/__init__.py  doctor.py        S1.1
 src/kcut/doctor/__init__.py  ffmpeg_caps.py  checks.py          S1.1
 src/kcut/doctor/result.py  chain_checks.py                      S1.1/S1.2 (partidos de checks.py por la regla de 300 líneas; 001.4)
@@ -310,6 +311,9 @@ devuelve el código.
   con `os.lstat` que la ruta es un archivo regular (`stat.S_ISREG`), con `st_nlink == 1` y que
   resuelve dentro de la caché real; si no, no se escribe ahí (el log va solo a stderr, con aviso).
   Así un hard link plantado en `.kcut/logs/` no puede escribir dentro de `crudo/`.
+  Desde 001.7: un `OSError` al abrir o escribir el log nunca sale de `append_log` (va a stderr con
+  aviso); la cabecera `$ ...` de un hijo se escribe **antes** del `Popen`; y el log que una corrida
+  creó y dejó en 0 bytes se borra al terminar (ver 001.7 punto 4).
 - Progreso a stderr como mucho cada 2 s: `render v1: 640/1469 frames (43%) - 18.2 fps - faltan 45 s`.
 - Lock por salida: `.kcut/locks/build-vN.lock`, abierto y bloqueado sin espera durante todo el
   comando (`render`, `mix`, `build`, `graphics capture` comparten `build-vN`); si no se puede
@@ -377,7 +381,7 @@ el dueño mira `edit/storyboard.html` y aprueba (Puerta 1: Claude pone `aprobado
 - `[tool.mypy]`: `python_version = "3.12"`, `strict = true`, `files = ["src"]`, `mypy_path = "src"`.
   Override `ignore_missing_imports = true` para `faster_whisper.*`, `ctranslate2.*`, `scipy.*`.
 - `[tool.pytest.ini_options]`: `testpaths = ["tests"]`, `addopts = "-ra --strict-markers"`,
-  `timeout = 300`, `markers = ["ffmpeg: necesita ffmpeg", "chromium: necesita Chromium de Playwright", "whisper: necesita el modelo local", "flite: necesita el filtro flite", "slow: tarda mas de 5 s", "e2e: punta a punta"]`.
+  `timeout = 300`, `markers = ["ffmpeg: necesita ffmpeg", "chromium: necesita Chromium de Playwright", "whisper: necesita el modelo local", "flite: necesita el filtro flite", "slow: tarda mas de 2 s (001.7)", "e2e: punta a punta"]`.
 
 #### `requirements.lock` — CREAR (raíz del repo, commiteado; 001.1)
 - Una línea `nombre==versión` por cada distribución de la **clausura de runtime**: las 6 de 0.12 y
@@ -916,7 +920,8 @@ desde cero) con el aviso `inventory_invalid`; nunca se confía en él. Formato `
   procesa), `skipped_link` (carpeta junction/symlink que no se recorrió), `inventory_invalid`,
   `cache_rebuilt` (un archivo de caché corrupto se reconstruyó).
   Desde 001.6: `sync_weak_refine` (la correlación del refinado quedó bajo `min_refine_corr`: el par se
-  rechaza y va a `sync.rejected` con `refine_corr`). Un archivo que no se pudo leer para el `qhash`
+  rechaza y va a `sync.rejected` con `refine_corr`). Desde 001.7: `sync_ambiguous` (clip corto con
+  dos desfases posibles; el par se rechaza, ver 001.7 punto 1). Un archivo que no se pudo leer para el `qhash`
   no recibe clip ni id: va a la lista de avisos del ingest como
   `{"code": "probe_failed", "file": "crudo/x.mov", "message_es": "..."}`.
   `dv_profile_unsupported` cuando `dv_profile == 5` (sin capa base compatible: colores incorrectos, F2).
@@ -947,6 +952,9 @@ desde cero) con el aviso `inventory_invalid`; nunca se confía en él. Formato `
   aunque `score` y `ratio` pasen. Calibración medida: offsets equivocados en clips cortos dan
   0.012–0.019, el correcto 0.99, y el piloto real (dos iPhones) 0.489. El piso de solape de 0.75
   (001.5) se mantiene. Aceptados y rechazados guardan `refine_corr` en el inventario.
+  (001.7) En clips cortos, donde manda el piso de 0.75 y no el de 10 s, se calcula además el mejor
+  lag con piso 0.5; si los dos difieren en más de 2 s, el par se rechaza con `sync_ambiguous`
+  (detalle en 001.7 punto 1).
 
 #### `src/kcut/ingest/workfiles.py` — CREAR
 `ensure_wav16(project, clip) -> Path`, `ensure_wav48(project, clip) -> Path` (mismo esquema en
@@ -1126,6 +1134,14 @@ HLG, DOVI perfil 8). `screen_sdr_pc.json` = h264 1894×866 30/1 `color_range pc`
 | 37 | Una carpeta donde va `.kcut/inventory.json` o un sidecar → `ProjectError` con "hay una carpeta donde kcut espera un archivo" (no el mensaje del reproductor) (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_jsonio.py -q -k directory_target` → exit 0 | ❌ |
 | 38 | El ruido de `anoisesrc` del fixture es determinista: dos generaciones de `cam b.mov` dan el mismo sha256 del audio decodificado (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_synth_media.py -q -k seed` → exit 0 | ❌ |
 | 39 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas (incluye `config/names.py`, `config/fields.py`, `ingest/scan.py`, `ingest/examine.py`, `ingest/inventory_check.py`, `ingest/inventory_json.py`, `tests/fixtures/links.py`) (001.6) | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 40 | Sync en clip corto con audio casi periódico: con la señal de tonos de `tests/unit/sync_signals.py`, dos clips de 12 s con B empezando 4 s y 6 s después → rechazados con `sync_ambiguous` (antes se aceptaban con −2800 y −800); los casos del criterio 29 siguen igual; la cámara B sintética sigue aceptada con 1200 ±1 ms; con el clip más corto de 14 s o más no se calcula el lag con piso 0.5 (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_sync.py tests/unit/test_sync_floor.py -q -k "ambiguous or weak_refine or short_batch or synth_cam_b"` → exit 0 | ❌ |
+| 41 | `kcut new X` con el destino dentro de una carpeta del layout de un proyecto padre (`P/crudo/X`, `P/edit/X`, `P/.kcut/X`…) → exit 3 con "no creo un proyecto dentro de <carpeta>/ de otro proyecto", no se crea nada y `P/crudo/` queda byte a byte igual; `P/otra/X` (fuera del layout) sigue permitido (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_new_refusals.py -q -k nested_in_layout` → exit 0 | ❌ |
+| 42 | `run_ingest(..., log=None)` no crea ni escribe ningún archivo en `.kcut/logs/` (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_log_safety.py -q -k no_log` → exit 0 | ❌ |
+| 43 | Log vacío: `kcut doctor` dentro de un proyecto no deja logs de 0 bytes; una corrida que escribió algo conserva su log; un log de 0 bytes que ya no es el mismo archivo que se creó (otro `st_ino`) o tiene `st_nlink > 1` no se borra (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_log_safety.py -q -k empty_log` → exit 0 | ❌ |
+| 44 | `append_log` con un `OSError` (la carpeta del log es un archivo) no lanza: el texto va a stderr con aviso. `proc.run` de un hijo con ese log termina normal (o por su timeout) y al volver el hijo ya no está vivo (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_proc.py tests/integration/test_proc_timeout.py -q -k log_oserror` → exit 0 | ❌ |
+| 45 | Una carpeta del layout que existe como archivo regular (por ejemplo `.kcut/logs`) → `kcut ingest` sale con exit 3 y "hay un archivo donde kcut espera una carpeta: .kcut/logs"; el `inventory.json` anterior queda byte a byte igual (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_cache_trust.py -q -k layout_folder_is_file` → exit 0 | ❌ |
+| 46 | Los avisos de sync por clip salen del motivo de rechazo guardado, no de si `refine_corr` es `None`: un rechazo por `ratio` con `refine_corr` presente da `sync_rejected`, uno por refinado débil `sync_weak_refine` y uno ambiguo `sync_ambiguous` (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_sync.py tests/unit/test_inventory.py -q -k warning_from_reason` → exit 0 | ❌ |
+| 47 | Suite rápida: en `pytest -q --durations=0` de la suite completa, todo test que tarda más de 2 s lleva `@pytest.mark.slow`; `pytest -m "not slow" -q` sale con exit 0; la suite completa recolecta lo mismo que antes del cambio más los tests nuevos de 001.7 (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest -m "not slow" -q --durations=5` → exit 0 y ningún test listado pasa de 2 s | ❌ |
 
 ---
 
@@ -1281,6 +1297,7 @@ hace desde 001.4) rechazan cualquier carácter de las categorías Unicode `Cc`, 
 | 8 | Sin modelo y sin `--allow-download` → exit 7 con el comando en el mensaje | caso `test_missing_model_exit7` (monkeypatch) → passed | ❌ |
 | 9 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
 | 10 | `glossary.terms`, `transcribe.fillers` y `transcribe.prompt_extra` con U+2028, U+2029, U+0085, U+202E o U+200B → `ProjectError` que nombra el campo (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_config.py -q -k prompt_hygiene` → exit 0 | ❌ |
+| 11 | El largo de referencia de un clip es el de su wav16 (muestras / 16000), no el `duration_ms` declarado en el inventario: un clip que declara 1 s pero cuyo wav16 dura 30 s se transcribe completo y los silencios cubren los 30 s (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "transcribe and real_length"` → exit 0 | ❌ |
 
 ---
 
@@ -2406,3 +2423,66 @@ S1.3 el 10 y S1.5 el 16.
    lanzador y el intérprete real sigue vivo (y retiene pipes). Todo `proc.run([sys.executable, ...])`
    futuro en kcut, o en sus tests, que dependa de matar al hijo debe usar el intérprete base
    (`sys._base_executable`), sabiendo que ese no ve los paquetes del venv.
+
+### 001.7 — 17/10/2026 — cierre de S1.2: deuda de la ronda 3 (aprobado por Yedin)
+
+S1.2 quedó APROBADO por verificador y seguridad en la ronda 3 (0 CRÍTICO, 0 ALTO). Lo que dejaron
+(1 MEDIO, 6 BAJO y dos notas) se paga de una por la regla del dueño. S1.2 suma los criterios 40–47
+y S1.3 el 11. Se implementa **después** de mergear la rama de deuda de S1.1 (001.3), que también
+toca `proc.py`.
+
+1. **MEDIO — sync ambiguo en clips cortos** (S1.2 `ingest/sync.py`; decisión del dueño 17/10/2026).
+   Caso: audio casi periódico, clip corto y desfase grande; el lag verdadero cae bajo el piso de
+   solape de 0.75 y el refinado correlaciona fuerte en el lag equivocado (tonos del fixture, 12 s,
+   +4 s → aceptado con −2800; +6 s → −800 con `refine_corr` 0.85).
+   - Cuándo aplica: solo si el piso efectivo de `coarse_offset` es el de la fracción
+     (`MIN_OVERLAP_FRACTION * min(len)` < el de `_MIN_OVERLAP_S`), es decir con el clip más corto
+     por debajo de ~13.4 s. Con clips más largos no se calcula nada extra.
+   - Qué hace: calcula también el mejor lag con piso 0.5 (misma normalización por solape, misma
+     envolvente). Si `|lag_0.5 − lag_0.75| > 2000 ms`, el par se rechaza: va a `sync.rejected` con
+     `reason: "ambiguous"`, los dos lags en ms, y aviso `sync_ambiguous` con
+     "sincronía ambigua: clip corto con dos desfases posibles (<a> s y <b> s); revísalo a mano".
+   - El umbral de 2 s y el piso 0.5 son constantes con nombre en `sync.py` (no van a `kcut.toml`).
+   - Si con esto la cámara B sintética (criterio 7) o cualquier caso del criterio 29 deja de dar lo
+     que da hoy, el implementador **para y devuelve BLOQUEADO** con las mediciones.
+   - Criterio S1.2-40.
+2. **BAJO — `kcut new` anidado** (S1.2 `commands/new.py`): antes de crear nada, si un ancestro del
+   destino tiene `kcut.toml` y el destino cae dentro de una carpeta de ese `Layout`
+   (`paths.Layout`), → `ProjectError` (exit 3): "no creo un proyecto dentro de <carpeta>/ de otro
+   proyecto (<ruta del padre>)". Fuera de las carpetas del layout se sigue permitiendo. Criterio
+   S1.2-41.
+3. **BAJO — `run_ingest` con `log=None`** (S1.2 `ingest/run.py:49`): si la CLI pasó `None`
+   ("esta corrida no deja log"), `run_ingest` no calcula otro nombre ni escribe log; todo va a
+   stderr. Criterio S1.2-42.
+4. **BAJO — logs vacíos** (§0.11, `cli._run_log`): la creación exclusiva al arrancar se mantiene
+   (reserva el nombre). Al terminar la corrida, pase lo que pase, si el log que **esta** corrida creó
+   sigue en 0 bytes, se borra solo si es el mismo archivo (mismo `st_dev` y `st_ino` que al crearlo,
+   tomados con `os.fstat` sobre el handle de creación), regular y con `st_nlink == 1`. Si algo de
+   eso no se cumple, no se toca. Criterio S1.2-43.
+5. **BAJO — `append_log` con `OSError` y hijo huérfano** (§0.11, `logfile.py:62-75`,
+   `proc.py:61-66`, `project.check_layout_inside`; hallazgo de seguridad):
+   - `_append_checked` captura `OSError` de `mkdir`/`os.open`/`write` y lo devuelve como motivo,
+     así cae en `_to_stderr` como cualquier otro rechazo. `append_log` no lanza nunca `OSError`.
+   - `ChildProcess.__init__` escribe la cabecera `$ ...` **antes** del `Popen`. Si algo lanza entre
+     el `Popen` y el final de `__init__`, hace `kill()` + `wait()` del hijo antes de propagar.
+   - `check_layout_inside`: toda carpeta del layout que exista tiene que ser carpeta (`is_dir()`
+     sobre una ruta que ya se comprobó que no es enlace); si es un archivo → `ProjectError` (exit 3):
+     "hay un archivo donde kcut espera una carpeta: <ruta relativa>".
+   - Criterios S1.2-44 y S1.2-45.
+6. **BAJO — avisos de sync desde el motivo** (S1.2, nota del verificador): el aviso por clip se
+   deriva del motivo de rechazo guardado (`score`, `ratio`, `weak_refine`, `ambiguous`), no de si
+   `refine_corr` es `None`. Criterio S1.2-46.
+7. **BAJO — árbol** (§0.2): `src/kcut/logfile.py`. Ya aplicado en este parche.
+8. **BAJO — no se cambia: archivo que no se pudo hashear recibe id nuevo después** (`scan.py:68-72`).
+   El verificador sugirió conservar la entrada previa del mismo `file`. **Se rechaza**: esa entrada
+   llevaría un `qhash` viejo; si el archivo cambió mientras estaba bloqueado, el EDL y el inventario
+   coincidirían en el `qhash` viejo, E04 no saltaría y `render` cortaría el video equivocado. Un id
+   nuevo con E04 ruidoso es el fallo seguro.
+9. **Suite rápida** (deuda de PROGRESO; `pyproject.toml` y tests): el marcador `slow` pasa a
+   "tarda mas de 2 s". Todo test que en `pytest -q --durations=0` de la suite completa tarde más
+   de 2 s lleva `@pytest.mark.slow` (por función o por módulo con `pytestmark`). Suite rápida:
+   `pytest -m "not slow"`; suite completa: `pytest`, como hoy. No se borra ni se salta ningún test.
+   Criterio S1.2-47.
+10. **Nota de seguridad para S1.3+**: tras el recheck de largo real, el inventario sigue guardando
+    el `duration_ms`/`frames` declarado; solo los avisos usan el largo real. Todo slice que use el
+    largo de un clip para un tope, un bucle o una ventana lo saca del wav16. Criterio S1.3-11.

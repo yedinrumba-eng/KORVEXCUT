@@ -165,6 +165,54 @@ Nunca `python -m kcut` desde una carpeta de crudo: un `cv2.py` plantado se impor
 - **Cura real:** indicar que se corre `kcut ...` o `python -I -X utf8 -m kcut` — 0.2 h.
 - **Cuándo:** S1.9 / spec 002.
 
+### 16. Los proxies SDR salen sin etiquetas `color_primaries` / `color_trc` ✅ pagada
+
+ffmpeg 8.1.1 no escribe esas etiquetas desde las banderas de salida cuando el frame no las trae (solo `color_space` y `color_range`). Los proxies HDR sí salen completos porque `zscale` las fija. Afecta también al encode final de S1.5: un reproductor puede adivinar mal el color.
+
+- **Mitigado hoy por:** los criterios actuales solo miran `color_space` y `color_range`, y el contenido sí es bt709.
+- **Cura real:** `setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv` al final de la cadena SDR (o `-x264-params`), y criterios que exijan las 4 etiquetas — 1 h.
+- **Cuándo:** ahora, en la ronda de revisión de S1.2 (regla de Yedin: deuda encontrada se arregla de una).
+- **Pagada 16/10/2026** (parche 001.4, ronda 2): criterio S1.2-8, verificador ronda 3 → "4 passed; las 4 etiquetas bt709/tv en los 3 proxies".
+
+### 17. Hallazgos de la revisión de S1.2 (1 CRÍTICO, 1 ALTO, 7 MEDIO, 6 BAJO) ✅ pagada
+
+- **CRÍTICO:** `kcut new` sobre una carpeta sin `kcut.toml` sobrescribía `estrategia.md` (aprobada), `versiones.md` y `recursos.json`.
+- **ALTO:** un `.kcut/inventory.json` envenenado (carpeta de proyecto hostil por zip/Drive) hacía escribir fuera del proyecto, o sacar archivos de `crudo/`, porque los destinos se validaban después de escribir.
+- **MEDIO:** caracteres Unicode invisibles (U+2028/U+2029/U+0085) todavía colaban `aprobado: si`; log del comando truncado y mensaje corto sin limpiar; etiquetas de color SDR (#16); ids reutilizables entre ingests; fallo del wav16 que borraba la clase; score de sync injusto con solapes parciales; sin tope de duración ni de memoria (2.7 MB que dicen 20 h piden ~12 GB de RAM).
+- **BAJO:** regex con `$` que acepta `
+`, junctions en `crudo/` (hasta ×64), nombre >80, `proxy_size` 0, JSON corrupto que bloquea para siempre, orden de escritura de `kcut new`.
+
+- **Mitigado hoy por:** nada de esto está en commit todavía (S1.2 sin cerrar); hoy no hay proyectos reales con `kcut`.
+- **Cura real:** parche de spec 001.4 + ronda 2 del implementador — ~4 h.
+- **Cuándo:** ahora (regla de Yedin: lo encontrado se arregla de una).
+- **Pagada 16/10/2026** (001.4 + 001.5, ronda 2): ronda 3 de seguridad repitió cada variante del ALTO → `inventory_invalid`, `crudo/` byte-idéntico, `evilout/` intacto.
+
+### 18. Hallazgos de la ronda 2 de S1.2 (1 ALTO, 4 MEDIO, 7 BAJO) ✅ pagada
+
+- **ALTO (causado por el parche 001.5):** con el piso de solape del 75 %, en clips de menos de 13.4 s con poco solape la sincronía aceptaba un desfase equivocado sin avisar (7 de 150 casos). La correlación fina separa los casos: 0.99 en el bueno contra 0.01–0.02 en los malos.
+- **MEDIO:** un junction interno (`.kcut` → `crudo/`) pasaba los controles y kcut escribía en `crudo/`; el log se podía escribir a través de un hard link plantado; un archivo bloqueado (`OSError` en `qhash`) tumbaba el ingest; los ids se renumeraban al borrar `.kcut/`, y un EDL viejo cortaría el video equivocado.
+- **BAJO:** `_copy` borraba la fuente si fuente y destino eran el mismo archivo con otra grafía; el tope de duración se fiaba de la duración declarada; `kcut new` no revisaba junctions y su aviso mandaba a mover los archivos de la Puerta 1 a `crudo/`; `ID_HIGH_MAX` chocaba con el validador; el ruido del fixture no tenía semilla; el árbol del spec estaba incompleto; el glosario y los textos que S1.3 manda a Claude aceptan caracteres de control.
+
+- **Mitigado hoy por:** S1.2 sigue sin commit.
+- **Cura real:** parche 001.6 + ronda 3 (la última). Decisiones de Yedin del 16/10: umbral de correlación fina 0.1 configurable; el EDL guarda el `qhash` de cada fuente y `edl check` se niega si no coincide (S1.5) — ~3 h.
+- **Cuándo:** ahora.
+- **Pagada 17/10/2026** (001.6, ronda 3): verificador → lote de 150 clips cortos con semilla, "0 offsets malos aceptados"; 120 hard links plantados, sha256 de `crudo/pantalla.mp4` igual antes y después; archivo bloqueado → exit 0 con `probe_failed`. El `qhash` en el EDL queda para S1.5 (criterio S1.5-16).
+
+### 19. Hallazgos de la ronda 3 de S1.2 (1 MEDIO, 6 BAJO) 🟡
+
+- **MEDIO:** con audio casi periódico (música en loop), un clip de menos de 13.4 s y mucho desfase, la sincronía puede aceptar un desfase equivocado sin avisar (tonos del fixture, 12 s +4 s → −2800). Con voz real no pasa.
+- **BAJO:** `kcut new` dentro del `crudo/` de otro proyecto; `run_ingest` inventa un log cuando la CLI dijo "sin log"; `doctor` deja logs vacíos; `append_log` puede lanzar `OSError` y dejar un ffmpeg huérfano (seguridad); avisos de sync deducidos de `refine_corr` en vez del motivo; falta `logfile.py` en el árbol del spec.
+- **No se cambia:** que un archivo que no se pudo hashear reciba id nuevo después. Conservar la entrada vieja dejaría un `qhash` viejo y E04 no saltaría (razón en 001.7 punto 8).
+- **Mitigado hoy por:** hace falta una carpeta de logs saboteada o un fallo de disco para el huérfano; el caso periódico necesita clips cortos con música en loop.
+- **Cura real:** parche 001.7 (criterios S1.2-40 a 47 y S1.3-11) + agente en worktree aislado — ~3 h. Decisión de Yedin 17/10/2026: arreglar el MEDIO.
+- **Cuándo:** ahora, después de mergear la rama de deuda de S1.1.
+
+### 20. La suite completa tarda ~10 min ⚪
+
+- **Mitigado hoy por:** los revisores corren subconjuntos con `-k`.
+- **Cura real:** marcador `slow` para todo test de más de 2 s y suite rápida `pytest -m "not slow"` (001.7 punto 9) — 1 h.
+- **Cuándo:** ahora, con la deuda 19.
+
 ---
 
 ## Lecciones ya pagadas
