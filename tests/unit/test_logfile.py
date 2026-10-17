@@ -9,6 +9,7 @@ import pytest
 
 from kcut import logfile, proc
 from kcut.logfile import CreatedLog, append_log, create_run_log, log_writer, remove_if_empty
+from tests.fixtures.links import make_hard_link
 
 PY = str(getattr(sys, "_base_executable", None) or sys.executable)
 
@@ -155,3 +156,28 @@ def test_append_log_says_whether_the_text_reached_the_log(
 
     monkeypatch.setattr(os, "write", full_disk)
     assert append_log(tmp_path / "lleno.log", "perdido\n") is False  # failed in the write
+
+
+def test_stderr_fallback_safe_escapes_the_header_the_child_text_and_the_log_path(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The text that falls to stderr because the log is not safe is untrusted too (001.9)."""
+    esc, bel, c1, rlo = chr(0x1B), chr(0x07), chr(0x9B), chr(0x202E)
+    original = tmp_path / "intacto.txt"
+    original.write_text("intacto", encoding="utf-8")
+    planted = tmp_path / f"hijo{rlo}.log"
+    make_hard_link(planted, original)  # st_nlink == 2: the log is refused
+    child = (
+        "import sys; sys.stderr.write(chr(27) + ']0;pwned' + chr(7) + chr(27) + '[2J fin')"
+        "; sys.stderr.write(chr(10))"
+    )
+
+    proc.run([PY, "-c", child, f"clip{c1}{rlo}.mov"], log=planted)
+
+    err = capsys.readouterr().err
+    assert not [c for c in err if c in f"{esc}{bel}{rlo}" or "\x80" <= c <= "\x9f"]
+    bs = chr(92)
+    assert f"clip{bs}x9b{bs}u202e.mov" in err  # the `$ ...` header
+    assert f"{bs}x1b]0;pwned{bs}x07{bs}x1b[2J fin" in err  # the child's stderr block
+    assert f"hijo{bs}u202e.log" in err  # the warning that names the log
+    assert original.read_text(encoding="utf-8") == "intacto"

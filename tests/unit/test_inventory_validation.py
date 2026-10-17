@@ -2,7 +2,6 @@
 
 import json
 import re
-from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -12,9 +11,16 @@ from kcut import cli
 from kcut.errors import ProjectError
 from kcut.ingest.inventory import Inventory, load_inventory, save_inventory
 from kcut.ingest.sync_reasons import ambiguity_message
-from tests.unit.inventory_fakes import HOSTILE_TEXT, MEMBER, REJECTED, valid_inventory
-
-Mutation = Callable[[dict[str, Any]], object]
+from tests.unit.inventory_fakes import (
+    HOSTILE_TEXT,
+    MEMBER,
+    REJECTED,
+    set_clip,
+    set_work,
+    sync_block,
+    valid_inventory,
+    written,
+)
 
 
 @pytest.fixture
@@ -24,30 +30,12 @@ def root(tmp_path: Path) -> Path:
     return folder
 
 
-def _written(root: Path, mutate: Mutation | None = None) -> Path:
-    path = root / ".kcut" / "inventory.json"
-    save_inventory(path, valid_inventory())
-    if mutate is not None:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        mutate(data)
-        path.write_text(json.dumps(data), encoding="utf-8")
-    return path
-
-
-def _set_clip(**changes: Any) -> Mutation:
-    return lambda d: d["clips"][0].update(changes)
-
-
-def _set_work(**changes: Any) -> Mutation:
-    return lambda d: d["clips"][0]["work"].update(changes)
-
-
 def test_a_valid_inventory_loads(root: Path) -> None:
-    assert load_inventory(_written(root), root) == valid_inventory()
+    assert load_inventory(written(root), root) == valid_inventory()
 
 
 def test_the_root_defaults_to_two_levels_above_the_file(root: Path) -> None:
-    assert load_inventory(_written(root)) == valid_inventory()
+    assert load_inventory(written(root)) == valid_inventory()
 
 
 @pytest.mark.parametrize(
@@ -56,18 +44,18 @@ def test_the_root_defaults_to_two_levels_above_the_file(root: Path) -> None:
 )
 def test_ids_are_refused_unless_a_letter_and_one_to_six_digits(root: Path, bad_id: str) -> None:
     with pytest.raises(ProjectError, match="id"):
-        load_inventory(_written(root, _set_clip(id=bad_id)), root)
+        load_inventory(written(root, set_clip(id=bad_id)), root)
 
 
 def test_the_id_prefix_must_match_the_class(root: Path) -> None:
     with pytest.raises(ProjectError, match="prefijo"):
-        load_inventory(_written(root, _set_clip(id="b1")), root)
+        load_inventory(written(root, set_clip(id="b1")), root)
 
 
 @pytest.mark.parametrize("bad_slug", ["../x", "A", "", "a" * 41, "a\n", "a b", "ñ", "a/b"])
 def test_slugs_are_refused(root: Path, bad_slug: str) -> None:
     with pytest.raises(ProjectError, match="slug"):
-        load_inventory(_written(root, _set_clip(slug=bad_slug)), root)
+        load_inventory(written(root, set_clip(slug=bad_slug)), root)
 
 
 @pytest.mark.parametrize(
@@ -89,7 +77,7 @@ def test_slugs_are_refused(root: Path, bad_slug: str) -> None:
 )
 def test_files_must_be_canonical_paths_under_crudo(root: Path, bad_file: str) -> None:
     with pytest.raises(ProjectError, match=r"file"):
-        load_inventory(_written(root, _set_clip(file=bad_file)), root)
+        load_inventory(written(root, set_clip(file=bad_file)), root)
 
 
 @pytest.mark.parametrize(
@@ -109,11 +97,11 @@ def test_work_files_must_live_in_their_own_cache_folder(
     root: Path, changes: dict[str, Any], fragment: str
 ) -> None:
     with pytest.raises(ProjectError, match=fragment):
-        load_inventory(_written(root, _set_work(**changes)), root)
+        load_inventory(written(root, set_work(**changes)), root)
 
 
 def test_null_work_files_are_fine(root: Path) -> None:
-    path = _written(root, _set_work(proxy=None, wav16=None))
+    path = written(root, set_work(proxy=None, wav16=None))
     clip = load_inventory(path, root).clips[0]
     assert clip.work is not None
     assert (clip.work.proxy, clip.work.wav16) == (None, None)
@@ -125,11 +113,11 @@ def test_null_work_files_are_fine(root: Path) -> None:
 )
 def test_id_high_must_be_sane_and_cover_the_ids_present(root: Path, high: dict[str, Any]) -> None:
     with pytest.raises(ProjectError, match="id_high"):
-        load_inventory(_written(root, lambda d: d.update(id_high=high)), root)
+        load_inventory(written(root, lambda d: d.update(id_high=high)), root)
 
 
 def test_a_missing_id_high_is_rebuilt_from_the_ids(root: Path) -> None:
-    inv = load_inventory(_written(root, lambda d: d.pop("id_high")), root)
+    inv = load_inventory(written(root, lambda d: d.pop("id_high")), root)
     assert dict(inv.id_high) == {"a": 1, "d": 1}
 
 
@@ -139,11 +127,11 @@ def test_duplicate_ids_are_refused(root: Path) -> None:
         data["clips"].append(dict(data["clips"][1]))
 
     with pytest.raises(ProjectError, match="repetido"):
-        load_inventory(_written(root, twin), root)
+        load_inventory(written(root, twin), root)
 
 
 def test_every_failure_is_a_project_error_with_exit_3_naming_the_file(root: Path) -> None:
-    path = _written(root, _set_clip(id="../../x"))
+    path = written(root, set_clip(id="../../x"))
     with pytest.raises(ProjectError, match=re.escape("inventory.json")) as info:
         load_inventory(path, root)
     assert info.value.exit_code == 3
@@ -156,33 +144,25 @@ def test_the_writer_never_emits_an_id_high_that_the_reader_would_refuse(root: Pa
     assert dict(load_inventory(path, root).id_high) == {"a": 1, "d": 1}
 
 
-def _sync(
-    rejected: Sequence[dict[str, Any]] = (), members: Sequence[dict[str, Any]] = ()
-) -> Mutation:
-    """Replace the sync block with the given entries."""
-    block = {"master": "a1", "members": list(members), "rejected": list(rejected)}
-    return lambda d: d.update(sync=block)
-
-
 @pytest.mark.parametrize("key", ["lag_a_ms", "lag_b_ms"])
-@pytest.mark.parametrize("value", [10**400, 43_200_001, -43_200_001])
-def test_lag_range_outside_12_hours_is_invalid(root: Path, key: str, value: int) -> None:
-    path = _written(root, _sync(rejected=[{**REJECTED, key: value}]))
+@pytest.mark.parametrize("value", [10**400, 172_800_001, -172_800_001])
+def test_lag_range_outside_48_hours_is_invalid(root: Path, key: str, value: int) -> None:
+    path = written(root, sync_block(rejected=[{**REJECTED, key: value}]))
     with pytest.raises(ProjectError, match=key) as info:
         load_inventory(path, root)
     assert info.value.exit_code == 3
 
 
-def test_lag_range_limits_of_12_hours_are_valid(root: Path) -> None:
-    edge = {**REJECTED, "lag_a_ms": -43_200_000, "lag_b_ms": 43_200_000}
-    loaded = load_inventory(_written(root, _sync(rejected=[edge])), root)
+def test_lag_range_limits_of_48_hours_are_valid(root: Path) -> None:
+    edge = {**REJECTED, "lag_a_ms": -172_800_000, "lag_b_ms": 172_800_000}
+    loaded = load_inventory(written(root, sync_block(rejected=[edge])), root)
     assert (loaded.sync.rejected[0].lag_a_ms, loaded.sync.rejected[0].lag_b_ms) == (
-        -43_200_000,
-        43_200_000,
+        -172_800_000,
+        172_800_000,
     )
 
 
-@pytest.mark.parametrize("lag", [10**400, -(10**400), 43_200_001, None, 2.5, "x", True])
+@pytest.mark.parametrize("lag", [10**400, -(10**400), 172_800_001, None, 2.5, "x", True])
 def test_lag_range_ambiguity_message_never_raises(lag: object) -> None:
     for first, second in ((lag, 4000), (4000, lag)):
         text = ambiguity_message(first, second)  # type: ignore[arg-type]
@@ -213,7 +193,7 @@ def test_lag_range_hostile_inventory_is_rebuilt_and_ingest_exits_0(
 
 @pytest.mark.parametrize("bad", HOSTILE_TEXT)
 def test_reason_hygiene_refuses_escape_sequences_and_long_text(root: Path, bad: str) -> None:
-    path = _written(root, _sync(rejected=[{**REJECTED, "reason": bad}]))
+    path = written(root, sync_block(rejected=[{**REJECTED, "reason": bad}]))
     with pytest.raises(ProjectError, match="reason") as info:
         load_inventory(path, root)
     assert "\x1b" not in info.value.message_es  # the message does not echo the value
@@ -221,7 +201,7 @@ def test_reason_hygiene_refuses_escape_sequences_and_long_text(root: Path, bad: 
 
 @pytest.mark.parametrize("bad", HOSTILE_TEXT)
 def test_method_hygiene_refuses_escape_sequences_and_long_text(root: Path, bad: str) -> None:
-    path = _written(root, _sync(members=[{**MEMBER, "method": bad}]))
+    path = written(root, sync_block(members=[{**MEMBER, "method": bad}]))
     with pytest.raises(ProjectError, match="method") as info:
         load_inventory(path, root)
     assert "\x1b" not in info.value.message_es
@@ -236,7 +216,7 @@ def test_reason_hygiene_keeps_every_text_kcut_writes(root: Path) -> None:
     ]
     rejected = [{**REJECTED, "id": f"s{i}", "reason": r} for i, r in enumerate(reasons, start=2)]
     members = [{**MEMBER, "method": "envelope+raw"}, {**MEMBER, "id": "a3", "method": "manual"}]
-    loaded = load_inventory(_written(root, _sync(rejected=rejected, members=members)), root)
+    loaded = load_inventory(written(root, sync_block(rejected=rejected, members=members)), root)
     assert [r.reason for r in loaded.sync.rejected] == reasons
     assert [m.method for m in loaded.sync.members] == ["envelope+raw", "manual"]
 
@@ -244,38 +224,37 @@ def test_reason_hygiene_keeps_every_text_kcut_writes(root: Path) -> None:
 @pytest.mark.parametrize(
     ("key", "inside", "outside"),
     [
-        ("offset_ms", 43_200_000, 43_200_001),
-        ("offset_ms", -43_200_000, -43_200_001),
-        ("offset_ms", 43_200_000, 10**400),
-        ("drift_ms", 43_200_000, 43_200_001),
-        ("drift_ms", -43_200_000, -43_200_001),
-        ("drift_ms", 43_200_000, 10**400),
+        ("offset_ms", 172_800_000, 172_800_001),
+        ("offset_ms", -172_800_000, -172_800_001),
+        ("offset_ms", 172_800_000, 10**400),
+        ("drift_ms", 172_800_000, 172_800_001),
+        ("drift_ms", -172_800_000, -172_800_001),
+        ("drift_ms", 172_800_000, 10**400),
         ("drift_windows", 100_000, 100_001),
         ("drift_windows", 100_000, 10**400),
     ],
-    ids=[
-        "offset-high",
-        "offset-low",
-        "offset-huge",
-        "drift-high",
-        "drift-low",
-        "drift-huge",
-        "windows-high",
-        "windows-huge",
-    ],
+    ids=lambda v: "huge" if v == 10**400 else str(v),
 )
 def test_member_ranges_stop_at_the_limit(root: Path, key: str, inside: int, outside: int) -> None:
-    loaded = load_inventory(_written(root, _sync(members=[{**MEMBER, key: inside}])), root)
+    loaded = load_inventory(written(root, sync_block(members=[{**MEMBER, key: inside}])), root)
     assert getattr(loaded.sync.members[0], key) == inside
-    path = _written(root, _sync(members=[{**MEMBER, key: outside}]))
+    path = written(root, sync_block(members=[{**MEMBER, key: outside}]))
     with pytest.raises(ProjectError, match=key) as info:
         load_inventory(path, root)
     assert info.value.exit_code == 3
 
 
-@pytest.mark.parametrize("key", ["offset_ms", "drift_ms", "drift_windows"])
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("offset_ms", 10**9),
+        ("drift_ms", 10**9),
+        ("drift_windows", 10**9),
+        pytest.param("score", 10**400, id="huge_float"),
+    ],
+)
 def test_member_ranges_hostile_inventory_is_rebuilt_and_ingest_exits_0(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], key: str
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], key: str, value: int
 ) -> None:
     project = tmp_path / "proyecto ñandú"
     assert cli.main(["new", str(project)]) == 0
@@ -284,7 +263,7 @@ def test_member_ranges_hostile_inventory_is_rebuilt_and_ingest_exits_0(
     assert cli.main(argv) == 0
     saved = project / ".kcut" / "inventory.json"
     data = json.loads(saved.read_text(encoding="utf-8"))
-    data["sync"] = {"master": "a1", "members": [{**MEMBER, key: 10**9}], "rejected": []}
+    data["sync"] = {"master": "a1", "members": [{**MEMBER, key: value}], "rejected": []}
     saved.write_text(json.dumps(data), encoding="utf-8")
     capsys.readouterr()
 
@@ -292,3 +271,29 @@ def test_member_ranges_hostile_inventory_is_rebuilt_and_ingest_exits_0(
 
     assert "inventory_invalid" in capsys.readouterr().err
     assert load_inventory(saved, project).sync.members == ()  # re-measured: no stale member
+
+
+@pytest.mark.parametrize(
+    ("block", "key"),
+    [
+        ("members", "score"),
+        ("members", "refine_corr"),
+        ("rejected", "ratio"),
+    ],
+)
+def test_huge_float_in_the_sync_block_is_invalid_not_an_overflow(
+    root: Path, block: str, key: str
+) -> None:
+    entry = {**(MEMBER if block == "members" else REJECTED), key: 10**400}
+    path = written(root, sync_block(**{block: [entry]}))
+    with pytest.raises(ProjectError, match=key) as info:
+        load_inventory(path, root)
+    assert info.value.exit_code == 3
+    assert "número finito" in info.value.message_es
+
+
+def test_huge_float_in_a_clip_is_invalid_not_an_overflow(root: Path) -> None:
+    path = written(root, lambda d: d["clips"][0]["audio"].update(peak_dbfs=-(10**400)))
+    with pytest.raises(ProjectError, match="peak_dbfs") as info:
+        load_inventory(path, root)
+    assert info.value.exit_code == 3

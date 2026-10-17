@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from kcut.config.load import parse_config
 from kcut.errors import ProjectError
 from kcut.schema_util import (
     SchemaError,
@@ -155,3 +156,70 @@ class TestLongValue:
         int_message = _msg(lambda: req_float({"x": 10**30}, "x", "", hi=5.0))
         assert float_message.endswith("(vino 1e+30)")
         assert int_message.endswith("(vino 10000000000000000000… (31 dígitos))")
+
+
+_NOT_FINITE = [10**400, -(10**400), 2**1024, 10**4000, math.inf, -math.inf, math.nan]
+
+
+def _float_message(value: object) -> str:
+    return _msg(lambda: req_float({"x": value}, "x", "sec"))
+
+
+def _optional_float_message(value: object) -> str:
+    return _msg(lambda: opt_float({"x": value}, "x", "", None, 0.0, 1.0))
+
+
+class TestHugeFloat:
+    """A float that arrives as a huge integer, `inf` or `nan` is a validation error (001.9)."""
+
+    def test_huge_float_required_is_a_validation_error_never_an_overflow(self) -> None:
+        for value in _NOT_FINITE:
+            message = _float_message(value)
+            assert message.startswith("sec.x: debe ser un número finito (vino ")
+            assert len(message) < 200
+
+    def test_huge_float_optional_and_with_a_range_say_the_same(self) -> None:
+        for value in _NOT_FINITE:
+            assert "x: debe ser un número finito" in _optional_float_message(value)
+
+    def test_huge_float_message_cuts_the_integer_like_a_range_message(self) -> None:
+        assert _float_message(10**400).endswith("(vino 10000000000000000000… (401 dígitos))")
+        assert _float_message(-(10**400)).endswith("(vino -10000000000000000000… (401 dígitos))")
+        assert req_float({"x": 10**300}, "x", "") == 1e300  # one that fits a float is accepted
+
+    def test_huge_float_in_kcut_toml_is_a_project_error_with_exit_3(self) -> None:
+        for text in (
+            "[sync]\nmin_ratio = " + "9" * 400 + "\n",
+            "[qa]\nmax_tp = -" + "9" * 400 + "\n",
+            "[sync]\nmin_ratio = inf\n",
+            "[qa]\nmax_tp = nan\n",
+        ):
+            with pytest.raises(ProjectError) as info:
+                parse_config(text, default_name="x")
+            assert info.value.exit_code == 3
+            assert "kcut.toml: " in info.value.message_es
+            assert "debe ser un número finito" in info.value.message_es
+
+
+class TestDescribeLong:
+    """`_describe` shows a huge integer like a range message does, never through `repr()`."""
+
+    def test_describe_long_int_in_one_of_gives_a_short_message(self) -> None:
+        message = _msg(lambda: one_of(10**5000, ("a", "b"), "p"))
+        assert len(message) < 200
+        assert message == "p: debe ser uno de: a, b (vino 10000000000000000000… (5001 dígitos))"
+        assert _msg(lambda: one_of(7, (1, 2), "p")).endswith("(vino 7)")
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda: req_str({"s": 10**5000}, "s", ""),
+            lambda: req_bool({"b": 10**5000}, "b", ""),
+            lambda: req_list({"l": 10**5000}, "l", ""),
+            lambda: req_float({"x": 10**5000}, "x", ""),
+        ],
+        ids=["str", "bool", "list", "float"],
+    )
+    def test_describe_long_int_where_another_type_is_expected(self, call: Any) -> None:
+        message = _msg(call)
+        assert len(message) < 200 and "(5001 dígitos)" in message

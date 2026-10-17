@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from kcut.console import safe_text
 from kcut.paths import is_inside
 
 _LOG_LOCKS: dict[str, threading.Lock] = {}
@@ -225,12 +226,15 @@ class _StderrSink:
 
 
 def _stderr_write(text: str) -> None:
-    """Write to the current `sys.stderr`; if it is `None`, closed or broken, drop the text."""
+    """Write to the current `sys.stderr`; if it is `None`, closed or broken, drop the text.
+
+    The text is untrusted (file names in the `$ ...` header, what a child printed): it goes through
+    `safe_text` like everything else kcut prints (001.9, point 3)."""
     stream = sys.stderr
     if stream is None:
         return
     try:  # a lone surrogate would make the stream raise: write it as "?" like the log does
-        stream.write(text.encode("utf-8", errors="replace").decode("utf-8"))
+        stream.write(safe_text(text.encode("utf-8", errors="replace").decode("utf-8")))
     except (OSError, ValueError):
         return
 

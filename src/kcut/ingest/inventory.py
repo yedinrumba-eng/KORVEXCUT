@@ -25,7 +25,7 @@ from kcut.ingest.inventory_model import (
     WorkFiles,
 )
 from kcut.ingest.probe import VideoInfo
-from kcut.ingest.sync_reasons import MAX_LAG_MS, MAX_TEXT_LEN
+from kcut.ingest.sync_reasons import MAX_TEXT_LEN
 from kcut.jsonio import read_json, write_json_atomic
 from kcut.schema_util import (
     SchemaError,
@@ -43,6 +43,7 @@ from kcut.schema_util import (
     req_list,
     req_str,
 )
+from kcut.timebase import MAX_TIME_MS
 
 _VIDEO_KEYS = video_keys()
 MAX_DRIFT_WINDOWS = 100_000  # the windows of the drift check: far above any real clip
@@ -220,11 +221,11 @@ def _member(d: dict[str, Any], path: str) -> SyncMember:
     only_keys(d, keys, path)
     return SyncMember(
         id=req_str(d, "id", path),
-        offset_ms=req_int(d, "offset_ms", path, -MAX_LAG_MS, MAX_LAG_MS),
+        offset_ms=req_int(d, "offset_ms", path, -MAX_TIME_MS, MAX_TIME_MS),
         score=req_float(d, "score", path),
         second=req_float(d, "second", path),
         ratio=opt_float(d, "ratio", path, None),
-        drift_ms=opt_int(d, "drift_ms", path, None, -MAX_LAG_MS, MAX_LAG_MS),
+        drift_ms=opt_int(d, "drift_ms", path, None, -MAX_TIME_MS, MAX_TIME_MS),
         drift_windows=req_int(d, "drift_windows", path, 0, MAX_DRIFT_WINDOWS),
         method=_text(d, "method", path),
         refine_corr=opt_float(d, "refine_corr", path, None),
@@ -241,8 +242,8 @@ def _rejected(d: dict[str, Any], path: str) -> SyncRejected:
         ratio=opt_float(d, "ratio", path, None),
         reason=_text(d, "reason", path),
         refine_corr=opt_float(d, "refine_corr", path, None),
-        lag_a_ms=opt_int(d, "lag_a_ms", path, None, -MAX_LAG_MS, MAX_LAG_MS),
-        lag_b_ms=opt_int(d, "lag_b_ms", path, None, -MAX_LAG_MS, MAX_LAG_MS),
+        lag_a_ms=opt_int(d, "lag_a_ms", path, None, -MAX_TIME_MS, MAX_TIME_MS),
+        lag_b_ms=opt_int(d, "lag_b_ms", path, None, -MAX_TIME_MS, MAX_TIME_MS),
         sync_version=opt_int(d, "sync_version", path, 1, 1, 1000),
     )
 

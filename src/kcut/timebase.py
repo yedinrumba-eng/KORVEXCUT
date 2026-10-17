@@ -4,6 +4,8 @@ from kcut.errors import ProjectError
 
 ALLOWED_FPS: frozenset[int] = frozenset({24, 25, 30, 48, 50, 60})
 SAMPLE_RATE = 48000
+# One cap for every stored time (lags, offsets, drift) and for `ingest.max_duration_h`: 48 h.
+MAX_TIME_MS = 48 * 3_600_000
 
 
 def spf(fps: int) -> int:

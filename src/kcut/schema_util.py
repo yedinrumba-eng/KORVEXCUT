@@ -167,10 +167,19 @@ def _int(v: object, where: str, lo: int | None, hi: int | None) -> int:
 
 
 def _float(v: object, where: str, lo: float | None, hi: float | None) -> float:
-    if isinstance(v, bool) or not isinstance(v, int | float) or not math.isfinite(v):
+    if isinstance(v, bool) or not isinstance(v, int | float) or not _is_finite(v):
         raise SchemaError(where, f"debe ser un número finito (vino {_describe(v)})")
     _check_range(v, where, lo, hi)
     return float(v)
+
+
+def _is_finite(v: float) -> bool:
+    """False for `inf`, `nan` and an integer too big for a float (`isfinite` raises OverflowError
+    on it, and a hostile file can carry one)."""
+    try:
+        return math.isfinite(v)
+    except OverflowError:
+        return False
 
 
 def _str(v: object, where: str, max_len: int | None, min_len: int) -> str:
@@ -220,9 +229,12 @@ def _shown(v: float) -> str:
 
 
 def _describe(v: object) -> str:
-    """Short rendering of a bad value for messages: its type for containers, repr otherwise."""
+    """Short rendering of a bad value for messages: its type for containers, `_shown` for an
+    integer (`repr` of a huge one raises ValueError), repr otherwise."""
     kind = _KINDS.get(type(v), type(v).__name__)
     if isinstance(v, list | dict):
         return kind
+    if isinstance(v, int):
+        return _shown(v)
     text = repr(v)
     return text if len(text) <= 40 else text[:37] + "..."

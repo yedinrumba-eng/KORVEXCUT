@@ -9,6 +9,8 @@ of the motive. The stored texts below are what `sync.py` has always written; the
 
 from typing import Literal
 
+from kcut.timebase import MAX_TIME_MS
+
 REASON_SCORE = "pico de correlacion bajo"
 REASON_RATIO = "pico ambiguo (hay otro casi igual de alto)"
 REASON_WEAK_REFINE = "sync_weak_refine"  # prefix: the stored text goes on with the numbers
@@ -16,8 +18,7 @@ REASON_AMBIGUOUS = "sync_ambiguous"  # prefix: same style as `sync_weak_refine`
 
 # The only `method` values kcut writes; any other one is never printed.
 SYNC_METHODS = ("envelope+raw", "manual")
-# Range accepted for a stored lag (12 h, like the other time fields) and the longest stored text.
-MAX_LAG_MS = 43_200_000
+# The longest stored text (`reason`, `method`).
 MAX_TEXT_LEN = 300
 
 Motive = Literal["score", "ratio", "weak_refine", "ambiguous"]
@@ -61,7 +62,7 @@ def rejection_text(reason: str, lag_a_ms: int | None, lag_b_ms: int | None) -> s
 def ambiguity_message(lag_a_ms: int | None, lag_b_ms: int | None) -> str:
     """The user-facing text of a `sync_ambiguous` rejection: the two lags, in seconds.
 
-    Never raises: a lag that is missing, not an integer or outside `MAX_LAG_MS` (a hostile or
+    Never raises: a lag that is missing, not an integer or outside `MAX_TIME_MS` (a hostile or
     damaged inventory) gives the text without numbers.
     """
     first, second = _seconds(lag_a_ms), _seconds(lag_b_ms)
@@ -75,7 +76,7 @@ def ambiguity_message(lag_a_ms: int | None, lag_b_ms: int | None) -> str:
 
 def _seconds(ms: object) -> str | None:
     """Milliseconds as seconds with integer arithmetic only (no float division of a huge int)."""
-    if isinstance(ms, bool) or not isinstance(ms, int) or abs(ms) > MAX_LAG_MS:
+    if isinstance(ms, bool) or not isinstance(ms, int) or abs(ms) > MAX_TIME_MS:
         return None
     whole, millis = divmod(abs(ms), 1000)
     text = f"{whole}.{millis:03d}".rstrip("0").rstrip(".")

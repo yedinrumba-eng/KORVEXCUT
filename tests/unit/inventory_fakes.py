@@ -1,7 +1,14 @@
 """Shared data of the inventory validation tests: a valid inventory and the sync entries."""
 
-from kcut.ingest.inventory import Clip, ClipAudio, Inventory, WorkFiles
+import json
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import Any
+
+from kcut.ingest.inventory import Clip, ClipAudio, Inventory, WorkFiles, save_inventory
 from tests.unit.media_fakes import make_video
+
+Mutation = Callable[[dict[str, Any]], object]
 
 REJECTED = {
     "id": "s2",
@@ -52,3 +59,29 @@ def valid_inventory() -> Inventory:
     )
     doc = Clip("d1", "crudo/brief.txt", "brief", "doc", "sha256:bbbbbbbb", 3)
     return Inventory("2026-10-16T10:00:00", 30, (clip, doc), id_high={"a": 1, "d": 1})
+
+
+def written(root: Path, mutate: Mutation | None = None) -> Path:
+    path = root / ".kcut" / "inventory.json"
+    save_inventory(path, valid_inventory())
+    if mutate is not None:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        mutate(data)
+        path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def sync_block(
+    rejected: Sequence[dict[str, Any]] = (), members: Sequence[dict[str, Any]] = ()
+) -> Mutation:
+    """Replace the sync block with the given entries."""
+    block = {"master": "a1", "members": list(members), "rejected": list(rejected)}
+    return lambda d: d.update(sync=block)
+
+
+def set_clip(**changes: Any) -> Mutation:
+    return lambda d: d["clips"][0].update(changes)
+
+
+def set_work(**changes: Any) -> Mutation:
+    return lambda d: d["clips"][0]["work"].update(changes)

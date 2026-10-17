@@ -43,10 +43,11 @@ from kcut.schema_util import (
     opt_int,
     opt_str,
 )
-from kcut.timebase import ALLOWED_FPS
+from kcut.timebase import ALLOWED_FPS, MAX_TIME_MS
 
 _LANG = re.compile(r"[a-z]{2}")
 _CLIP_ID = re.compile(r"[a-z][0-9]+")
+_MAX_HOURS = MAX_TIME_MS / 3_600_000  # 48.0: the same cap the inventory puts on stored times
 
 
 def load_config(path: Path) -> ProjectConfig:
@@ -260,8 +261,8 @@ def _qa(d: dict[str, Any]) -> QaSection:
 
 def _ingest(d: dict[str, Any]) -> IngestSection:
     only_keys(d, {"warn_duration_h", "max_duration_h"}, "ingest")
-    warn = opt_float(d, "warn_duration_h", "ingest", 3.0, 0.1, 48.0)
-    longest = opt_float(d, "max_duration_h", "ingest", 12.0, 0.1, 48.0)
+    warn = opt_float(d, "warn_duration_h", "ingest", 3.0, 0.1, _MAX_HOURS)
+    longest = opt_float(d, "max_duration_h", "ingest", 12.0, 0.1, _MAX_HOURS)
     if longest < warn:
         raise SchemaError(
             "ingest.max_duration_h",
