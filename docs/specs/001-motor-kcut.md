@@ -82,6 +82,7 @@ src/kcut/text/__init__.py  normalize.py  corrections.py                        S
 src/kcut/transcribe/__init__.py  model.py  engine.py  cache.py                 S1.3
 src/kcut/analysis/__init__.py  energy.py                                       S1.3
 src/kcut/pack/__init__.py  phrases.py  markers.py  votes.py  writer.py         S1.3
+src/kcut/pack/assemble.py  src/kcut/transcribe/document.py                    S1.3 (partidos por la regla de 300 líneas; 001.11)
 src/kcut/commands/transcribe.py  pack.py                                       S1.3
 src/kcut/timeparse.py  ff/reader.py                                            S1.4
 src/kcut/viz/__init__.py  draw.py  timeline.py  grid.py                        S1.4
@@ -1320,6 +1321,8 @@ hace desde 001.4) rechazan cualquier carácter de las categorías Unicode `Cc`, 
 | 13 | Paso 0 (001.10 punto 2): `sync.manual.<id>` fuera de ±`MAX_TIME_MS` en `kcut.toml` → `ProjectError` (exit 3) que nombra la clave | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_config.py -q -k manual_range` → exit 0 | ❌ |
 | 14 | Paso 0 (001.10 punto 3): un entero de 5000 dígitos en cualquier clave de `kcut.toml` → `ProjectError` (exit 3), nunca `InternalError` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_config.py -q -k toml_huge_int` → exit 0 | ❌ |
 | 15 | Paso 0 (001.10 punto 4): `safe_text` escapa los selectores de variación U+FE00–U+FE0F y U+E0100–U+E01EF y los de uso privado (`Co`); deja intactos ñ, tildes y emoji sin selector | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_console_hygiene.py -q -k variation_selectors` → exit 0 | ❌ |
+| 16 | `pack` con un wav16 que cambió después de `transcribe` (su sha256 ya no es el `wav_sha256` de la transcripción) → `CheckFailed` (exit 1) que nombra el clip y dice "corre kcut transcribe"; con el wav16 igual, `pack` sigue normal (001.11 punto 1) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pack_command.py -q -k stale_transcript` → exit 0 | ❌ |
+| 17 | El audio del criterio 7 sale de la primera voz de flite (en este orden: `slt`, `rms`, `awb`, `kal16`, `kal`) con la que Whisper `medium` escribe "hello" y "world" literales; el test exige los dos textos a ±400 ms (001.11 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_transcribe_synth.py -q -ra` → `1 passed` | ❌ |
 
 ---
 
@@ -2704,3 +2707,42 @@ código anterior. Por la regla de Yedin se arreglan ya, como **paso 0 de S1.3** 
 5. **Nota, sin código**: `_clean` de `Out.result` funde dos claves que solo difieren en lo escapado.
    Hoy ninguna clave de la salida JSON viene del proyecto; todo slice que saque claves de datos del
    usuario o del inventario lo revisa.
+
+### 001.11 — 17/10/2026 — ajustes de S1.3 tras la implementación (coordinador)
+
+El implementador de S1.3 terminó (filas 1–15 en verde) y dejó huecos y decisiones. S1.3 suma los
+criterios 16 y 17.
+
+1. **Transcripción vieja en `pack`** (`commands/pack.py` / `pack/assemble.py`): antes de usar la
+   transcripción de un clip, `pack` calcula el sha256 del wav16 actual y lo compara con el
+   `wav_sha256` guardado; si no coincide → `CheckFailed` (exit 1): "la transcripción de <id> es de
+   otro audio; corre kcut transcribe". Sin esto, un wav16 regenerado daría frases con tiempos de otro
+   audio. Criterio S1.3-16.
+2. **Voz del audio sintético del criterio 7** (`tests/integration/test_transcribe_synth.py`): la voz
+   `kal` de flite deforma "world" y Whisper escribe "well". El spec no fija la voz: se usa la primera
+   de `slt`, `rms`, `awb`, `kal16`, `kal` con la que Whisper `medium` escribe "hello" y "world"
+   literales, y el test vuelve a exigir los dos textos (±400 ms), como dice el criterio 7. Si
+   ninguna voz sirve, el implementador para y devuelve BLOQUEADO con lo que transcribió cada una.
+   Criterio S1.3-17.
+3. **PyAV** (`transcribe/engine.py`; decisión del implementador, aceptada): `faster-whisper 1.2.1`
+   llama `av.open(..., metadata_errors=...)`, que `av==19.0.1` del lock ya no acepta. `Engine` lee el
+   wav16 con `audio/wavio.read_wav_s16_mono` y le pasa a Whisper el array float32 a 16 kHz; PyAV no
+   interviene. Equivale a lo pedido (el wav16 ya es mono a 16 kHz) y da el largo real (001.7 punto 10).
+4. **Decisiones del implementador aceptadas**:
+   - `why` es opcional en `correcciones.json`.
+   - Un id explícito que no existe o no tiene voz → `UsageError` (2).
+   - JSON de `pack`: `{ok, md, tsv, clips: [{id, words, phrases[, disagreements]}], warnings: [...]}`.
+   - El encabezado "sin sincronia" va en los clips con voz que no son maestro ni miembro.
+   - Si el maestro no tiene transcripción, sus miembros se leen completos.
+   - Palabras de Whisper con texto vacío se descartan.
+   - Las palabras borradas por corrección quedan en el tsv con la marca `C`.
+   - `<sonido sin texto ...>` va en línea propia, ordenada por tiempo.
+   - `(¿alucinacion?)` va después de la palabra.
+   - Dos clips con audio idéntico comparten caché.
+   - La muletilla con mayúscula inicial solo lleva mayúscula en la primera letra del bloque.
+   - Excepción `InventoryInvalid(ProjectError)` con `.field`.
+   - Archivos fuera del árbol, partidos por la regla de 300 líneas: `src/kcut/transcribe/document.py`
+     y `src/kcut/pack/assemble.py`.
+5. **Ejemplos del writer**: manda la regla normativa (inicio con `floor`, fin con `ceil`, centésimas
+   redondeadas) sobre los números del ejemplo; una palabra corregida lleva la marca `C`
+   (`?VC`, no `?V`).
