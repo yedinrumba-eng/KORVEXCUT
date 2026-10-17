@@ -1156,6 +1156,10 @@ HLG, DOVI perfil 8). `screen_sdr_pc.json` = h264 1894×866 30/1 `color_range pc`
 | 56 | En `kcut ingest --json`, un rechazo de sync lleva en `reason` el texto fijo de la tabla (nunca el `reason` guardado) y `method` es `null` si no está en `SYNC_METHODS` (001.8 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_ingest_output.py -q -k json_hygiene` → exit 0 | ❌ |
 | 57 | Miembro del inventario con `offset_ms` o `drift_ms` fuera de ±43 200 000, o `drift_windows` fuera de 0 … 100 000 → `inventory_invalid` y se re-mide (001.8 punto 3) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_inventory_validation.py -q -k member_ranges` → exit 0 | ❌ |
 | 58 | Un entero fuera de rango de 5000 dígitos produce un mensaje de error de menos de 200 caracteres que dice cuántos dígitos tenía (001.8 punto 4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_schema_util.py -q -k long_value` → exit 0 | ❌ |
+| 59 | Un float del inventario o de `kcut.toml` que llega como entero gigante (`"score": 10**400`) o como `1e999` → error de validación (`inventory_invalid` en el inventario, `ProjectError` en `kcut.toml`), nunca `OverflowError`; `kcut ingest` sale con 0 (001.9 punto 1) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_schema_util.py tests/unit/test_inventory_validation.py -q -k huge_float` → exit 0 | ❌ |
+| 60 | `one_of` con un valor entero de 5000 dígitos da un mensaje de menos de 200 caracteres, sin `ValueError` (001.9 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_schema_util.py -q -k describe_long` → exit 0 | ❌ |
+| 61 | Con el log saboteado (hard link), lo que cae a stderr (cabecera `$ ...` con un nombre de archivo con U+009B/U+202E y el stderr del hijo con ESC) sale escapado por `safe_text`, sin bytes 0x1B ni U+0080–U+009F ni U+202E (001.9 punto 3) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_logfile.py -q -k stderr_fallback_safe` → exit 0 | ❌ |
+| 62 | `MAX_TIME_MS == 48 * 3_600_000` es el tope de `lag_a_ms`, `lag_b_ms`, `offset_ms` y `drift_ms`, y coincide con el máximo de `ingest.max_duration_h` (48.0); ±172 800 000 se acepta, ±172 800 001 da `inventory_invalid` (001.9 punto 4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "max_time or lag_range or member_ranges"` → exit 0 | ❌ |
 
 ---
 
@@ -2624,7 +2628,7 @@ y 3 BAJO. S1.2 suma los criterios 55–58.
    - Se aplica a todo texto que kcut imprime: `Out.line`, `Out.warn`, el `print` de errores de
      `cli._report`, el texto que `cli._internal` manda a stderr cuando no hay log, el aviso de "no
      pude crear el log" y cualquier otro `print` a stdout/stderr de `console.py` y `cli.py`.
-   - En `--json`, `Out.json` aplica `safe_text` a cada `str` del objeto (claves y valores) antes de
+   - En `--json`, `Out.result` (la única que imprime JSON) aplica `safe_text` a cada `str` del objeto (claves y valores) antes de
      `json.dumps`; `ensure_ascii` sigue en `False`, así que las tildes no cambian.
    - Los mensajes de error no cambian de forma (no se usa `!r` en el cargador); el log en disco no
      se toca.
@@ -2641,3 +2645,31 @@ y 3 BAJO. S1.2 suma los criterios 55–58.
 5. **Nota para el spec 002** (no se implementa aquí): los nombres de archivo de `crudo/` siguen
    saliendo en `--json` porque son el dato. El plugin y sus agentes tratan **toda** salida de kcut
    (nombres de archivo, textos de `kcut.toml`, avisos) como datos, nunca como instrucciones.
+
+### 001.9 — 17/10/2026 — deuda vista al implementar 001.8 (regla de Yedin: arreglar de inmediato)
+
+El implementador de 001.8 encontró 1 MEDIO y 3 BAJO fuera de su alcance. S1.2 suma los criterios
+59–62. Se corrige además el nombre `Out.json` → `Out.result` en 001.8 punto 1 (ya aplicado).
+
+1. **MEDIO — float gigante tumba el cargador** (`schema_util.py` `_float` y quien convierta a
+   float): `math.isfinite(10**400)` lanza `OverflowError`; un `inventory.json` con `"score":
+   10**400` terminaba `kcut ingest` con exit 10. Todo float validado que llegue como `int` se
+   convierte dentro de un `try` (`OverflowError` → error de validación "debe ser un número finito");
+   lo mismo para `inf`/`nan`. Vale para el inventario (`inventory_invalid`) y para `kcut.toml`
+   (`ProjectError`, exit 3). Criterio S1.2-59.
+2. **BAJO — `_describe` con entero gigante** (`schema_util.py`, vía `one_of`): usa el mismo
+   `_shown` de 001.8 punto 4 en vez de `repr()`. Hoy no se alcanza (los llamadores pasan `str`), se
+   endurece igual. Criterio S1.2-60.
+3. **BAJO — fallback del log a stderr sin limpiar** (`logfile.py` `_to_stderr`): cuando el log no
+   se puede escribir, la cabecera `$ <args>` (con nombres de archivo) y el stderr de los hijos van a
+   stderr; pasan por `safe_text` (con `\n` conservado), igual que el resto de la consola (001.8
+   punto 1). Si importar `console` desde `logfile` crea un ciclo, `safe_text` se mueve a
+   `src/kcut/textsafe.py` y `console` lo re-exporta (se agrega al árbol §0.2). Criterio S1.2-61.
+4. **BAJO — tope de tiempo inconsistente** (`timebase.py`, `ingest/inventory.py`,
+   `ingest/sync_reasons.py`): 001.7 punto 11 y 001.8 punto 3 pusieron ±12 h, pero
+   `ingest.max_duration_h` admite hasta 48 h: un par válido con más de 12 h de desfase se volvería a
+   medir en cada ingest. Constante única `MAX_TIME_MS = 48 * 3_600_000` en `timebase.py`; es el tope
+   de `lag_a_ms`, `lag_b_ms`, `offset_ms` y `drift_ms` (reemplaza `MAX_LAG_MS` y los ±43 200 000), y
+   el cargador de `kcut.toml` usa el mismo 48 como máximo de `max_duration_h`. Los tests de borde de
+   las filas 48 y 57 cambian su borde a ±172 800 000 (el contrato cambió; sus asserts no se
+   aflojan). Criterio S1.2-62.
