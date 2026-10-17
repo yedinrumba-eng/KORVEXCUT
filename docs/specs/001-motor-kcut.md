@@ -62,6 +62,7 @@ src/kcut/__init__.py  __main__.py  cli.py       S1.1
 src/kcut/errors.py  console.py  proc.py         S1.1
 src/kcut/toolpath.py  scrub.py                  S1.1 (partidos de proc.py por la regla de 300 líneas; proc los re-exporta)
 src/kcut/logfile.py                             S1.2 (partido de proc.py por la regla de 300 líneas en 001.6; proc lo re-exporta)
+src/kcut/childlog.py                            S1.1 (001.3: stderr de hijos por trozos con cola de 8 MB; escribe por `logfile.log_writer`)
 src/kcut/commands/__init__.py  doctor.py        S1.1
 src/kcut/doctor/__init__.py  ffmpeg_caps.py  checks.py          S1.1
 src/kcut/doctor/result.py  chain_checks.py                      S1.1/S1.2 (partidos de checks.py por la regla de 300 líneas; 001.4)
@@ -2503,10 +2504,14 @@ toca `proc.py`.
    sigue en 0 bytes, se borra solo si es el mismo archivo (mismo `st_dev` y `st_ino` que al crearlo,
    tomados con `os.fstat` sobre el handle de creación), regular y con `st_nlink == 1`. Si algo de
    eso no se cumple, no se toca. Criterio S1.2-43.
-5. **BAJO — `append_log` con `OSError` y hijo huérfano** (§0.11, `logfile.py:62-75`,
-   `proc.py:61-66`, `project.check_layout_inside`; hallazgo de seguridad):
-   - `_append_checked` captura `OSError` de `mkdir`/`os.open`/`write` y lo devuelve como motivo,
-     así cae en `_to_stderr` como cualquier otro rechazo. `append_log` no lanza nunca `OSError`.
+5. **BAJO — `append_log` con `OSError` y hijo huérfano** (§0.11, `logfile.py`, `proc.py`
+   `ChildProcess.__init__`, `project.check_layout_inside`; hallazgo de seguridad). Desde el merge de
+   001.3 toda escritura al log pasa por el context manager `logfile.log_writer(log)` (mismo lock por
+   ruta, `unsafe_reason`, `fstat` regular con `st_nlink == 1`, si no `_to_stderr`):
+   - `log_writer` captura `OSError` de `mkdir`/`os.open`/`fstat` y cae a `_to_stderr` con el texto
+     del error como motivo. Un `OSError` en un `write` a mitad del bloque tampoco sale: el handle que
+     entrega `log_writer` va envuelto de modo que, desde ese `write`, el resto del texto va a stderr
+     con un aviso único. Ni `append_log` ni `log_writer` lanzan nunca `OSError`.
    - `ChildProcess.__init__` escribe la cabecera `$ ...` **antes** del `Popen`. Si algo lanza entre
      el `Popen` y el final de `__init__`, hace `kill()` + `wait()` del hijo antes de propagar.
    - `check_layout_inside`: toda carpeta del layout que exista tiene que ser carpeta (`is_dir()`
@@ -2516,7 +2521,7 @@ toca `proc.py`.
 6. **BAJO — avisos de sync desde el motivo** (S1.2, nota del verificador): el aviso por clip se
    deriva del motivo de rechazo guardado (`score`, `ratio`, `weak_refine`, `ambiguous`), no de si
    `refine_corr` es `None`. Criterio S1.2-46.
-7. **BAJO — árbol** (§0.2): `src/kcut/logfile.py`. Ya aplicado en este parche.
+7. **BAJO — árbol** (§0.2): `src/kcut/logfile.py` y `src/kcut/childlog.py` (este último de 001.3). Ya aplicado en este parche.
 8. **BAJO — no se cambia: archivo que no se pudo hashear recibe id nuevo después** (`scan.py:68-72`).
    El verificador sugirió conservar la entrada previa del mismo `file`. **Se rechaza**: esa entrada
    llevaría un `qhash` viejo; si el archivo cambió mientras estaba bloqueado, el EDL y el inventario

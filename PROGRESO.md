@@ -88,13 +88,14 @@ OpenCV 5 ya no trae `CascadeClassifier`. En el piloto el encuadre por cara se de
 - **Cura real:** YuNet (`cv2.FaceDetectorYN`, modelo de ~230 KB, requiere aprobar la descarga) o MediaPipe — ~3 h.
 - **Cuándo:** F2.
 
-### 6. `proc._validate` acepta un `.cmd`/`.bat` absoluto 🟡
+### 6. `proc._validate` acepta un `.cmd`/`.bat` absoluto ✅ pagada
 
 cmd.exe re-interpreta los argumentos.
 
 - **Mitigado hoy por:** ffmpeg/ffprobe pasan por `tool_path`, que rechaza scripts.
 - **Cura real:** rechazar `.bat`/`.cmd` también en `_validate` + test — 0.5 h.
 - **Cuándo:** antes de que S1.x lance otros programas.
+- **Pagada 17/10/2026** (001.3, merge `0a33ee7`): `.bat`/`.cmd` rechazados en `_validate`. Suite tras el merge → `1012 passed, 3 skipped`.
 
 ### 7. El QA compara solo contra los subtítulos ⚪
 
@@ -103,21 +104,23 @@ Las palabras tapadas a propósito por un gráfico grande salen como "diferencias
 - **Cura real:** comparar contra todas las palabras conservadas del EDL — ~1 h.
 - **Cuándo:** S1.7.
 
-### 8. `proc._finalize` lee todo el stderr del hijo a memoria ⚪
+### 8. `proc._finalize` lee todo el stderr del hijo a memoria ✅ pagada
 
 Con 100 MB de stderr, el pico llega a ~500 MB.
 
 - **Mitigado hoy por:** `-loglevel error`.
 - **Cura real:** leer solo los últimos N MB para la cola y volcar al log por trozos — 1 h.
 - **Cuándo:** S1.5 (cuando el render corra ffmpeg sobre material real).
+- **Pagada 17/10/2026** (001.3, merge `0a33ee7`): stderr por trozos con cola de 8 MB (`childlog.py`). Suite tras el merge → `1012 passed, 3 skipped`.
 
-### 9. `scrub_media_metadata` solo entiende el formato `clave : valor` de ffmpeg ⚪
+### 9. `scrub_media_metadata` solo entiende el formato `clave : valor` de ffmpeg ✅ pagada
 
 No reconoce `TAG:k=v` ni el JSON de ffprobe. La regex ISO 6709 solo cubre grados decimales, y descarta líneas como "Unable to make progress: ..." por contener "make".
 
 - **Mitigado hoy por:** el JSON crudo de ffprobe nunca sale (S1.2 hará lista blanca en `probe.py`).
 - **Cura real:** comparar por palabra completa y ampliar formatos — 1 h.
 - **Cuándo:** S1.2.
+- **Pagada 17/10/2026** (001.3, merge `0a33ee7`): `MetadataScrubber`: claves por palabra entera, `TAG:`/JSON, ISO 6709 en DMS. Suite tras el merge → `1012 passed, 3 skipped`.
 
 ### 10. `requirements.lock` sin hashes y con dos pins muy recientes ⚪
 
@@ -127,29 +130,32 @@ Pins: `filelock==4.2.0` y `truststore==0.10.5`.
 - **Cura real:** re-correr OSV en una semana; considerar `--require-hashes` — 0.5 h.
 - **Cuándo:** 23/10/2026 (re-chequeo OSV).
 
-### 11. Tests con `sleep` largo que lanzan `sys.executable` del venv pueden dejar huérfanos en Windows ⚪
+### 11. Tests con `sleep` largo que lanzan `sys.executable` del venv pueden dejar huérfanos en Windows ✅ pagada
 
 El `python.exe` del venv es un lanzador con hijo.
 
 - **Mitigado hoy por:** solo afecta a tests; producción solo lanza `.exe` de ffmpeg/ffprobe, y los huérfanos terminan solos al acabar su `sleep`.
 - **Cura real:** lanzar el intérprete base o matar el árbol en los tests — 0.5 h.
 - **Cuándo:** S1.2 (al tocar los tests de `proc`).
+- **Pagada 17/10/2026** (001.3, merge `0a33ee7`): tests con `sys._base_executable`. Suite tras el merge → `1012 passed, 3 skipped`.
 
-### 12. Pista de `fonts` en `doctor/checks.py` dice "Pillow >= 10.1" ⚪
+### 12. Pista de `fonts` en `doctor/checks.py` dice "Pillow >= 10.1" ✅ pagada
 
 El piso real es 12.3.
 
 - **Mitigado hoy por:** es solo texto de ayuda; el piso real lo aplican `pyproject.toml` y `requirements.lock`.
 - **Cura real:** actualizar la pista a Pillow >= 12.3 — 0.1 h.
 - **Cuándo:** S1.2 (primer cambio a `doctor/checks.py`).
+- **Pagada 17/10/2026** (001.3, merge `0a33ee7`): pista de `fonts` derivada de la metadata del paquete. Suite tras el merge → `1012 passed, 3 skipped`.
 
-### 13. Captura de ffmpeg 7.x en `tests/unit/test_ffmpeg_caps.py` es de n7.0.1 (no 7.1) ⚪
+### 13. Captura de ffmpeg 7.x en `tests/unit/test_ffmpeg_caps.py` es de n7.0.1 (no 7.1) ✅ pagada
 
 Las descripciones están reescritas.
 
 - **Mitigado hoy por:** las columnas que se parsean son reales, y el verificador comprobó con 3 binarios reales: n7.0.1 16/16, n7.1 42/42, 8.1.1 576/576.
 - **Cura real:** agregar captura real de un 7.1 — 0.5 h.
 - **Cuándo:** S1.2.
+- **Pagada 17/10/2026** (001.3, merge `0a33ee7`): capturas reales de ffmpeg n7.1 en `tests/data/`. Suite tras el merge → `1012 passed, 3 skipped`.
 
 ### 14. `run()` usa miembros privados de `ChildProcess` ⚪
 
@@ -157,13 +163,14 @@ Las descripciones están reescritas.
 - **Cura real:** hacer método público — 0.5 h.
 - **Cuándo:** cuando S1.5 lo use.
 
-### 15. README: indicar cómo correr `kcut` ⚪
+### 15. README: indicar cómo correr `kcut` ✅ pagada
 
 Nunca `python -m kcut` desde una carpeta de crudo: un `cv2.py` plantado se importaría.
 
 - **Mitigado hoy por:** el ejecutable `kcut.exe` no pone la carpeta actual en `sys.path`, y HANDOFF y el spec usan `-I -X utf8`.
 - **Cura real:** indicar que se corre `kcut ...` o `python -I -X utf8 -m kcut` — 0.2 h.
 - **Cuándo:** S1.9 / spec 002.
+- **Pagada 17/10/2026** (001.3, merge `0a33ee7`): sección "Desarrollo" en el README. Suite tras el merge → `1012 passed, 3 skipped`.
 
 ### 16. Los proxies SDR salen sin etiquetas `color_primaries` / `color_trc` ✅ pagada
 
