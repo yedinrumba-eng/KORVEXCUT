@@ -1316,6 +1316,10 @@ hace desde 001.4) rechazan cualquier carácter de las categorías Unicode `Cc`, 
 | 9 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
 | 10 | `glossary.terms`, `transcribe.fillers` y `transcribe.prompt_extra` con U+2028, U+2029, U+0085, U+202E o U+200B → `ProjectError` que nombra el campo (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_config.py -q -k prompt_hygiene` → exit 0 | ❌ |
 | 11 | El largo de referencia de un clip es el de su wav16 (muestras / 16000), no el `duration_ms` declarado en el inventario: un clip que declara 1 s pero cuyo wav16 dura 30 s se transcribe completo y los silencios cubren los 30 s (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "transcribe and real_length"` → exit 0 | ❌ |
+| 12 | Paso 0 (001.10 punto 1): un `inventory.json` inválido con un `id` de 5 KB de prosa → en `kcut ingest --json` el aviso `inventory_invalid` lleva en `detail`/`message_es` solo el texto fijo "se ignora el inventario anterior: no pasó la validación" más la ruta del campo recortada a 120 caracteres; el mensaje completo queda solo en el log; en modo humano igual de corto | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_console_hygiene.py -q -k invalid_inventory_json` → exit 0 | ❌ |
+| 13 | Paso 0 (001.10 punto 2): `sync.manual.<id>` fuera de ±`MAX_TIME_MS` en `kcut.toml` → `ProjectError` (exit 3) que nombra la clave | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_config.py -q -k manual_range` → exit 0 | ❌ |
+| 14 | Paso 0 (001.10 punto 3): un entero de 5000 dígitos en cualquier clave de `kcut.toml` → `ProjectError` (exit 3), nunca `InternalError` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_config.py -q -k toml_huge_int` → exit 0 | ❌ |
+| 15 | Paso 0 (001.10 punto 4): `safe_text` escapa los selectores de variación U+FE00–U+FE0F y U+E0100–U+E01EF y los de uso privado (`Co`); deja intactos ñ, tildes y emoji sin selector | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_console_hygiene.py -q -k variation_selectors` → exit 0 | ❌ |
 
 ---
 
@@ -2673,3 +2677,30 @@ El implementador de 001.8 encontró 1 MEDIO y 3 BAJO fuera de su alcance. S1.2 s
    el cargador de `kcut.toml` usa el mismo 48 como máximo de `max_duration_h`. Los tests de borde de
    las filas 48 y 57 cambian su borde a ±172 800 000 (el contrato cambió; sus asserts no se
    aflojan). Criterio S1.2-62.
+
+### 001.10 — 17/10/2026 — paso 0 de S1.3: notas de seguridad fuera del diff de 001.8/001.9
+
+La revisión de seguridad de 001.8 + 001.9 dio APROBADO con 0 hallazgos en el diff. Dejó notas sobre
+código anterior. Por la regla de Yedin se arreglan ya, como **paso 0 de S1.3** (antes de
+`transcribe`/`pack`, en el mismo slice y con los mismos revisores). S1.3 suma los criterios 12–15.
+
+1. **MEDIO — prosa del atacante en el aviso `inventory_invalid`** (`ingest/run.py` `_previous`,
+   `commands/ingest.py`): el mensaje del cargador (claves, ids y `!r` de valores del
+   `inventory.json`, sin tope) salía entero en `--json` (`warnings[].detail` y `message_es`), que lee
+   Claude: vía de inyección de prompt. Tanto en `--json` como en la línea humana, el aviso dice solo
+   "se ignora el inventario anterior: no pasó la validación" más la ruta del campo que falló
+   (`clips[3].slug`, sin el valor) recortada a 120 caracteres; el mensaje completo va solo al log.
+   El `error.message` de un `kcut.toml` inválido no cambia (el archivo es del usuario; 001.8 punto 5).
+   Criterio S1.3-12.
+2. **BAJO — `sync.manual` sin rango** (`config/load.py`): cada `sync.manual.<id>` se valida con
+   ±`MAX_TIME_MS`; si no, `ProjectError` que nombra la clave. Así kcut no escribe un offset que luego
+   su propio cargador rechaza. Criterio S1.3-13.
+3. **BAJO — entero gigante en `kcut.toml`** (`config/load.py` `parse_config`): se captura
+   `ValueError` (cubre `tomllib.TOMLDecodeError`, que es subclase, y el "Exceeds the limit (4300
+   digits)") → `ProjectError` (exit 3). Criterio S1.3-14.
+4. **BAJO — selectores de variación y uso privado** (`console.py` `safe_text`): además de
+   Cc/Cf/Zl/Zp/Cs, se escapan U+FE00–U+FE0F, U+E0100–U+E01EF y la categoría `Co`. Sirven para
+   esconder texto a quien revisa lo que lee Claude. Criterio S1.3-15.
+5. **Nota, sin código**: `_clean` de `Out.result` funde dos claves que solo difieren en lo escapado.
+   Hoy ninguna clave de la salida JSON viene del proyecto; todo slice que saque claves de datos del
+   usuario o del inventario lo revisa.
