@@ -1268,7 +1268,7 @@ Antes de botar una pausa LARGA, mira sus frames con kcut frames (puede haber un 
 
 ## a1 - crudo/crudo 1.MOV - 131.23 s - idioma es (0.98) - maestro de sincronia
 [f1602-1679 | 53.40-55.97] ¿Te da curiosidad de la {eh} IA y no sabes
-[f1705-1751 | 56.82-58.38] (pausa 0.86 s LARGA) con qué empezar, «con con» bueno ⟳ f1460
+[f1705-1769 | 56.83-58.97] (pausa 0.87 s LARGA) con qué empezar, «con con» bueno ⟳ f1460
 [f1778-1830 | 59.27-61.00] (pausa 0.30 s) ven, que te[≠de] voy a enseñar?
 
 ## a2 - crudo/crudo 2.MOV - 126.51 s - idioma es (0.97) - sincronizado con a1: +4.722 s
@@ -1282,8 +1282,8 @@ Transcrito para votar: 412 palabras, 7 desacuerdos (marcados en a1).
 
 Formato `edit/palabras.tsv` (UTF-8, `\t`, primera línea = cabecera):
 `id	clip	s_f	e_f	s	p	flags	text	alt	corrected`
-ej.: `a1:w0031	a1	1903	1913	63.46	0.62	?V	Hicksville,	Higgsfield	Higgsfield,`
-(`s_f` = floor, `e_f` = ceil; `flags` = letras de markers + `V` si hubo desacuerdo).
+ej.: `a1:w0031	a1	1903	1913	63.46	0.62	?CV	Hicksville,	Higgsfield	Higgsfield,`
+(`s_f` = floor, `e_f` = ceil; `flags` = letras de markers en el orden F R ? H C, + `V` al final si hubo desacuerdo).
 
 #### `src/kcut/commands/transcribe.py` — CREAR
 `kcut transcribe [IDS...] [--force] [--allow-download]`. Por defecto: todos los `video_voz` y `audio`
@@ -2745,4 +2745,4 @@ criterios 16 y 17.
      y `src/kcut/pack/assemble.py`.
 5. **Ejemplos del writer**: manda la regla normativa (inicio con `floor`, fin con `ceil`, centésimas
    redondeadas) sobre los números del ejemplo; una palabra corregida lleva la marca `C`
-   (`?VC`, no `?V`).
+   (`?CV`, no `?V`: las marcas van en el orden F R ? H C y la `V` al final). Ya aplicado en el ejemplo.

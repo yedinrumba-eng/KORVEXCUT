@@ -258,6 +258,26 @@ Entre comprobar que el log vacío es el mismo archivo y borrarlo, alguien con ac
 - **Cura real:** spec 001.10, paso 0 de S1.3 — 1.5 h.
 - **Cuándo:** ahora, primer paso de S1.3.
 
+### 26. `faster-whisper 1.2.1` no funciona con `av 19.0.1` al decodificar archivos ⚪
+
+`faster-whisper` llama `av.open(..., metadata_errors=...)`, que PyAV 19 ya no acepta.
+
+- **Mitigado hoy por:** kcut no usa ese camino: lee el wav16 con su propio lector y le pasa a Whisper el array (001.11 punto 3).
+- **Cura real:** al subir `faster-whisper` o `av` en el lock, comprobar que `faster_whisper.decode_audio` funciona; o poner un tope a `av` en el lock tras verificar en qué versión cambió — 0.5 h.
+- **Cuándo:** la próxima vez que se toque `requirements.lock`.
+
+### 27. Las transcripciones reemplazadas se quedan en `.kcut/transcripts/` ⚪
+
+- **Mitigado hoy por:** `.kcut/` es regenerable y se puede borrar entero.
+- **Cura real:** borrar los `<key>.json` que ya no estén en `index.json` al terminar `transcribe` — 0.5 h.
+- **Cuándo:** S1.9 (`kcut build` / limpieza).
+
+### 28. `transcribe` carga el wav16 entero en memoria (~2.7 GB para 12 h) ⚪
+
+- **Mitigado hoy por:** el tope por defecto es `max_duration_h = 12` y la máquina tiene 16 GB; faster-whisper también decodifica entero.
+- **Cura real:** transcribir por ventanas con solape — 3 h.
+- **Cuándo:** solo si aparecen crudos de varias horas.
+
 ---
 
 ## Lecciones ya pagadas
