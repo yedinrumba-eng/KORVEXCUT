@@ -75,6 +75,7 @@ src/kcut/ff/__init__.py  color.py  args.py                                     S
 src/kcut/audio/__init__.py  wavio.py                                           S1.2
 src/kcut/ingest/__init__.py  probe.py  naming.py  classify.py  inventory.py  sync.py  workfiles.py  run.py   S1.2
 src/kcut/ingest/inventory_model.py  sync_stage.py                              S1.2 (partidos por la regla de 300 líneas; 001.4)
+src/kcut/ingest/sync_reasons.py                                                S1.2 (textos de `reason`, `rejection_motive`, `ambiguity_message`; partido de sync.py por la regla de 300 líneas; 001.7)
 src/kcut/ingest/scan.py  examine.py  inventory_check.py  inventory_json.py     S1.2 (partidos por la regla de 300 líneas; 001.6)
 src/kcut/commands/new.py  ingest.py                                            S1.2
 src/kcut/text/__init__.py  normalize.py  corrections.py                        S1.3
@@ -107,6 +108,7 @@ src/kcut/storyboard/__init__.py  beats.py  notes.py  panel.py  html.py  sheet.py
 src/kcut/commands/storyboard.py                                                S1.10
 tests/__init__.py  conftest.py  unit/__init__.py  integration/__init__.py  e2e/__init__.py  fixtures/__init__.py   S1.1/S1.2
 tests/fixtures/links.py                         S1.2 (crea junctions, symlinks y hard links para los tests; 001.6)
+tests/fixtures/spawned.py                                                      S1.2 (helpers de procesos hijo para los tests de log y huérfanos; 001.7)
 ```
 
 Reglas de código: una entidad por archivo, **≤ 300 líneas por archivo** (si un archivo se pasa,
@@ -1143,6 +1145,13 @@ HLG, DOVI perfil 8). `screen_sdr_pc.json` = h264 1894×866 30/1 `color_range pc`
 | 45 | Una carpeta del layout que existe como archivo regular (por ejemplo `.kcut/logs`) → `kcut ingest` sale con exit 3 y "hay un archivo donde kcut espera una carpeta: .kcut/logs"; el `inventory.json` anterior queda byte a byte igual (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_cache_trust.py -q -k layout_folder_is_file` → exit 0 | ❌ |
 | 46 | Los avisos de sync por clip salen del motivo de rechazo guardado, no de si `refine_corr` es `None`: un rechazo por `ratio` con `refine_corr` presente da `sync_rejected`, uno por refinado débil `sync_weak_refine` y uno ambiguo `sync_ambiguous` (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_sync.py tests/unit/test_inventory.py -q -k warning_from_reason` → exit 0 | ❌ |
 | 47 | Suite rápida: en `pytest -q --durations=0` de la suite completa, todo test que tarda más de 2 s lleva `@pytest.mark.slow`; `pytest -m "not slow" -q` sale con exit 0; la suite completa recolecta lo mismo que antes del cambio más los tests nuevos de 001.7 (001.7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest -m "not slow" -q --durations=5` → exit 0 y ningún test listado pasa de 2 s | ❌ |
+| 48 | Inventario con `lag_a_ms` o `lag_b_ms` fuera de ±43 200 000 (por ejemplo `10**400`) → `inventory_invalid` y el ingest sale con 0, en modo humano y `--json`; la segunda corrida tampoco falla (001.7 punto 11) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_inventory_validation.py tests/integration/test_cache_trust.py -q -k lag_range` → exit 0 | ❌ |
+| 49 | `reason` con secuencias de escape (`\x1b]0;...\x07`, `\x1b[2J`, `\r`) en el inventario → `inventory_invalid`; la línea `AVISO` humana de un rechazo válido sale de la tabla fija, sin el `reason` crudo; un `method` desconocido no se imprime (001.7 punto 12) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_inventory_validation.py tests/integration/test_ingest_output.py -q -k "reason_hygiene or method_hygiene"` → exit 0 | ❌ |
+| 50 | `append_log(log, 'x\ud800')` y `proc.run([..., 'clip\ud800.mov'], log=log)` no lanzan; el log tiene el texto con reemplazo (001.7 punto 13) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_logfile.py -q -k surrogate` → exit 0 | ❌ |
+| 51 | `crudo/clip\ud800.mov` junto a un clip normal → exit 0, aviso `probe_failed` sin id con "caracteres inválidos", el clip normal se ingiere y `inventory.json` se guarda (001.7 punto 14) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_ingest_failures.py -q -k surrogate_name` → exit 0 | ❌ |
+| 52 | Un miembro guardado por una versión anterior del algoritmo de sync (sin `sync_version` o con otra) no se reusa: se vuelve a medir. Con un inventario de 001.6 que aceptó los tonos de 12 s +4 s con −2800, un `kcut ingest` normal (sin `--resync`) lo deja rechazado con `sync_ambiguous`; un miembro con la `sync_version` actual y el mismo `qhash` sí se reusa sin re-medir (001.7 punto 15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k sync_version` → exit 0 | ❌ |
+| 53 | `test_cli_internal_error.py::TestInsideAProject::test_other_errors_leave_no_traceback_in_the_log` vuelve a exigir que el log exista durante el `run` (`args.log is not None and args.log.is_file()`) y falla si `_run_log` deja de crearlo (001.7 punto 16) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_cli_internal_error.py -q` → exit 0 | ❌ |
+| 54 | Si el traceback de un `InternalError` cayó a stderr porque el log no se pudo escribir, el mensaje no dice "Detalle técnico en <log>"; si se escribió, sí lo dice (001.7 punto 17) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_cli_internal_error.py -q -k detail_hint` → exit 0 | ❌ |
 
 ---
 
@@ -2472,7 +2481,7 @@ S1.3 el 10 y S1.5 el 16.
 ### 001.7 — 17/10/2026 — cierre de S1.2: deuda de la ronda 3 (aprobado por Yedin)
 
 S1.2 quedó APROBADO por verificador y seguridad en la ronda 3 (0 CRÍTICO, 0 ALTO). Lo que dejaron
-(1 MEDIO, 6 BAJO y dos notas) se paga de una por la regla del dueño. S1.2 suma los criterios 40–47
+(1 MEDIO, 6 BAJO y dos notas) se paga de una por la regla del dueño. S1.2 suma los criterios 40–54
 y S1.3 el 11. Se implementa **después** de mergear la rama de deuda de S1.1 (001.3), que también
 toca `proc.py`.
 
@@ -2488,8 +2497,22 @@ toca `proc.py`.
      `reason: "ambiguous"`, los dos lags en ms, y aviso `sync_ambiguous` con
      "sincronía ambigua: clip corto con dos desfases posibles (<a> s y <b> s); revísalo a mano".
    - El umbral de 2 s y el piso 0.5 son constantes con nombre en `sync.py` (no van a `kcut.toml`).
-   - Si con esto la cámara B sintética (criterio 7) o cualquier caso del criterio 29 deja de dar lo
-     que da hoy, el implementador **para y devuelve BLOQUEADO** con las mediciones.
+   - Si con esto la cámara B sintética (criterio 7) o cualquier caso del criterio 29 **con la
+     config por defecto** deja de dar lo que da hoy, el implementador **para y devuelve BLOQUEADO**
+     con las mediciones.
+   - Resuelto tras el BLOQUEADO del 17/10 (coordinador): orden fijo score → ratio → refinado →
+     `weak_refine` → ambigüedad. Las variantes `lenient` (`min_refine_corr = 0`) de
+     `tests/unit/test_sync.py::test_weak_refine_rejects_a_12s_pair_shifted_5s` y
+     `tests/integration/test_ingest_edge.py::TestWeakRefine::test_the_threshold_can_be_lowered_in_the_config`
+     demuestran que sin la regla del refinado se acepta un desfase equivocado; el chequeo nuevo
+     también lo atrapa (es una segunda red, lo esperado). Esas dos variantes desactivan además el
+     chequeo de ambigüedad con `monkeypatch` sobre su constante, y sus asserts no cambian.
+   - Forma del dato: `SyncRejected` gana `lag_a_ms` (lag con piso 0.75) y `lag_b_ms` (lag con piso
+     0.5), opcionales (`null` si no aplica), en el modelo, en `inventory.json` y en el cargador
+     (validados como enteros). `reason` sigue el estilo actual: texto que empieza con
+     `sync_ambiguous` (igual que `sync_weak_refine`). El aviso por clip lleva `sync_ambiguous`
+     **y** `sync_rejected`, como hoy `sync_weak_refine`. El mensaje "sincronía ambigua: … (<a> s y
+     <b> s); revísalo a mano" sale en la línea `AVISO` humana y como `message_es` en `--json`.
    - Criterio S1.2-40.
 2. **BAJO — `kcut new` anidado** (S1.2 `commands/new.py`): antes de crear nada, si un ancestro del
    destino tiene `kcut.toml` y el destino cae dentro de una carpeta de ese `Layout`
@@ -2503,7 +2526,12 @@ toca `proc.py`.
    (reserva el nombre). Al terminar la corrida, pase lo que pase, si el log que **esta** corrida creó
    sigue en 0 bytes, se borra solo si es el mismo archivo (mismo `st_dev` y `st_ino` que al crearlo,
    tomados con `os.fstat` sobre el handle de creación), regular y con `st_nlink == 1`. Si algo de
-   eso no se cumple, no se toca. Criterio S1.2-43.
+   eso no se cumple, no se toca. Tres tests de 001.6 afirmaban que el log vacío queda después de
+   `cli.main` (`test_log_safety.py::TestCreation::test_the_name_carries_the_pid_and_the_log_exists_empty`,
+   `test_cli_internal_error.py::TestInsideAProject::test_other_errors_leave_no_traceback_in_the_log`,
+   `test_cli_internal_error.py::TestSameLog::test_one_log_path_is_chosen_per_invocation`): sus
+   asserts de "existe, vacío, `st_nlink == 1`" pasan al interior del `run` falso (donde el log
+   existe) y después de `main` afirman que ya no está. Criterio S1.2-43.
 5. **BAJO — `append_log` con `OSError` y hijo huérfano** (§0.11, `logfile.py`, `proc.py`
    `ChildProcess.__init__`, `project.check_layout_inside`; hallazgo de seguridad). Desde el merge de
    001.3 toda escritura al log pasa por el context manager `logfile.log_writer(log)` (mismo lock por
@@ -2511,7 +2539,8 @@ toca `proc.py`.
    - `log_writer` captura `OSError` de `mkdir`/`os.open`/`fstat` y cae a `_to_stderr` con el texto
      del error como motivo. Un `OSError` en un `write` a mitad del bloque tampoco sale: el handle que
      entrega `log_writer` va envuelto de modo que, desde ese `write`, el resto del texto va a stderr
-     con un aviso único. Ni `append_log` ni `log_writer` lanzan nunca `OSError`.
+     con un aviso único. Ni `append_log` ni `log_writer` lanzan nunca `OSError`. Si stderr también
+     falla (cerrado o `None`), el texto se descarta en silencio: el log nunca tumba un comando.
    - `ChildProcess.__init__` escribe la cabecera `$ ...` **antes** del `Popen`. Si algo lanza entre
      el `Popen` y el final de `__init__`, hace `kill()` + `wait()` del hijo antes de propagar.
    - `check_layout_inside`: toda carpeta del layout que exista tiene que ser carpeta (`is_dir()`
@@ -2520,8 +2549,9 @@ toca `proc.py`.
    - Criterios S1.2-44 y S1.2-45.
 6. **BAJO — avisos de sync desde el motivo** (S1.2, nota del verificador): el aviso por clip se
    deriva del motivo de rechazo guardado (`score`, `ratio`, `weak_refine`, `ambiguous`), no de si
-   `refine_corr` es `None`. Criterio S1.2-46.
-7. **BAJO — árbol** (§0.2): `src/kcut/logfile.py` y `src/kcut/childlog.py` (este último de 001.3). Ya aplicado en este parche.
+   `refine_corr` es `None`. Una función pura mapea el `reason` guardado a su motivo por el prefijo o
+   texto que ya escribe hoy cada rechazo (los textos actuales no cambian). Criterio S1.2-46.
+7. **BAJO — árbol** (§0.2): `src/kcut/logfile.py`, `src/kcut/childlog.py` (este último de 001.3) y `src/kcut/ingest/sync_reasons.py` (nuevo en 001.7). Ya aplicado en este parche.
 8. **BAJO — no se cambia: archivo que no se pudo hashear recibe id nuevo después** (`scan.py:68-72`).
    El verificador sugirió conservar la entrada previa del mismo `file`. **Se rechaza**: esa entrada
    llevaría un `qhash` viejo; si el archivo cambió mientras estaba bloqueado, el EDL y el inventario
@@ -2535,3 +2565,40 @@ toca `proc.py`.
 10. **Nota de seguridad para S1.3+**: tras el recheck de largo real, el inventario sigue guardando
     el `duration_ms`/`frames` declarado; solo los avisos usan el largo real. Todo slice que use el
     largo de un clip para un tope, un bucle o una ventana lo saca del wav16. Criterio S1.3-11.
+11. **MEDIO — lags sin rango en un inventario hostil** (revisión de seguridad de 001.7;
+    `ingest/inventory.py` carga de `SyncRejected`, `ingest/sync_reasons.py`): `lag_a_ms` y
+    `lag_b_ms` se validan con rango `-43_200_000 … 43_200_000` (12 h) como los demás enteros de
+    tiempo; fuera de rango → `inventory_invalid` (el inventario se reconstruye, como cualquier
+    otro campo inválido). `ambiguity_message` formatea los segundos sin división de enteros
+    grandes que pueda lanzar. Criterio S1.2-48.
+12. **MEDIO — texto crudo del inventario en la consola** (`commands/ingest.py` `_rejection_text` y
+    la línea de `method`; `ingest/inventory.py`): la línea `AVISO` humana nunca imprime `reason` ni
+    `method` tal como vienen del `inventory.json`. El texto sale de una tabla fija según
+    `rejection_motive(reason)` (y "sin sincronía" si es `None`); `method` solo se imprime si es uno
+    de los valores que kcut escribe, si no se omite. Además la carga de `reason` y `method` exige
+    `max_len = 300` y rechaza `Cc`/`Cf`/`Zl`/`Zp` como `project.name` → `inventory_invalid`. En
+    `--json` no cambia nada (ya sale escapado). Criterio S1.2-49.
+13. **BAJO — surrogate suelto en el log** (`logfile.py` `_FdSink.write` y el fallback a stderr):
+    `encode("utf-8", errors="replace")`; un argumento o texto con un surrogate suelto (`\ud800`)
+    nunca lanza `UnicodeEncodeError` (completa la promesa del punto 5). Criterio S1.2-50.
+14. **BAJO — nombre con surrogate suelto en `crudo/`** (`ingest/scan.py` y `jsonio.py`, deuda vista
+    por seguridad): un archivo cuyo nombre no se puede codificar en UTF-8 no entra al inventario: va
+    a la lista de avisos como `probe_failed` sin id, con "el nombre de este archivo tiene
+    caracteres inválidos; renómbralo" (el `file` del aviso se escribe con `errors="replace"`), y el
+    ingest sigue. `save_inventory` nunca lanza `UnicodeEncodeError`. Criterio S1.2-51.
+15. **MEDIO — reuso de un sync medido con el algoritmo viejo** (revisión del verificador;
+    `ingest/sync.py`, `ingest/sync_stage.py` `_reusable`, modelo/JSON/cargador del inventario).
+    Constante `SYNC_VERSION = 2` en `sync.py` (001.7 es la versión 2; todo lo anterior cuenta como
+    1). Cada miembro, aceptado o rechazado, guarda `sync_version`. `_reusable` solo reusa un
+    miembro si su `sync_version` es la actual **y** coincide el `qhash`; si falta o es otra, se
+    vuelve a medir como con `--resync` para ese par. Regla para adelante: todo cambio que pueda
+    cambiar el resultado del sync sube `SYNC_VERSION`. El cargador valida `sync_version` como
+    entero `1 … 1000`; un inventario sin el campo es válido y vale como versión 1. Criterio S1.2-52.
+16. **MEDIO — test debilitado por el punto 4** (`tests/unit/test_cli_internal_error.py`):
+    `TestInsideAProject::test_other_errors_leave_no_traceback_in_the_log` usa un `run` falso que
+    afirma `args.log is not None and args.log.is_file()` antes de lanzar, así recupera el "existe"
+    que tenía el `== [""]` original. El archivo sigue en ≤ 300 líneas. Criterio S1.2-53.
+17. **BAJO — "Detalle técnico en <log>" cuando el traceback cayó a stderr** (`cli.py` manejo de
+    `InternalError`, `logfile.py`): `append_log` devuelve `bool` (`True` si el texto quedó en el
+    log, `False` si cayó a stderr o se descartó). `cli` agrega la frase "Detalle técnico en <log>"
+    solo con `True`; se borra el `except OSError` que quedó muerto. Criterio S1.2-54.

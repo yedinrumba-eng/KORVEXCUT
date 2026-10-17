@@ -22,6 +22,7 @@ pytestmark = pytest.mark.ffmpeg
 
 
 class TestExtraClasses:
+    @pytest.mark.slow
     def test_an_audio_recorder_is_synced_as_s1(self, two_cameras: Path) -> None:
         make_audio_track(two_cameras / "crudo" / "grabadora.m4a", 1.0, has_flite())
         assert ingest(two_cameras)[0] == 0
@@ -33,6 +34,7 @@ class TestExtraClasses:
         member = next(m for m in inv.sync.members if m.id == "s1")
         assert 999 <= member.offset_ms <= 1001
 
+    @pytest.mark.slow
     def test_unrelated_audio_is_rejected_and_flagged(self, two_cameras: Path) -> None:
         make_unrelated_audio(two_cameras / "crudo" / "ruido.m4a")
         assert ingest(two_cameras)[0] == 0
@@ -43,6 +45,7 @@ class TestExtraClasses:
         assert ruido is not None and ruido.warnings == ("sync_rejected",)
         assert [m.id for m in inv.sync.members] == ["a2"]
 
+    @pytest.mark.slow
     def test_a_video_with_silent_audio_is_video_mudo(self, blank: Path) -> None:
         make_silent_video(blank / "crudo" / "silencio.mp4")
         assert ingest(blank)[0] == 0
@@ -53,6 +56,7 @@ class TestExtraClasses:
         assert clip.warnings == ("silent_audio",)
         assert inventory(blank).sync.master is None
 
+    @pytest.mark.slow
     def test_a_single_camera_has_a_master_and_no_members(self, two_cameras: Path) -> None:
         (two_cameras / "crudo" / "cam b.mov").unlink()
         assert ingest(two_cameras)[0] == 0
@@ -61,6 +65,7 @@ class TestExtraClasses:
 
 
 class TestBadInput:
+    @pytest.mark.slow
     def test_a_broken_video_is_unknown_and_the_run_continues(self, two_cameras: Path) -> None:
         (two_cameras / "crudo" / "roto.mp4").write_bytes(b"esto no es un video" * 50)
         code, doc = ingest(two_cameras)
@@ -73,12 +78,14 @@ class TestBadInput:
         assert {"id": "u1", "code": "probe_failed"} in doc["warnings"]  # type: ignore[operator]
         assert inv.by_id("a1") is not None
 
+    @pytest.mark.slow
     def test_an_unreadable_image_is_unknown(self, blank: Path) -> None:
         (blank / "crudo" / "falsa.png").write_bytes(b"no soy un png")
         assert ingest(blank)[0] == 0
         clip = inventory(blank).by_id("u1")
         assert clip is not None and clip.warnings == ("probe_failed",)
 
+    @pytest.mark.slow
     def test_hidden_files_and_folders_are_skipped(self, blank: Path) -> None:
         (blank / "crudo" / ".oculto.txt").write_text("x", encoding="utf-8")
         (blank / "crudo" / ".carpeta").mkdir()
@@ -87,22 +94,26 @@ class TestBadInput:
         assert ingest(blank)[0] == 0
         assert [c.file for c in inventory(blank).clips] == ["crudo/visible.txt"]
 
+    @pytest.mark.slow
     def test_nested_folders_are_scanned(self, blank: Path) -> None:
         (blank / "crudo" / "dia 1" / "cámara").mkdir(parents=True)
         (blank / "crudo" / "dia 1" / "cámara" / "nota.txt").write_text("x", encoding="utf-8")
         assert ingest(blank)[0] == 0
         assert [c.file for c in inventory(blank).clips] == ["crudo/dia 1/cámara/nota.txt"]
 
+    @pytest.mark.slow
     def test_empty_crudo(self, blank: Path) -> None:
         code, doc = ingest(blank)
         assert code == 0
         assert (doc["clips"], doc["by_class"]) == (0, {})
         assert inventory(blank).clips == ()
 
+    @pytest.mark.slow
     def test_a_missing_crudo_folder_is_a_project_error(self, blank: Path) -> None:
         shutil.rmtree(blank / "crudo")
         assert ingest(blank)[0] == 3
 
+    @pytest.mark.slow
     def test_a_corrupt_previous_inventory_is_rebuilt(self, two_cameras: Path) -> None:
         ingest(two_cameras)
         (two_cameras / ".kcut" / "inventory.json").write_text("{ roto", encoding="utf-8")
@@ -111,6 +122,7 @@ class TestBadInput:
 
 
 class TestProxyFailure:
+    @pytest.mark.slow
     def test_a_failed_proxy_saves_the_inventory_with_null_and_exits_4(
         self,
         two_cameras: Path,
@@ -156,6 +168,7 @@ class TestDisplayGeometryAndFps:
         shutil.copy2(synth_project[0] / "crudo" / "pantalla.mp4", blank / "crudo" / "pantalla.mp4")
         return blank
 
+    @pytest.mark.slow
     def test_a_rotated_clip_gets_a_proxy_of_its_displayed_size(
         self, screen: Path, tmp_path: Path
     ) -> None:
@@ -209,6 +222,7 @@ class TestDisplayGeometryAndFps:
         )
         assert shown.stdout.strip() == "438,960"
 
+    @pytest.mark.slow
     def test_the_project_fps_drives_frames_and_the_proxy_rate(self, screen: Path) -> None:
         edit_toml(screen, "fps = 30", "fps = 25")
         assert ingest(screen, proxies=True)[0] == 0

@@ -63,6 +63,7 @@ class SyncMember:
     drift_windows: int
     method: str
     refine_corr: float | None = None
+    sync_version: int = 1  # SYNC_VERSION of the algorithm that measured it; missing means 1
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,9 @@ class SyncRejected:
     ratio: float | None
     reason: str
     refine_corr: float | None = None
+    lag_a_ms: int | None = None  # `sync_ambiguous` only: best lag at the 0.75 overlap floor
+    lag_b_ms: int | None = None  # `sync_ambiguous` only: best lag at the 0.5 overlap floor
+    sync_version: int = 1  # SYNC_VERSION of the algorithm that measured it; missing means 1
 
 
 @dataclass(frozen=True)

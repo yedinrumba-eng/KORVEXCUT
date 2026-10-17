@@ -9,6 +9,7 @@ from typing import Any
 from kcut.console import Out, Progress
 from kcut.ingest.inventory import Inventory, Notice
 from kcut.ingest.run import run_ingest
+from kcut.ingest.sync_reasons import SYNC_METHODS, rejection_text
 from kcut.project import open_project
 from kcut.timebase import fmt_s
 
@@ -75,11 +76,27 @@ def _document(inventory: Inventory, notices: list[Notice], elapsed_s: float) -> 
             "rejected": [{"id": r.id, "reason": r.reason} for r in sync.rejected],
         },
         "warnings": [
-            *({"id": c.id, "code": w} for c in inventory.clips for w in c.warnings),
+            *_clip_warning_docs(inventory),
             *(_notice_json(n) for n in notices),
         ],
         "elapsed_s": elapsed_s,
     }
+
+
+def _clip_warning_docs(inventory: Inventory) -> list[dict[str, Any]]:
+    """One `{id, code}` per clip warning; `sync_ambiguous` also carries its `message_es`."""
+    docs: list[dict[str, Any]] = []
+    for clip in inventory.clips:
+        for code in clip.warnings:
+            doc: dict[str, Any] = {"id": clip.id, "code": code}
+            if code == "sync_ambiguous":
+                rejected = next((r for r in inventory.sync.rejected if r.id == clip.id), None)
+                if rejected is not None:
+                    doc["message_es"] = rejection_text(
+                        rejected.reason, rejected.lag_a_ms, rejected.lag_b_ms
+                    )
+            docs.append(doc)
+    return docs
 
 
 def _notice_json(notice: Notice) -> dict[str, Any]:
@@ -101,6 +118,9 @@ def _human_lines(out: Out, inventory: Inventory, fps: int) -> None:
     if sync.master is not None:
         out.line("INFO", f"sincronía: maestro {sync.master}")
     for member in sync.members:
-        out.line("OK", f"{member.id}: offset {member.offset_ms:+d} ms ({member.method})")
+        known = f" ({member.method})" if member.method in SYNC_METHODS else ""  # never raw text
+        out.line("OK", f"{member.id}: offset {member.offset_ms:+d} ms{known}")
     for rejected in sync.rejected:
-        out.line("AVISO", f"{rejected.id}: sin sincronía - {rejected.reason}")
+        # a fixed text per motive: the stored `reason` itself is never printed (001.7, point 12)
+        text = rejection_text(rejected.reason, rejected.lag_a_ms, rejected.lag_b_ms)
+        out.line("AVISO", f"{rejected.id}: sin sincronía" + (f" - {text}" if text else ""))

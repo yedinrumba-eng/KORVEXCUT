@@ -10,6 +10,7 @@ import pytest
 
 from kcut import proc
 from kcut.errors import MissingDependency, ToolError
+from tests.fixtures.spawned import spy_on_popen
 
 # The venv python.exe on Windows is a launcher that runs the base interpreter as its own child:
 # killing the launcher would leave that child sleeping. The base interpreter is one process.
@@ -239,3 +240,31 @@ def test_child_exit_by_exception_kills_and_reraises_the_same_exception(tmp_path:
         raise RuntimeError("boom")
     assert time.monotonic() - started < 10
     assert child.wait(timeout_s=5) != 0
+
+
+def test_log_oserror_append_log_goes_to_stderr_and_does_not_raise(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The log's folder is a file: `mkdir` fails with an OSError that must not escape (001.7)."""
+    blocker = tmp_path / "logs"
+    blocker.write_text("soy un archivo", encoding="utf-8")
+    proc.append_log(blocker / "x.log", "texto del log\n")
+    err = capsys.readouterr().err
+    assert "texto del log" in err and "[AVISO] no escribo en el log" in err
+    assert blocker.read_text(encoding="utf-8") == "soy un archivo"
+
+
+def test_log_oserror_a_child_run_ends_normally_and_is_not_left_alive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    spawned = spy_on_popen(monkeypatch)
+    blocker = tmp_path / "logs"
+    blocker.write_text("soy un archivo", encoding="utf-8")
+    code = "import sys; print('hola'); print('adios', file=sys.stderr)"
+    result = proc.run([PY, "-c", code], log=blocker / "x.log")
+    assert result.returncode == 0 and b"hola" in result.stdout
+    (child,) = spawned
+    assert child.poll() is not None
+    err = capsys.readouterr().err
+    assert err.count("[AVISO] no escribo en el log") == 1  # one warning for the whole run
+    assert "$ " in err and "adios" in err and "[exit 0 en " in err  # nothing was lost

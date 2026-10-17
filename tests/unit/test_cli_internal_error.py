@@ -3,45 +3,16 @@
 import argparse
 import json
 import os
-import re
-import sys
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from kcut import cli, errors, proc
 from kcut.commands import doctor
-
-LOG_NAME = re.compile(r"^doctor-\d{8}-\d{6}-\d+\.log$")
-
-
-def _raiser(exc: BaseException) -> Callable[[argparse.Namespace], int]:
-    def run(_args: argparse.Namespace) -> int:
-        raise exc
-
-    return run
-
-
-@pytest.fixture
-def project(tmp_path: Path) -> Path:
-    root = tmp_path / "proyecto ñandú"
-    root.mkdir()
-    (root / "kcut.toml").write_text("", encoding="utf-8")
-    return root
-
-
-@pytest.fixture
-def lonely(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A working directory with no kcut.toml anywhere above it."""
-    folder = tmp_path / "sin proyecto"
-    folder.mkdir()
-    monkeypatch.chdir(folder)
-    return folder
-
-
-def _logs(root: Path) -> list[Path]:
-    return sorted((root / ".kcut" / "logs").glob("*.log")) if (root / ".kcut").exists() else []
+from tests.unit.cli_fakes import LOG_NAME
+from tests.unit.cli_fakes import base_python as _python
+from tests.unit.cli_fakes import logs_of as _logs
+from tests.unit.cli_fakes import raiser as _raiser
 
 
 class TestInsideAProject:
@@ -106,9 +77,14 @@ class TestInsideAProject:
     def test_other_errors_leave_no_traceback_in_the_log(
         self, monkeypatch: pytest.MonkeyPatch, project: Path
     ) -> None:
-        monkeypatch.setattr(doctor, "run", _raiser(errors.ProjectError("falta algo")))
+        def run(args: argparse.Namespace) -> int:
+            assert args.log is not None and args.log.is_file()  # `main` reserved it, still empty
+            assert args.log.stat().st_size == 0
+            raise errors.ProjectError("falta algo")
+
+        monkeypatch.setattr(doctor, "run", run)
         assert cli.main(["doctor", "--project", str(project)]) == 3
-        assert [log.read_text(encoding="utf-8") for log in _logs(project)] == [""]
+        assert _logs(project) == []  # 001.7: no traceback was written, so the empty log is gone
 
     def test_location_and_device_data_are_scrubbed_from_the_log(
         self, monkeypatch: pytest.MonkeyPatch, project: Path
@@ -131,6 +107,26 @@ class TestInsideAProject:
         (log,) = _logs(project)
         assert log.name.startswith("kcut-")
         assert "ModuleNotFoundError" in log.read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("log_ok", [True, False])
+    def test_detail_hint_only_when_the_traceback_reached_the_log(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        project: Path,
+        capsys: pytest.CaptureFixture[str],
+        log_ok: bool,
+    ) -> None:
+        def run(args: argparse.Namespace) -> int:
+            if not log_ok:  # the log stops being a regular file: the append falls back to stderr
+                args.log.unlink()
+                args.log.mkdir()
+            raise RuntimeError("kaboom")
+
+        monkeypatch.setattr(doctor, "run", run)
+        assert cli.main(["doctor", "--json", "--project", str(project)]) == 10
+        captured = capsys.readouterr()
+        assert ("Detalle técnico en" in json.loads(captured.out)["error"]["message"]) is log_ok
+        assert ("Traceback" in captured.err) is not log_ok
 
     def test_unwritable_log_falls_back_to_stderr(
         self, monkeypatch: pytest.MonkeyPatch, project: Path, capsys: pytest.CaptureFixture[str]
@@ -189,11 +185,6 @@ class TestOutsideAProject:
         assert not (lonely / ".kcut").exists()
 
 
-def _python() -> str:
-    """The real interpreter, not the venv launcher (a launcher child can outlive a kill)."""
-    return str(getattr(sys, "_base_executable", None) or sys.executable)
-
-
 class TestSameLog:
     def test_traceback_is_appended_to_the_same_log_the_children_wrote(
         self, monkeypatch: pytest.MonkeyPatch, project: Path, capsys: pytest.CaptureFixture[str]
@@ -225,14 +216,14 @@ class TestSameLog:
 
         def run(args: argparse.Namespace) -> int:
             paths.extend([args.log, args.log])
+            assert args.log.is_file() and args.log.stat().st_size == 0  # created, exclusive, empty
             return 0
 
         monkeypatch.setattr(doctor, "run", run)
         assert cli.main(["doctor", "--project", str(project)]) == 0
         assert paths[0] is not None and paths[0] == paths[1]
-        assert LOG_NAME.match(paths[0].name)
-        assert paths[0].is_file() and paths[0].stat().st_size == 0  # created, exclusively, empty
-        assert paths[0].name.endswith(f"-{os.getpid()}.log")
+        assert LOG_NAME.match(paths[0].name) and paths[0].name.endswith(f"-{os.getpid()}.log")
+        assert not paths[0].exists()  # 001.7: left empty, removed when the run ends
 
     def test_the_log_is_none_without_a_project(
         self, monkeypatch: pytest.MonkeyPatch, lonely: Path

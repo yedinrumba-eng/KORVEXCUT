@@ -154,3 +154,10 @@ class TestDirectoryTarget:
         jsonio.write_json_atomic(tmp_path / "a.json", {"a": 1})
         jsonio.write_json_atomic(tmp_path / "a.json", {"a": 2})
         assert jsonio.read_json(tmp_path / "a.json") == {"a": 2}
+
+
+def test_surrogate_text_is_written_with_a_replacement_instead_of_crashing(tmp_path: Path) -> None:
+    """`save_inventory` / `write_json_atomic` never raise UnicodeEncodeError (001.7)."""
+    jsonio.write_json_atomic(tmp_path / "a.json", {"file": "crudo/clip\ud800.mov"})
+    assert jsonio.read_json(tmp_path / "a.json") == {"file": "crudo/clip?.mov"}
+    assert not (tmp_path / "a.json.tmp").exists()

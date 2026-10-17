@@ -8,11 +8,17 @@ from pathlib import Path
 import pytest
 
 from kcut import cli, proc
+from kcut.audio.wavio import write_wav_s16_mono
 from kcut.commands import doctor
+from kcut.doctor.checks import CheckResult
+from kcut.errors import ProjectError
+from kcut.ingest.run import run_ingest
 from kcut.logfile import append_log, create_log, set_log_root, unsafe_reason
+from kcut.project import open_project
 from tests.conftest import run_kcut
 from tests.fixtures.links import make_hard_link
 from tests.integration.ingest_helpers import snapshot
+from tests.unit.sync_signals import SR, speechlike
 
 
 @pytest.fixture(autouse=True)
@@ -127,7 +133,9 @@ class TestCreation:
         seen: list[Path | None] = []
 
         def run(args: argparse.Namespace) -> int:
-            seen.append(args.log)
+            seen.append(args.log)  # while the run lasts the name is reserved: a lone, empty file
+            assert args.log.is_file() and os.lstat(args.log).st_nlink == 1
+            assert args.log.stat().st_size == 0
             return 0
 
         monkeypatch.setattr(doctor, "run", run)
@@ -135,7 +143,7 @@ class TestCreation:
         (log,) = seen
         assert log is not None and log.name.endswith(f"-{os.getpid()}.log")
         assert log.parent == project / ".kcut" / "logs"
-        assert log.is_file() and os.lstat(log).st_nlink == 1
+        assert not log.exists()  # 001.7: the run wrote nothing, so the empty log is removed
 
     def test_a_planted_hard_link_with_the_chosen_name_cannot_hurt_the_footage(
         self, monkeypatch: pytest.MonkeyPatch, project: Path, capsys: pytest.CaptureFixture[str]
@@ -174,6 +182,7 @@ class TestCreation:
         assert snapshot(project / "crudo") == before
         assert raw.read_text(encoding="utf-8") == "texto del usuario"
 
+    @pytest.mark.slow
     def test_a_full_ingest_with_a_hard_linked_log_directory_entry_leaves_crudo_alone(
         self, project: Path
     ) -> None:
@@ -186,3 +195,89 @@ class TestCreation:
         result = run_kcut("ingest", "--project", str(project), "--json")
         assert result.returncode == 0, result.stderr
         assert snapshot(project / "crudo") == before
+
+
+def _logs(project: Path) -> list[Path]:
+    return sorted(p for p in (project / ".kcut" / "logs").glob("*") if p.is_file())
+
+
+class TestNoLog:
+    """`run_ingest(..., log=None)` means "this run leaves no log" (001.7, S1.2-42)."""
+
+    @pytest.mark.ffmpeg
+    def test_run_ingest_no_log_writes_nothing_in_the_logs_folder(self, project: Path) -> None:
+        write_wav_s16_mono(project / "crudo" / "voz.wav", speechlike(3, 1), SR)
+        opened = open_project(str(project))
+        run_ingest(opened, make_proxies=False, resync=False, progress=None, log=None)
+        assert opened.layout.inventory.is_file()
+        assert not opened.layout.logs.exists() or list(opened.layout.logs.iterdir()) == []
+
+
+class TestEmptyLog:
+    """The log a run created and left in 0 bytes is removed at the end (001.7, S1.2-43)."""
+
+    @pytest.fixture
+    def doctor_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            doctor, "run_all", lambda _model: [CheckResult("x", True, True, "ok", None)]
+        )
+
+    @pytest.mark.slow
+    def test_empty_log_real_doctor_run_leaves_no_zero_byte_log(self, project: Path) -> None:
+        run_kcut("doctor", "--project", str(project), "--json")
+        assert [p for p in _logs(project) if p.stat().st_size == 0] == []
+
+    def test_empty_log_doctor_in_a_project_removes_it(self, project: Path, doctor_ok: None) -> None:
+        assert cli.main(["doctor", "--project", str(project)]) == 0
+        assert _logs(project) == []
+
+    @pytest.mark.parametrize(
+        ("error", "code"), [(ProjectError("x"), 3), (KeyboardInterrupt(), 130)]
+    )
+    def test_empty_log_is_removed_however_the_run_ends(
+        self, monkeypatch: pytest.MonkeyPatch, project: Path, error: BaseException, code: int
+    ) -> None:
+        def fail(_args: argparse.Namespace) -> int:
+            raise error
+
+        monkeypatch.setattr(doctor, "run", fail)
+        assert cli.main(["doctor", "--project", str(project)]) == code
+        assert _logs(project) == []
+
+    def test_empty_log_a_run_that_wrote_something_keeps_its_log(
+        self, monkeypatch: pytest.MonkeyPatch, project: Path
+    ) -> None:
+        def run(args: argparse.Namespace) -> int:
+            append_log(args.log, "algo\n")
+            return 0
+
+        monkeypatch.setattr(doctor, "run", run)
+        assert cli.main(["doctor", "--project", str(project)]) == 0
+        (log,) = _logs(project)
+        assert log.read_text(encoding="utf-8") == "algo\n"
+
+    def test_empty_log_that_is_another_file_by_the_end_is_not_removed(
+        self, monkeypatch: pytest.MonkeyPatch, project: Path
+    ) -> None:
+        moved = project / "movido.log"
+
+        def swap(args: argparse.Namespace) -> int:
+            os.replace(args.log, moved)  # the created file leaves; another empty one takes its name
+            args.log.write_bytes(b"")
+            return 0
+
+        monkeypatch.setattr(doctor, "run", swap)
+        assert cli.main(["doctor", "--project", str(project)]) == 0
+        assert [p.stat().st_size for p in _logs(project)] == [0]
+
+    def test_empty_log_with_two_links_is_not_removed(
+        self, monkeypatch: pytest.MonkeyPatch, project: Path
+    ) -> None:
+        def link(args: argparse.Namespace) -> int:
+            make_hard_link(project / "otro-nombre.log", args.log)
+            return 0
+
+        monkeypatch.setattr(doctor, "run", link)
+        assert cli.main(["doctor", "--project", str(project)]) == 0
+        (log,) = _logs(project)
+        assert os.lstat(log).st_nlink == 2 and log.stat().st_size == 0

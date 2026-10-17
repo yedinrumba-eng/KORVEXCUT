@@ -205,7 +205,7 @@ ffmpeg 8.1.1 no escribe esas etiquetas desde las banderas de salida cuando el fr
 - **Cuándo:** ahora.
 - **Pagada 17/10/2026** (001.6, ronda 3): verificador → lote de 150 clips cortos con semilla, "0 offsets malos aceptados"; 120 hard links plantados, sha256 de `crudo/pantalla.mp4` igual antes y después; archivo bloqueado → exit 0 con `probe_failed`. El `qhash` en el EDL queda para S1.5 (criterio S1.5-16).
 
-### 19. Hallazgos de la ronda 3 de S1.2 (1 MEDIO, 6 BAJO) 🟡
+### 19. Hallazgos de la ronda 3 de S1.2 (1 MEDIO, 6 BAJO) ✅ pagada
 
 - **MEDIO:** con audio casi periódico (música en loop), un clip de menos de 13.4 s y mucho desfase, la sincronía puede aceptar un desfase equivocado sin avisar (tonos del fixture, 12 s +4 s → −2800). Con voz real no pasa.
 - **BAJO:** `kcut new` dentro del `crudo/` de otro proyecto; `run_ingest` inventa un log cuando la CLI dijo "sin log"; `doctor` deja logs vacíos; `append_log` puede lanzar `OSError` y dejar un ffmpeg huérfano (seguridad); avisos de sync deducidos de `refine_corr` en vez del motivo; falta `logfile.py` en el árbol del spec.
@@ -213,12 +213,30 @@ ffmpeg 8.1.1 no escribe esas etiquetas desde las banderas de salida cuando el fr
 - **Mitigado hoy por:** hace falta una carpeta de logs saboteada o un fallo de disco para el huérfano; el caso periódico necesita clips cortos con música en loop.
 - **Cura real:** parche 001.7 (criterios S1.2-40 a 47 y S1.3-11) + agente en worktree aislado — ~3 h. Decisión de Yedin 17/10/2026: arreglar el MEDIO.
 - **Cuándo:** ahora, después de mergear la rama de deuda de S1.1.
+- **Pagada 17/10/2026** (001.7, 2 rondas; sumó los hallazgos de esa revisión, puntos 11–17): verificador → `1149 passed, 3 skipped`; un inventario real de 001.6 con los tonos aceptados en −2800 queda `sync_ambiguous` en un ingest normal; seguridad repitió sus 4 repros → cerradas.
 
-### 20. La suite completa tarda ~10 min ⚪
+### 20. La suite completa tarda ~10 min ✅ pagada
 
 - **Mitigado hoy por:** los revisores corren subconjuntos con `-k`.
 - **Cura real:** marcador `slow` para todo test de más de 2 s y suite rápida `pytest -m "not slow"` (001.7 punto 9) — 1 h.
 - **Cuándo:** ahora, con la deuda 19.
+- **Pagada 17/10/2026** (001.7 punto 9): `pytest -m "not slow" -q` → `1023 passed, 3 skipped, 126 deselected in 73.64s`; el test más lento sin `slow`, 1.45 s.
+
+### 21. Muchos tests lanzan `python -m kcut` como subproceso (~1 s cada uno) ⚪
+
+Son la mayor parte del costo de la suite completa.
+
+- **Mitigado hoy por:** la suite rápida `pytest -m "not slow"` (deuda 20).
+- **Cura real:** pasar a `cli.main` en proceso los tests que no prueban el arranque real. Se quedan como subproceso los que verifican `-I -X utf8`, códigos de salida del ejecutable y huérfanos — 2 h.
+- **Cuándo:** cuando la suite rápida pase de 2 min.
+
+### 22. Carrera teórica `lstat` → `unlink` al borrar un log vacío ⚪
+
+Entre comprobar que el log vacío es el mismo archivo y borrarlo, alguien con acceso a `.kcut/logs/` podría cambiarlo.
+
+- **Mitigado hoy por:** solo se borra un archivo de 0 bytes, regular, con `st_nlink == 1` y el mismo `st_ino` que se creó; quien puede escribir en `.kcut/logs/` ya puede borrar lo que quiera ahí.
+- **Cura real:** borrar por handle (`FILE_FLAG_DELETE_ON_CLOSE` / `SetFileInformationByHandle`) en Windows — 2 h. No vale la pena hoy.
+- **Cuándo:** solo si kcut llega a correr en una carpeta compartida con otros usuarios.
 
 ---
 
@@ -295,6 +313,11 @@ ffmpeg 8.1.1 no escribe esas etiquetas desde las banderas de salida cuando el fr
 ### 15. Un piso de dependencia "de memoria" puede quedarse corto
 - **Síntoma:** se recomendó `Pillow>=10.3` y OSV en vivo mostró avisos hasta 12.2.
 - **Fix:** consultar OSV en vivo antes de fijar pisos.
+
+### 16. `Path.write_text` trunca el archivo antes de fallar al codificar
+- **Síntoma:** un script de edición del spec metió un surrogate suelto (`\ud800`) en el texto; `write_text` lanzó `UnicodeEncodeError` y el spec quedó en 0 bytes (17/10/2026). Se recuperó con `git show HEAD:...` y re-aplicando los cambios.
+- **Por qué engaña:** el archivo se abre en modo `w` (vacío) **antes** de codificar; el error llega tarde y parece que "no se escribió nada".
+- **Fix:** codificar primero (`data = s.encode("utf-8")`), escribir a `<archivo>.tmp` y `os.replace`. Es la misma regla que ya sigue `jsonio` para `inventory.json`.
 
 ---
 

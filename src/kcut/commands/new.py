@@ -17,7 +17,7 @@ from kcut.config.names import NAME_MAX, clean_default_name, has_forbidden_chars
 from kcut.config.template import render_template
 from kcut.console import Out
 from kcut.errors import ProjectError, UsageError
-from kcut.paths import CONFIG_NAME, Layout, inside_kcut_repo
+from kcut.paths import CONFIG_NAME, Layout, inside_kcut_repo, is_inside
 from kcut.project import check_layout_inside
 
 NAME = "new"
@@ -52,6 +52,7 @@ def run(args: argparse.Namespace) -> int:
         raise ProjectError("los proyectos de video no van dentro del repo de kcut")
     if os.path.lexists(root / CONFIG_NAME):
         raise ProjectError(f"{root} ya es un proyecto (existe {CONFIG_NAME})")
+    _refuse_nested(root)
     if root.exists() and not root.is_dir():
         raise ProjectError(f"{root} existe y no es una carpeta")
     if root.is_dir():
@@ -75,6 +76,30 @@ def run(args: argparse.Namespace) -> int:
     out.line("INFO", f"proyecto listo en {root}; suelta tu material en crudo/ y corre kcut ingest")
     out.result({"ok": True, "project": str(root), "created": created})
     return 0
+
+
+def _refuse_nested(root: Path) -> None:
+    """No project inside a layout folder of another one (001.7).
+
+    `P/crudo/X` would make `X` footage of `P`, and `P/.kcut/X` cache. A sibling of the layout
+    folders (`P/otra/X`) is fine. Every ancestor that holds a `kcut.toml` is checked.
+    """
+    for parent in root.parents:
+        if not (parent / CONFIG_NAME).is_file():
+            continue
+        layout = Layout(parent)
+        for folder in (
+            layout.crudo,
+            layout.recursos,
+            layout.edit,
+            layout.salida,
+            layout.qa,
+            layout.cache,
+        ):
+            if is_inside(folder, root):
+                raise ProjectError(
+                    f"no creo un proyecto dentro de {folder.name}/ de otro proyecto ({parent})"
+                )
 
 
 def _name(given: str | None, root: Path) -> str:

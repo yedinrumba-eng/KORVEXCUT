@@ -11,6 +11,7 @@ import pytest
 
 from kcut import proc
 from kcut.errors import ToolError
+from tests.fixtures.spawned import spy_on_popen
 
 TIMEOUT_S = 1.0
 GRACE_S = 1.0
@@ -59,6 +60,7 @@ def _alive_on_windows(pid: int) -> bool:
     return f'"{pid}"' in listing
 
 
+@pytest.mark.slow
 def test_run_gives_up_when_a_grandchild_holds_the_pipe(tmp_path: Path) -> None:
     log = tmp_path / "timeout.log"
     started = time.monotonic()
@@ -125,3 +127,41 @@ def test_killing_the_child_leaves_no_sleeping_interpreter(tmp_path: Path) -> Non
     finally:
         if sleeping != child.pid:
             _kill_tree(sleeping)
+
+
+@pytest.mark.slow
+def test_log_oserror_a_hung_child_is_still_killed_at_its_timeout(tmp_path: Path) -> None:
+    """The log folder is a file (an OSError on every append): the child still dies at its timeout
+    and no interpreter is left sleeping (001.7)."""
+    blocker = tmp_path / "logs"
+    blocker.write_text("soy un archivo", encoding="utf-8")
+    pid_file = tmp_path / "pid.txt"
+    code = "import os, sys; open(sys.argv[1], 'w').write(str(os.getpid())); " + NAP
+    with pytest.raises(ToolError, match="se paso del tiempo"):
+        proc.run(
+            [PY, "-c", code, str(pid_file)], log=blocker / "x.log", timeout_s=3.0, grace_s=GRACE_S
+        )
+    assert pid_file.exists(), "el hijo no llego a arrancar dentro del tiempo"
+    pid = int(pid_file.read_text())
+    alive = sys.platform == "win32" and _alive_on_windows(pid)
+    if alive:
+        _kill_tree(pid)
+    assert not alive
+
+
+def test_a_failure_right_after_the_launch_kills_the_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If anything raises between `Popen` and the end of `__init__`, no orphan is left (001.7)."""
+    spawned = spy_on_popen(monkeypatch)
+
+    class BrokenClock:
+        @staticmethod
+        def monotonic() -> float:
+            raise RuntimeError("reloj roto")
+
+    monkeypatch.setattr(proc, "time", BrokenClock)
+    with pytest.raises(RuntimeError, match="reloj roto"):
+        proc.popen([PY, "-c", NAP], log=tmp_path / "x.log")
+    (child,) = spawned
+    assert child.poll() is not None

@@ -11,7 +11,7 @@ from typing import NoReturn, cast
 from kcut import __version__
 from kcut.console import Out, setup_streams
 from kcut.errors import InternalError, KcutError, ProjectError, UsageError
-from kcut.logfile import append_log, create_log, set_log_root
+from kcut.logfile import CreatedLog, append_log, create_run_log, remove_if_empty, set_log_root
 from kcut.paths import Layout, log_path
 from kcut.project import check_layout_inside, locate_project
 from kcut.scrub import scrub_media_metadata
@@ -23,6 +23,7 @@ COMMAND_MODULES: tuple[str, ...] = (
 )
 
 _EXIT_INTERRUPTED = 130
+_CREATED_LOGS: list[CreatedLog] = []  # logs this invocation created
 
 
 class _Parser(argparse.ArgumentParser):
@@ -61,7 +62,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return _main(list(sys.argv[1:] if argv is None else argv))
     finally:
+        _drop_empty_logs()
         set_log_root(None)
+
+
+def _drop_empty_logs() -> None:
+    """End of the invocation, however it ended: the log it created and left empty goes away."""
+    created = list(_CREATED_LOGS)
+    _CREATED_LOGS.clear()
+    for item in created:
+        remove_if_empty(item)
 
 
 def _main(raw: list[str]) -> int:
@@ -92,7 +102,8 @@ def _main(raw: list[str]) -> int:
 def _run_log(explicit: str | None, command: str) -> Path | None:
     """Create this invocation's log (`.kcut/logs/<command>-<time>-<pid>.log`, exclusive) and
     return its path, or None without a usable project. Children and the traceback of an
-    InternalError share it, and every append is checked against the real cache (spec 0.11)."""
+    InternalError share it, and every append is checked against the real cache (spec 0.11). `main`
+    removes it at the end if the run left it empty (001.7)."""
     root = locate_project(explicit)
     if root is None:
         return None
@@ -102,9 +113,11 @@ def _run_log(explicit: str | None, command: str) -> Path | None:
     except ProjectError:
         return None  # a `.kcut` that is a link or leaves the project is never written to
     log = log_path(layout.logs, command)
-    if not create_log(log):
+    created = create_run_log(log)
+    if created is None:
         print(f"[AVISO] no pude crear el log {log}; esta corrida no deja log", file=sys.stderr)
         return None
+    _CREATED_LOGS.append(created)
     set_log_root(layout.cache)
     return log
 
@@ -124,12 +137,8 @@ def _internal(
     if target is None and args is None:  # failed before parsing finished
         target = _run_log(_option_value(None, raw), "kcut")
     if target is not None:
-        try:
-            append_log(target, f"[traceback]\n{text}")
-        except OSError:
-            print(text, file=sys.stderr)
-        else:
-            message = f"{message}. Detalle técnico en {target}"
+        if append_log(target, f"[traceback]\n{text}"):
+            message = f"{message}. Detalle técnico en {target}"  # only if it reached the log
     elif verbose or locate_project(_option_value(args, raw)) is not None:
         print(text, file=sys.stderr)  # a project whose log could not be made: do not lose it
     else:

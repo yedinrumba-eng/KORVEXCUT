@@ -48,10 +48,11 @@ def open_project(explicit: str | None) -> Project:
 
 
 def check_layout_inside(root: Path, layout: Layout) -> None:
-    """ProjectError if any existing folder of the layout is a link or leaves `root`.
+    """ProjectError if any existing folder of the layout is a link, leaves `root` or is a file.
 
     Links are refused even when they point inside the project: `.kcut -> crudo/` would make every
-    cache write land in the user's footage. Called before anything is written.
+    cache write land in the user's footage. A file where a folder belongs (001.7) is named, so the
+    user is not left with a bare `NotADirectoryError`. Called before anything is written.
     """
     base = root.resolve()
     for path in layout.all_paths():
@@ -64,6 +65,9 @@ def check_layout_inside(root: Path, layout: Layout) -> None:
             )
         if not is_inside(base, path.resolve()):
             raise ProjectError(f"{path} resuelve fuera del proyecto: no se abre el proyecto")
+        if not path.is_dir():
+            rel = path.relative_to(layout.root).as_posix()
+            raise ProjectError(f"hay un archivo donde kcut espera una carpeta: {rel}")
 
 
 def load_inventory(project: Project) -> Inventory:

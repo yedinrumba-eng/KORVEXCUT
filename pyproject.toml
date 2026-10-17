@@ -70,6 +70,6 @@ markers = [
     "chromium: necesita Chromium de Playwright",
     "whisper: necesita el modelo local",
     "flite: necesita el filtro flite",
-    "slow: tarda mas de 5 s",
+    "slow: tarda mas de 2 s",
     "e2e: punta a punta",
 ]

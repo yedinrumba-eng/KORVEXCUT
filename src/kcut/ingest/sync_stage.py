@@ -13,7 +13,8 @@ from kcut.ingest.inventory import (
     SyncMember,
     SyncRejected,
 )
-from kcut.ingest.sync import SyncResult, sync_pair
+from kcut.ingest.sync import SYNC_VERSION, SyncResult, sync_pair
+from kcut.ingest.sync_reasons import rejection_motive
 from kcut.paths import resolve_in_project
 from kcut.project import Project
 
@@ -50,7 +51,11 @@ def sync_clips(
             else _reusable(previous, master, member, cfg.min_refine_corr)
         )
         if manual is not None:
-            outcome.members.append(SyncMember(member.id, manual, 0.0, 0.0, None, None, 0, "manual"))
+            outcome.members.append(
+                SyncMember(
+                    member.id, manual, 0.0, 0.0, None, None, 0, "manual", sync_version=SYNC_VERSION
+                )
+            )
         elif isinstance(old, SyncMember):
             outcome.members.append(old)
         elif isinstance(old, SyncRejected):
@@ -83,7 +88,9 @@ def clip_warnings(
         found += ["av_start_offset"] if abs(video.start_ms - audio.start_ms) > 1000 // fps else []
     mine = [r for r in sync.rejected if r.id == clip.id]
     found += ["sync_rejected"] if mine else []
-    found += ["sync_weak_refine"] if any(r.refine_corr is not None for r in mine) else []
+    motives = {rejection_motive(r.reason) for r in mine}  # the stored reason, not refine_corr
+    found += ["sync_weak_refine"] if "weak_refine" in motives else []
+    found += ["sync_ambiguous"] if "ambiguous" in motives else []
     drifting = any(
         m.id == clip.id and m.drift_ms is not None and m.drift_ms > max_drift_ms
         for m in sync.members
@@ -130,8 +137,9 @@ def _reusable(
 ) -> SyncMember | SyncRejected | None:
     """Previous result for this pair, if neither file changed and it was not a manual entry.
 
-    An accepted result is reused only if it recorded a refine correlation that still clears
-    `min_refine_corr`: older inventories (no `refine_corr`) are measured again.
+    A result is reused only if it was measured by the current algorithm (`sync_version`, 001.7):
+    anything older is measured again, as with `--resync`. An accepted result also needs a refine
+    correlation that still clears `min_refine_corr`.
     """
     if previous is None or previous.sync.master != master.id:
         return None
@@ -141,11 +149,12 @@ def _reusable(
             return None
     for entry in previous.sync.members:
         if entry.id == member.id and entry.method != "manual":
+            current = entry.sync_version == SYNC_VERSION
             kept = entry.refine_corr is not None and entry.refine_corr >= min_refine_corr
-            return entry if kept else None
+            return entry if current and kept else None
     for rejected in previous.sync.rejected:
         if rejected.id == member.id:
-            return rejected
+            return rejected if rejected.sync_version == SYNC_VERSION else None
     return None
 
 
@@ -163,12 +172,24 @@ def _record(outcome: _Outcome, clip_id: str, result: SyncResult) -> None:
                 result.drift_windows,
                 "envelope+raw",
                 None if result.refine_corr is None else round(result.refine_corr, 4),
+                SYNC_VERSION,
             )
         )
     else:
         reason = result.reason or "rechazado"
         corr = None if result.refine_corr is None else round(result.refine_corr, 4)
-        outcome.rejected.append(SyncRejected(clip_id, round(result.score, 4), ratio, reason, corr))
+        outcome.rejected.append(
+            SyncRejected(
+                clip_id,
+                round(result.score, 4),
+                ratio,
+                reason,
+                corr,
+                result.lag_a_ms,
+                result.lag_b_ms,
+                SYNC_VERSION,
+            )
+        )
 
 
 def _finite(value: float) -> float | None:

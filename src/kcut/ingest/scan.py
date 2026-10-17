@@ -62,6 +62,13 @@ def scan_crudo(project: Project, notices: list[Notice]) -> list[Found]:
                 notices.append(Notice("skipped_link", f"{_rel(project, path)}: enlace simbólico"))
                 continue
             rel = _rel(project, path)
+            if not _encodable(rel):
+                shown = rel.encode("utf-8", errors="replace").decode("utf-8")
+                detail = (
+                    f"{shown}: el nombre de este archivo tiene caracteres inválidos; renómbralo"
+                )
+                notices.append(Notice("probe_failed", detail, shown))
+                continue
             if os.path.normcase(rel) in seen:
                 continue
             seen.add(os.path.normcase(rel))
@@ -72,6 +79,16 @@ def scan_crudo(project: Project, notices: list[Notice]) -> list[Found]:
                 detail = f"{rel}: no se pudo leer ({exc.strerror or type(exc).__name__}); se omite"
                 notices.append(Notice("probe_failed", detail, rel))
     return sorted(found, key=lambda f: (f.rel.casefold(), f.rel))
+
+
+def _encodable(rel: str) -> bool:
+    """False for a name with a lone surrogate (Windows allows them): it cannot be written to the
+    inventory or printed, so the file is reported instead of ingested (001.7, point 14)."""
+    try:
+        rel.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 def _rel(project: Project, path: Path) -> str:

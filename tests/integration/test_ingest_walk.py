@@ -60,6 +60,7 @@ def test_the_skipped_link_is_also_said_on_stderr(blank: Path, outside: Path) -> 
     assert "skipped_link" in result.stderr
 
 
+@pytest.mark.slow
 def test_a_link_pointing_back_at_crudo_does_not_loop(blank: Path) -> None:
     (blank / "crudo" / "una.txt").write_text("x", encoding="utf-8")
     make_dir_link(blank / "crudo" / "bucle", blank / "crudo")

@@ -27,6 +27,7 @@ def blank(tmp_path: Path) -> Path:
     return root
 
 
+@pytest.mark.slow
 @pytest.mark.ffmpeg
 def test_wav16_failed_keeps_class(
     blank: Path, synth_project: Synth, monkeypatch: pytest.MonkeyPatch
@@ -52,6 +53,7 @@ def test_wav16_failed_keeps_class(
     assert "unknown_type" not in clip.warnings
 
 
+@pytest.mark.slow
 @pytest.mark.ffmpeg
 def test_wav16_failed_on_an_audio_file_keeps_the_audio_class(
     blank: Path, monkeypatch: pytest.MonkeyPatch
@@ -86,6 +88,7 @@ def test_proxy_size_zero_probe_failed(blank: Path, monkeypatch: pytest.MonkeyPat
     assert inventory(blank).by_id("d1") is not None
 
 
+@pytest.mark.slow
 @pytest.mark.ffmpeg
 def test_corrupt_sidecar_rebuilt(blank: Path, synth_project: Synth) -> None:
     """A sidecar that cannot be read (garbage, or JSON nested too deep) is rebuilt, not fatal."""
@@ -110,6 +113,7 @@ def test_corrupt_sidecar_rebuilt(blank: Path, synth_project: Synth) -> None:
     assert inventory(blank).by_id("a1") is not None
 
 
+@pytest.mark.slow
 @pytest.mark.ffmpeg
 def test_a_clip_over_the_maximum_is_registered_but_not_processed(
     blank: Path, synth_project: Synth, monkeypatch: pytest.MonkeyPatch
@@ -186,3 +190,28 @@ def test_a_file_that_could_not_be_hashed_is_ingested_once_it_can_be(
         "crudo/a.txt": "d2",
         "crudo/b.txt": "d1",
     }
+
+
+def test_surrogate_name_is_reported_as_probe_failed_and_the_rest_is_ingested(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Windows allows a lone surrogate in a file name; it cannot go to the inventory (001.7)."""
+    root = tmp_path / "proyecto ñandú"
+    assert cli.main(["new", str(root)]) == 0
+    (root / "crudo" / "nota.txt").write_text("hola", encoding="utf-8")
+    try:
+        (root / "crudo" / "clip\ud800.mov").write_bytes(b"no es un video")
+    except (OSError, UnicodeEncodeError) as exc:
+        pytest.skip(f"este sistema no admite un nombre con surrogate suelto: {exc}")
+    capsys.readouterr()
+
+    assert cli.main(["ingest", "--project", str(root), "--json", "--no-proxy"]) == 0
+
+    doc = json.loads(capsys.readouterr().out)
+    (notice,) = [w for w in doc["warnings"] if w["code"] == "probe_failed"]
+    assert notice["id"] is None and notice["file"] == "crudo/clip?.mov"
+    assert (
+        "el nombre de este archivo tiene caracteres inválidos; renómbralo" in notice["message_es"]
+    )
+    assert [c.id for c in inventory(root).clips] == ["d1"]
+    assert (root / ".kcut" / "inventory.json").is_file()

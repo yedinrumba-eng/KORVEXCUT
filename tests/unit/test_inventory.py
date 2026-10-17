@@ -19,6 +19,7 @@ from kcut.ingest.inventory import (
     load_inventory,
     save_inventory,
 )
+from kcut.ingest.sync_stage import clip_warnings
 from tests.unit.media_fakes import make_hlg_video
 
 VIDEO = make_hlg_video(
@@ -214,3 +215,53 @@ class TestStrictReading:
         path.write_text("{ roto", encoding="utf-8")
         with pytest.raises(ProjectError, match="JSON mal formado"):
             load_inventory(path)
+
+
+def _rejection_warnings(rejected: SyncRejected) -> tuple[str, ...]:
+    clip = Clip("s2", "crudo/b.wav", "b", "audio", "sha256:bb", 10)
+    return clip_warnings(clip, 30, SyncInfo("a1", (), (rejected,)), 20, frozenset())
+
+
+@pytest.mark.parametrize(
+    ("reason", "refine_corr", "expected"),
+    [
+        ("pico de correlacion bajo", None, ("sync_rejected",)),
+        # a ratio rejection that carries a refine_corr is still just `sync_rejected`
+        ("pico ambiguo (hay otro casi igual de alto)", 0.62, ("sync_rejected",)),
+        ("sync_weak_refine: bajo", 0.018, ("sync_rejected", "sync_weak_refine")),
+        # the motive is read from the reason, not deduced from `refine_corr`
+        ("sync_weak_refine: bajo", None, ("sync_rejected", "sync_weak_refine")),
+        ("sync_ambiguous: dos desfases", 0.85, ("sync_rejected", "sync_ambiguous")),
+        ("sync_ambiguous: dos desfases", None, ("sync_rejected", "sync_ambiguous")),
+        ("un texto que esta version no escribe", 0.9, ("sync_rejected",)),
+    ],
+)
+def test_warning_from_reason_comes_from_the_stored_reason(
+    reason: str, refine_corr: float | None, expected: tuple[str, ...]
+) -> None:
+    assert _rejection_warnings(SyncRejected("s2", 0.5, 2.0, reason, refine_corr)) == expected
+
+
+def test_ambiguous_rejection_keeps_its_two_lags_and_round_trips(tmp_path: Path) -> None:
+    ambiguous = SyncRejected("s2", 0.9, 4.0, "sync_ambiguous: x", 0.85, -2800, 4000)
+    plain = SyncRejected("s3", 0.1, 1.0, "pico de correlacion bajo")
+    inv = Inventory("x", 30, (), sync=SyncInfo("a1", (), (ambiguous, plain)))
+    path = tmp_path / "inventory.json"
+    save_inventory(path, inv)
+    first, second = json.loads(path.read_text(encoding="utf-8"))["sync"]["rejected"]
+    assert (first["lag_a_ms"], first["lag_b_ms"]) == (-2800, 4000)
+    assert (second["lag_a_ms"], second["lag_b_ms"]) == (None, None)
+    assert load_inventory(path) == inv
+
+
+@pytest.mark.parametrize("bad", ["4000", 4000.5, True, [1]])
+def test_ambiguous_lags_must_be_integers(tmp_path: Path, bad: object) -> None:
+    path = tmp_path / "inventory.json"
+    save_inventory(
+        path, Inventory("x", 30, (), sync=SyncInfo("a1", (), (SyncRejected("s2", 0.9, 4.0, "r"),)))
+    )
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["sync"]["rejected"][0]["lag_b_ms"] = bad
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ProjectError, match="lag_b_ms"):
+        load_inventory(path)

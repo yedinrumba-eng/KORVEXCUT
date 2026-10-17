@@ -22,7 +22,7 @@ from kcut.ingest.inventory import (
 from kcut.ingest.naming import slugify
 from kcut.ingest.scan import Found, scan_crudo
 from kcut.ingest.sync_stage import clip_warnings, sync_clips
-from kcut.paths import log_path, to_rel
+from kcut.paths import to_rel
 from kcut.project import Project
 from kcut.timebase import ms_to_f_floor
 
@@ -41,14 +41,14 @@ def run_ingest(
     """Build `.kcut/inventory.json`. A failed proxy is recorded as `proxy: null` and the command
     ends with ToolError (exit 4) after the inventory is saved.
 
-    `log` is the run log chosen by the CLI (default: a new `ingest-<time>.log`); run-level
+    `log` is the run log chosen by the CLI. `None` means the CLI decided this run leaves no log
+    (001.7): nothing is written to `.kcut/logs/`, and no other name is invented. Run-level
     warnings are appended to `notices` and also printed to stderr.
     """
     notes = notices if notices is not None else []
     shown = len(notes)
-    run_log = log or log_path(project.layout.logs, "ingest")
     try:
-        return _run(project, make_proxies, resync, progress, run_log, notes)
+        return _run(project, make_proxies, resync, progress, log, notes)
     finally:
         for notice in notes[shown:]:
             Out(json_mode=False).warn(f"{notice.code}: {notice.detail}")
@@ -59,7 +59,7 @@ def _run(
     make_proxies: bool,
     resync: bool,
     progress: Progress | None,
-    log: Path,
+    log: Path | None,
     notes: list[Notice],
 ) -> Inventory:
     layout, fps = project.layout, project.config.output.fps
@@ -170,7 +170,7 @@ def _proxies(
     clips: list[Clip],
     skip: set[str],
     make_proxies: bool,
-    log: Path,
+    log: Path | None,
     progress: Progress | None,
     notes: list[Notice],
 ) -> tuple[list[Clip], list[str]]:

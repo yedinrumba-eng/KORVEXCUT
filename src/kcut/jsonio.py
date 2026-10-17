@@ -48,7 +48,9 @@ def write_text_atomic(path: Path, text: str) -> None:
     tmp = path.with_name(path.name + ".tmp")
     try:
         tmp.unlink(missing_ok=True)  # never write through a stale file or a planted link
-        with tmp.open("w", encoding="utf-8", newline="\n") as fh:
+        with tmp.open(
+            "w", encoding="utf-8", errors="replace", newline="\n"
+        ) as fh:  # no surrogate crash
             fh.write(text)
         os.replace(tmp, path)
     except PermissionError:

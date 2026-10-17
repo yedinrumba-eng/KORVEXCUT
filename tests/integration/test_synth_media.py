@@ -36,6 +36,7 @@ def _decoded_audio_sha256(path: Path) -> str:
     return hashlib.sha256(done.stdout).hexdigest()
 
 
+@pytest.mark.slow
 def test_seed_makes_the_audio_of_cam_b_deterministic(tmp_path: Path) -> None:
     make_media(tmp_path / "primera")
     make_media(tmp_path / "segunda")

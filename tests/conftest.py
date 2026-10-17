@@ -78,6 +78,13 @@ _REQUIREMENTS: dict[str, tuple[Callable[[], bool], str]] = {
 }
 
 
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Import `scipy.signal` once, before any test runs: its first import costs 1.5-4.5 s and the
+    test that happened to run first would carry it in its duration (the fast suite keeps every
+    test under 2 s, S1.2-47)."""
+    import scipy.signal  # noqa: F401
+
+
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     """Skip, instead of failing, every test whose marker needs something missing."""
     for item in items:

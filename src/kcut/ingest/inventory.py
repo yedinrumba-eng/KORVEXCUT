@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast, get_args
 
+from kcut.config.names import has_forbidden_chars
 from kcut.errors import ProjectError
 from kcut.ingest.classify import ClipClass
 from kcut.ingest.inventory_check import check_clip, check_ids
@@ -24,6 +25,7 @@ from kcut.ingest.inventory_model import (
     WorkFiles,
 )
 from kcut.ingest.probe import VideoInfo
+from kcut.ingest.sync_reasons import MAX_LAG_MS, MAX_TEXT_LEN
 from kcut.jsonio import read_json, write_json_atomic
 from kcut.schema_util import (
     SchemaError,
@@ -43,6 +45,17 @@ from kcut.schema_util import (
 )
 
 _VIDEO_KEYS = video_keys()
+
+
+def _text(d: dict[str, Any], key: str, path: str) -> str:
+    """Free text of the sync results: short, and with no control, format or line-separator
+    characters (it may be printed to a terminal)."""
+    value = req_str(d, key, path, max_len=MAX_TEXT_LEN)
+    if has_forbidden_chars(value):
+        raise SchemaError(
+            join_path(path, key), "no puede llevar caracteres de control ni de formato"
+        )
+    return value
 
 
 def _obj(v: object, path: str) -> dict[str, Any]:
@@ -202,7 +215,7 @@ def _sync(d: dict[str, Any]) -> SyncInfo:
 
 def _member(d: dict[str, Any], path: str) -> SyncMember:
     keys = {"id", "offset_ms", "score", "second", "ratio", "refine_corr", "drift_ms"}
-    keys |= {"drift_windows", "method"}
+    keys |= {"drift_windows", "method", "sync_version"}
     only_keys(d, keys, path)
     return SyncMember(
         id=req_str(d, "id", path),
@@ -212,19 +225,24 @@ def _member(d: dict[str, Any], path: str) -> SyncMember:
         ratio=opt_float(d, "ratio", path, None),
         drift_ms=opt_int(d, "drift_ms", path, None),
         drift_windows=req_int(d, "drift_windows", path, 0),
-        method=req_str(d, "method", path),
+        method=_text(d, "method", path),
         refine_corr=opt_float(d, "refine_corr", path, None),
+        sync_version=opt_int(d, "sync_version", path, 1, 1, 1000),
     )
 
 
 def _rejected(d: dict[str, Any], path: str) -> SyncRejected:
-    only_keys(d, {"id", "score", "ratio", "refine_corr", "reason"}, path)
+    keys = {"id", "score", "ratio", "refine_corr", "reason", "lag_a_ms", "lag_b_ms", "sync_version"}
+    only_keys(d, keys, path)
     return SyncRejected(
         id=req_str(d, "id", path),
         score=req_float(d, "score", path),
         ratio=opt_float(d, "ratio", path, None),
-        reason=req_str(d, "reason", path),
+        reason=_text(d, "reason", path),
         refine_corr=opt_float(d, "refine_corr", path, None),
+        lag_a_ms=opt_int(d, "lag_a_ms", path, None, -MAX_LAG_MS, MAX_LAG_MS),
+        lag_b_ms=opt_int(d, "lag_b_ms", path, None, -MAX_LAG_MS, MAX_LAG_MS),
+        sync_version=opt_int(d, "sync_version", path, 1, 1, 1000),
     )
 
 

@@ -28,6 +28,7 @@ def _new(root: Path, *extra: str) -> tuple[int, dict[str, object]]:
 
 
 class TestLayout:
+    @pytest.mark.slow
     def test_creates_everything_of_spec_0_3(self, root: Path) -> None:
         code, doc = _new(root)
         assert code == 0
@@ -74,6 +75,7 @@ class TestLayout:
             "aprobado: no\naprobado_por:\n---\n# Estrategia de corte - Piloto 01\n"
         )
 
+    @pytest.mark.slow
     def test_files_use_unix_newlines_and_utf8(self, root: Path) -> None:
         _new(root)
         for name in ("kcut.toml", "edit/estrategia.md", "edit/versiones.md"):
@@ -124,6 +126,7 @@ class TestOptions:
         assert code == 3
         assert not root.exists()
 
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "name",
         [
@@ -144,6 +147,7 @@ class TestOptions:
         assert json.loads(result.stdout)["error"]["kind"] == "UsageError"
         assert not root.exists()
 
+    @pytest.mark.slow
     def test_a_name_cannot_forge_the_approval_gate(self, root: Path) -> None:
         for forged in ("video\naprobado: si", "video aprobado: si", "video\u0085aprobado: si"):
             assert run_kcut("new", str(root), "--name", forged).returncode == 2

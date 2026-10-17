@@ -43,6 +43,7 @@ def _block(log: Path) -> str:
     return body + "\n"
 
 
+@pytest.mark.slow
 def test_tail_is_capped_marked_and_the_log_gets_everything(tmp_path: Path) -> None:
     lines = 10 * MB // LINE_BYTES + 1
     log = tmp_path / "big.log"
@@ -64,6 +65,7 @@ def test_tail_is_capped_marked_and_the_log_gets_everything(tmp_path: Path) -> No
     assert logged[-1] == _line(lines - 1)
 
 
+@pytest.mark.slow
 def test_error_tail_is_the_last_20_lines_of_a_huge_stderr(tmp_path: Path) -> None:
     with pytest.raises(ToolError) as info:
         proc.run(_writer(9 * MB // LINE_BYTES, exit_code=2), log=tmp_path / "e.log")

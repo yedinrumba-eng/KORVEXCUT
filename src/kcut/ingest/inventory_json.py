@@ -34,6 +34,9 @@ def inventory_to_json(inv: Inventory) -> dict[str, Any]:
                     "ratio": r.ratio,
                     "refine_corr": r.refine_corr,
                     "reason": r.reason,
+                    "lag_a_ms": r.lag_a_ms,
+                    "lag_b_ms": r.lag_b_ms,
+                    "sync_version": r.sync_version,
                 }
                 for r in inv.sync.rejected
             ],
@@ -90,4 +93,5 @@ def _member_json(m: SyncMember) -> dict[str, Any]:
         "drift_ms": m.drift_ms,
         "drift_windows": m.drift_windows,
         "method": m.method,
+        "sync_version": m.sync_version,
     }

@@ -4,6 +4,7 @@ Most cases pass `--no-proxy` (see `_ingest`): the proxies have their own tests a
 """
 
 import json
+import math
 import shutil
 from pathlib import Path
 
@@ -12,12 +13,15 @@ import pytest
 from kcut import cli
 from kcut.audio.wavio import write_wav_s16_mono
 from kcut.errors import ToolError
+from kcut.ingest import sync as sync_module
 from kcut.ingest import sync_stage, workfiles
+from kcut.ingest.sync_reasons import ambiguity_message
+from tests.conftest import run_kcut
 from tests.fixtures.synth_media import MediaTruth
 from tests.integration.ingest_helpers import edit_toml, ingest, inventory
-from tests.unit.sync_signals import SR, speechlike
+from tests.unit.sync_signals import SR, speechlike, world
 
-pytestmark = pytest.mark.ffmpeg
+pytestmark = [pytest.mark.ffmpeg, pytest.mark.slow]
 
 Synth = tuple[Path, MediaTruth]
 
@@ -184,11 +188,15 @@ class TestWeakRefine:
         assert clip is not None and clip.warnings == ("sync_rejected", "sync_weak_refine")
         assert {"id": "s2", "code": "sync_weak_refine"} in doc["warnings"]  # type: ignore[operator]
 
-    def test_the_threshold_can_be_lowered_in_the_config(self, shifted_pair: Path) -> None:
+    def test_the_threshold_can_be_lowered_in_the_config(
+        self, shifted_pair: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sync_module, "AMBIGUITY_LAG_MS", math.inf)  # 001.7: 2nd net off too
         toml = shifted_pair / "kcut.toml"
         text = toml.read_text(encoding="utf-8")
         toml.write_text(text.replace("min_refine_corr = 0.1", "min_refine_corr = 0.0"))
-        assert ingest(shifted_pair)[0] == 0
+        argv = ["ingest", "--project", str(shifted_pair), "--json", "--no-proxy"]
+        assert cli.main(argv) == 0  # in-process: the patched constant has to be the one in use
         (member,) = inventory(shifted_pair).sync.members
         assert member.id == "s2" and abs(member.offset_ms - 5000) > 2  # accepted and wrong
 
@@ -232,3 +240,41 @@ class TestWeakRefine:
         )
         assert cli.main(["ingest", "--project", str(two_cameras), "--json", "--no-proxy"]) == 0
         assert calls == [1]
+
+
+class TestAmbiguous:
+    """Periodic audio, 12 s clips, B 4 s later: the wrong lag used to be accepted (001.7)."""
+
+    @pytest.fixture
+    def tones_pair(self, blank: Path) -> Path:
+        write_wav_s16_mono(blank / "crudo" / "a.wav", world(0.0), SR)
+        write_wav_s16_mono(blank / "crudo" / "b.wav", world(4.0), SR)
+        toml = blank / "kcut.toml"
+        toml.write_text(toml.read_text(encoding="utf-8").replace('master = ""', 'master = "s1"'))
+        return blank
+
+    def test_an_ambiguous_pair_is_rejected_with_its_lags_and_a_message(
+        self, tones_pair: Path
+    ) -> None:
+        code, doc = ingest(tones_pair)
+        assert code == 0
+        inv = inventory(tones_pair)
+        assert inv.sync.members == ()
+        (rejected,) = inv.sync.rejected
+        assert rejected.id == "s2" and rejected.reason.startswith("sync_ambiguous")
+        assert rejected.lag_a_ms is not None and abs(rejected.lag_a_ms + 2800) <= 10
+        assert rejected.lag_b_ms is not None and abs(rejected.lag_b_ms - 4000) <= 10
+        clip = inv.by_id("s2")
+        assert clip is not None and clip.warnings == ("sync_rejected", "sync_ambiguous")
+        message = ambiguity_message(rejected.lag_a_ms, rejected.lag_b_ms)
+        assert message.startswith("sincronía ambigua: clip corto con dos desfases posibles (")
+        assert {"id": "s2", "code": "sync_ambiguous", "message_es": message} in doc["warnings"]  # type: ignore[operator]
+
+    def test_the_human_output_says_the_two_lags(self, tones_pair: Path) -> None:
+        result = run_kcut("ingest", "--project", str(tones_pair), "--no-proxy")
+        assert result.returncode == 0, result.stderr
+        (rejected,) = inventory(tones_pair).sync.rejected
+        assert rejected.lag_a_ms is not None and rejected.lag_b_ms is not None
+        message = ambiguity_message(rejected.lag_a_ms, rejected.lag_b_ms)
+        assert f"[AVISO] s2: sin sincronía - {message}" in result.stdout
+        assert message.endswith("; revísalo a mano")

@@ -58,6 +58,7 @@ def _codes(doc: dict[str, object]) -> list[str]:
 
 @pytest.mark.ffmpeg
 class TestPoisonedInventory:
+    @pytest.mark.slow
     def test_a_hostile_id_discards_the_inventory_and_touches_nothing_else(
         self, camera: Path, tmp_path: Path
     ) -> None:
@@ -77,6 +78,7 @@ class TestPoisonedInventory:
         assert _tree_outside_cache(camera) == tree
         assert [c.id for c in inventory(camera).clips] == ["a1"]  # rebuilt from scratch
 
+    @pytest.mark.slow
     def test_a_wav16_pointing_at_the_raw_file_never_moves_it(self, camera: Path) -> None:
         raw = camera / "crudo" / "cam a.mp4"
         digest = qhash(raw)
@@ -94,6 +96,7 @@ class TestPoisonedInventory:
         assert raw.is_file()
         assert snapshot(camera / "crudo") == before
 
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "change",
         [
@@ -113,6 +116,7 @@ class TestPoisonedInventory:
         assert "inventory_invalid" in _codes(doc)
         assert snapshot(camera / "crudo") == before
 
+    @pytest.mark.slow
     def test_a_clean_run_leaves_crudo_identical_in_content_and_mtime(self, camera: Path) -> None:
         before = snapshot(camera / "crudo")
         assert ingest(camera)[0] == 0
@@ -141,6 +145,7 @@ class TestLayoutOutsideTheProject:
         assert info.value.exit_code == 3
         assert list(elsewhere.iterdir()) == []
 
+    @pytest.mark.slow
     def test_a_cache_subfolder_that_leaves_the_root_rejects_the_project(
         self, tmp_path: Path, elsewhere: Path
     ) -> None:
@@ -150,6 +155,7 @@ class TestLayoutOutsideTheProject:
         with pytest.raises(ProjectError, match=r"enlace|fuera del proyecto"):
             open_project(str(root))
 
+    @pytest.mark.slow
     def test_kcut_junction_to_another_folder_writes_nothing_there(
         self, tmp_path: Path, elsewhere: Path, synth_project: Synth
     ) -> None:
@@ -167,6 +173,7 @@ class TestLayoutOutsideTheProject:
         assert list(elsewhere.iterdir()) == []
         assert snapshot(root / "crudo") == before
 
+    @pytest.mark.slow
     def test_an_internal_error_does_not_write_its_log_through_the_link(
         self, tmp_path: Path, elsewhere: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -200,6 +207,7 @@ class TestInternalLinks:
     def _guarded(self, root: Path) -> dict[str, dict[str, tuple[str, int]]]:
         return {name: snapshot(root / name) for name in ("crudo", "edit", "recursos")}
 
+    @pytest.mark.slow
     @pytest.mark.parametrize("target", ["crudo", "edit"])
     def test_internal_link_from_kcut_to_a_project_folder_rejects_the_project(
         self, project: Path, target: str
@@ -218,6 +226,7 @@ class TestInternalLinks:
         assert self._guarded(project) == before
         assert sorted(p.name for p in (project / "crudo").iterdir()) == ["cam a.mp4"]
 
+    @pytest.mark.slow
     def test_internal_link_from_the_logs_folder_to_crudo_rejects_the_project(
         self, project: Path
     ) -> None:
@@ -232,6 +241,7 @@ class TestInternalLinks:
         assert self._guarded(project) == before
         assert sorted(p.name for p in (project / "crudo").iterdir()) == ["cam a.mp4"]
 
+    @pytest.mark.slow
     def test_internal_link_from_a_cache_subfolder_to_edit_rejects_the_project(
         self, project: Path
     ) -> None:
@@ -242,6 +252,7 @@ class TestInternalLinks:
         assert run_kcut("ingest", "--project", str(project), "--json").returncode == 3
         assert self._guarded(project) == before
 
+    @pytest.mark.slow
     def test_internal_link_in_a_layout_folder_is_found_by_new_too(self, project: Path) -> None:
         (project / "kcut.toml").unlink()  # a folder that is not yet a project
         shutil.rmtree(project / ".kcut")
@@ -253,5 +264,30 @@ class TestInternalLinks:
         assert self._guarded(project) == before
         assert not (project / "kcut.toml").exists()
 
+    @pytest.mark.slow
     def test_a_real_folder_is_still_accepted(self, project: Path) -> None:
         assert open_project(str(project)).root == project.resolve()
+
+
+class TestLayoutFolderIsAFile:
+    """A file where the layout expects a folder is named, not a bare NotADirectoryError (001.7)."""
+
+    def test_layout_folder_is_file_ingest_exits_3_and_keeps_the_inventory(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        root = tmp_path / "proyecto ñandú"
+        assert cli.main(["new", str(root)]) == 0
+        (root / "crudo" / "nota.txt").write_text("texto", encoding="utf-8")
+        args = ["ingest", "--project", str(root), "--json", "--no-proxy"]
+        assert cli.main(args) == 0  # a note needs no ffprobe: the inventory exists
+        saved = root / ".kcut" / "inventory.json"
+        before = saved.read_bytes()
+        shutil.rmtree(root / ".kcut" / "logs", ignore_errors=True)
+        (root / ".kcut" / "logs").write_text("soy un archivo", encoding="utf-8")
+        capsys.readouterr()
+
+        assert cli.main(args) == 3
+
+        message = json.loads(capsys.readouterr().out)["error"]["message"]
+        assert "hay un archivo donde kcut espera una carpeta: .kcut/logs" in message
+        assert saved.read_bytes() == before

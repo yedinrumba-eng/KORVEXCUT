@@ -15,7 +15,7 @@ from kcut.ingest.workfiles import PROXY_PARAMS_VERSION
 from tests.conftest import run_kcut
 from tests.fixtures.synth_media import MediaTruth
 
-pytestmark = pytest.mark.ffmpeg
+pytestmark = [pytest.mark.ffmpeg, pytest.mark.slow]
 
 Project = tuple[Path, MediaTruth]
 

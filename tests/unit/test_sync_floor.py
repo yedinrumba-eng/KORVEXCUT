@@ -1,5 +1,6 @@
 """The overlap floor of the sync score (spec 001.5) and the acceptance of the spec's camera B."""
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -8,8 +9,9 @@ from numpy.typing import NDArray
 
 from kcut.audio.wavio import write_wav_s16_mono
 from kcut.config.load import parse_config
+from kcut.config.model import SyncSection
 from kcut.ingest import sync as sync_module
-from kcut.ingest.sync import HOP_MS, coarse_offset, envelope, sync_pair
+from kcut.ingest.sync import HOP_MS, coarse_offset, envelope, sync_arrays, sync_pair
 from tests.unit.sync_signals import SR, Audio, speechlike, world
 
 
@@ -108,3 +110,50 @@ class TestOverlapNormalization:
     def test_scores_can_slightly_exceed_one_and_that_is_fine(self) -> None:
         env = _env(speechlike(30, 4))
         assert coarse_offset(env, env, HOP_MS).score >= 0.99
+
+
+def _cfg() -> SyncSection:
+    return parse_config("", default_name="x").sync
+
+
+@pytest.mark.parametrize(("shift", "lags"), [(4.0, (-2800, 4000)), (6.0, (-800, 6000))])
+def test_ambiguous_tones_12s_are_rejected_with_their_two_lags(
+    shift: float, lags: tuple[int, int]
+) -> None:
+    """Periodic audio, 12 s, B starting 4 s / 6 s later: the wrong lag used to be accepted (-2800
+    / -800, refine 0.85). Now both candidate lags are kept and the pair is rejected (001.7)."""
+    result = sync_arrays(world(0.0), world(shift), SR, _cfg())
+    assert not result.accepted
+    assert result.reason is not None and result.reason.startswith("sync_ambiguous")
+    assert result.lag_a_ms is not None and result.lag_b_ms is not None
+    assert abs(result.lag_a_ms - lags[0]) <= 10  # the best lag at the 0.75 floor (the wrong one)
+    assert abs(result.lag_b_ms - lags[1]) <= 10  # at the 0.5 floor: the real offset
+    assert abs(result.lag_b_ms - shift * 1000) <= 10
+    assert result.refine_corr is not None and result.refine_corr > 0.8  # why it used to pass
+
+
+def test_ambiguous_check_runs_after_the_weak_refine_check() -> None:
+    """The verifier's 12 s pair (B +5 s) is still rejected for its weak refine, not as ambiguous."""
+    scene = speechlike(40, 11)
+    result = sync_arrays(scene[5 * SR : 17 * SR], scene[10 * SR : 22 * SR], SR, _cfg())
+    assert result.reason is not None and result.reason.startswith("sync_weak_refine")
+    assert (result.lag_a_ms, result.lag_b_ms) == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("seconds", "computed"), [(12.0, True), (13.3, True), (13.4, False), (14.0, False)]
+)
+def test_ambiguous_second_lag_is_only_computed_when_the_fraction_sets_the_floor(
+    seconds: float, computed: bool
+) -> None:
+    clip = speechlike(seconds, 3)
+    found = coarse_offset(envelope(clip, SR), envelope(clip, SR), HOP_MS)
+    assert (found.loose_offset_ms is not None) is computed
+
+
+def test_ambiguous_threshold_and_floor_are_named_constants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert (sync_module.AMBIGUITY_FLOOR_FRACTION, sync_module.AMBIGUITY_LAG_MS) == (0.5, 2000)
+    monkeypatch.setattr(sync_module, "AMBIGUITY_LAG_MS", math.inf)
+    assert sync_arrays(world(0.0), world(4.0), SR, _cfg()).accepted  # the check is what rejects

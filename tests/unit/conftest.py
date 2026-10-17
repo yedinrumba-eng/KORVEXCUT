@@ -1,4 +1,6 @@
-"""Fixtures for the doctor unit tests: fake ffmpeg binaries and light stand-in checks."""
+"""Fixtures of the unit tests: fake ffmpeg binaries, light stand-in checks, a bare project."""
+
+from pathlib import Path
 
 import pytest
 
@@ -24,3 +26,22 @@ def light_checks(monkeypatch: pytest.MonkeyPatch, fake_tools: None) -> None:
             f"check_{name}",
             lambda *_a, _n=name: CheckResult(_n, True, True, "simulado", None),
         )
+
+
+@pytest.fixture
+def project(tmp_path: Path) -> Path:
+    """A folder with an empty `kcut.toml`: a project as far as `cli.main` can tell (modules with
+    a project of their own define theirs and shadow this one)."""
+    root = tmp_path / "proyecto ñandú"
+    root.mkdir()
+    (root / "kcut.toml").write_text("", encoding="utf-8")
+    return root
+
+
+@pytest.fixture
+def lonely(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A working directory with no kcut.toml anywhere above it."""
+    folder = tmp_path / "sin proyecto"
+    folder.mkdir()
+    monkeypatch.chdir(folder)
+    return folder

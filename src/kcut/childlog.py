@@ -10,6 +10,7 @@ import codecs
 import re
 from typing import IO
 
+from kcut.logfile import LogSink
 from kcut.scrub import MetadataScrubber
 
 TAIL_CAP_BYTES = 8 * 1024**2
@@ -45,7 +46,7 @@ def read_tail(src: IO[bytes], size: int) -> str:
     return omitted(size - len(data)) + "\n" + data.decode("utf-8", errors="replace")
 
 
-def copy_scrubbed(src: IO[bytes], size: int, dst: IO[str]) -> bool:
+def copy_scrubbed(src: IO[bytes], size: int, dst: LogSink) -> bool:
     """Copy the first `size` bytes of `src` into `dst` in chunks, scrubbed line by line.
 
     Lines are never split before scrubbing, so an open `Metadata:` block is never lost between

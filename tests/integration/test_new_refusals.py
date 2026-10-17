@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -159,3 +160,66 @@ class TestNeverOverwritesMore:
         assert code == 0
         assert doc["created"] == ["kcut.toml"]
         assert (root / "edit" / "estrategia.md").read_bytes() == strategy
+
+
+class TestNestedInAnotherProject:
+    """`kcut new` inside a layout folder of another project (001.7, S1.2-41)."""
+
+    @pytest.fixture
+    def parent(self, tmp_path: Path) -> Path:
+        project = tmp_path / "proyecto padre ñandú"
+        assert cli.main(["new", str(project)]) == 0
+        (project / "crudo" / "toma.mov").write_bytes(b"footage")
+        return project
+
+    @staticmethod
+    def _nested(target: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, dict[str, Any]]:
+        capsys.readouterr()  # what the earlier `kcut new` printed
+        code = cli.main(["new", str(target), "--json"])
+        return code, json.loads(capsys.readouterr().out)
+
+    @staticmethod
+    def _tree(project: Path) -> list[tuple[str, str]]:
+        return sorted(
+            (p.relative_to(project).as_posix(), hashlib.sha256(p.read_bytes()).hexdigest())
+            for p in project.rglob("*")
+            if p.is_file()
+        )
+
+    @pytest.mark.parametrize("folder", ["crudo", "edit", "recursos", "salida", "qa", ".kcut"])
+    def test_new_nested_in_layout_folder_is_refused_and_creates_nothing(
+        self, parent: Path, folder: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        before = self._tree(parent)
+        target = parent / folder / "hijo"
+        code, doc = self._nested(target, capsys)
+        assert code == 3
+        message = doc["error"]["message"]
+        assert f"no creo un proyecto dentro de {folder}/ de otro proyecto" in message
+        assert str(parent) in message
+        assert not target.exists()
+        assert self._tree(parent) == before
+        assert (parent / "crudo" / "toma.mov").read_bytes() == b"footage"
+
+    def test_new_nested_in_layout_deeper_down_is_refused_too(
+        self, parent: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert self._nested(parent / "crudo" / "dia 1" / "escena", capsys)[0] == 3
+        assert not (parent / "crudo" / "dia 1").exists()
+
+    def test_new_nested_in_layout_of_an_inner_project_is_refused(
+        self, parent: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A project that lives next to the layout is itself a project: its own folders count."""
+        inner = parent / "otra" / "interno"
+        assert self._nested(inner, capsys)[0] == 0
+        assert self._nested(inner / "crudo" / "nieto", capsys)[0] == 3
+        assert not (inner / "crudo" / "nieto").exists()
+
+    def test_new_nested_in_layout_only_applies_inside_a_layout_folder(
+        self, parent: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        sibling = parent / "otra" / "hijo"
+        code, doc = self._nested(sibling, capsys)
+        assert code == 0 and doc["ok"] is True
+        assert (sibling / "kcut.toml").is_file()

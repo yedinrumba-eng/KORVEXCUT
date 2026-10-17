@@ -14,7 +14,18 @@ from numpy.typing import NDArray
 from kcut.audio.wavio import read_wav_s16_mono
 from kcut.config.model import SyncSection
 from kcut.errors import ProjectError
+from kcut.ingest.sync_reasons import (
+    REASON_AMBIGUOUS,
+    REASON_RATIO,
+    REASON_SCORE,
+    REASON_WEAK_REFINE,
+)
 
+# Version of the sync algorithm; it is stored with every result (001.7, point 15). A stored result
+# is reused only if it carries the current version, so ANY change that can alter what a pair
+# gives (floors, thresholds, new checks) must raise this number. 001.7 is version 2; everything
+# before counts as 1.
+SYNC_VERSION = 2
 HOP_MS = 5
 _EXCLUDE_MS = 2000
 _MIN_OVERLAP_S = 10
@@ -22,6 +33,11 @@ _MIN_OVERLAP_S = 10
 # 001.5). With 0.5 a secondary peak at a small overlap was inflated by the normalization and the
 # spec's own synthetic camera B was rejected (ratio 1.39 < 1.5); with 0.75 it is 1.77.
 MIN_OVERLAP_FRACTION = 0.75
+# Short clips only (001.7): the best lag with this looser floor is also computed, and a pair whose
+# two best lags differ by more than AMBIGUITY_LAG_MS is rejected as ambiguous. Periodic audio
+# (tones, a music loop) can make the wrong lag win at 0.75 and still correlate strongly.
+AMBIGUITY_FLOOR_FRACTION = 0.5
+AMBIGUITY_LAG_MS = 2000
 _MIN_WINDOW_S = 0.2
 _MIN_DRIFT_OVERLAP_S = 30
 
@@ -32,6 +48,7 @@ class CoarseResult:
     score: float
     second: float
     ratio: float
+    loose_offset_ms: float | None = None  # best lag at the looser floor; None when not computed
 
 
 @dataclass(frozen=True)
@@ -52,6 +69,8 @@ class SyncResult:
     reason: str | None
     drift_warning: bool
     refine_corr: float | None = None
+    lag_a_ms: int | None = None  # only for `ambiguous`: best lag at the 0.75 floor
+    lag_b_ms: int | None = None  # only for `ambiguous`: best lag at the 0.5 floor
 
 
 def envelope(x: NDArray[np.float32], sr: int, hop_ms: int = HOP_MS) -> NDArray[np.float32]:
@@ -81,11 +100,12 @@ def coarse_offset(
     corr = signal.fftconvolve(m, b[::-1], mode="full")
     lags = np.arange(len(corr)) - (len(b) - 1)
     overlap = np.minimum(len(m), lags + len(b)) - np.maximum(0, lags)
-    floor = min(_MIN_OVERLAP_S * 1000 / hop_ms, MIN_OVERLAP_FRACTION * min(len(m), len(b)))
-    valid = overlap >= floor
+    shorter, cap = min(len(m), len(b)), _MIN_OVERLAP_S * 1000 / hop_ms
+    valid = overlap >= min(cap, MIN_OVERLAP_FRACTION * shorter)
     if not valid.any():
         return CoarseResult(0.0, 0.0, 0.0, math.inf)
-    scored = np.where(valid, corr / np.maximum(overlap, 1), -np.inf)
+    normalized = corr / np.maximum(overlap, 1)
+    scored = np.where(valid, normalized, -np.inf)
     peak = int(np.argmax(scored))
     score = float(scored[peak])
     guard = round(_EXCLUDE_MS / hop_ms)
@@ -93,7 +113,11 @@ def coarse_offset(
     far = far[np.isfinite(far)]
     second = float(far.max()) if far.size else 0.0
     ratio = score / second if second > 0 else math.inf
-    return CoarseResult(float(lags[peak]) * hop_ms, score, second, ratio)
+    loose_ms = None
+    if MIN_OVERLAP_FRACTION * shorter < cap:  # the fraction, not the 10 s cap, sets the floor
+        loose = np.where(overlap >= AMBIGUITY_FLOOR_FRACTION * shorter, normalized, -np.inf)
+        loose_ms = float(lags[int(np.argmax(loose))]) * hop_ms
+    return CoarseResult(float(lags[peak]) * hop_ms, score, second, ratio, loose_ms)
 
 
 def refine_offset(
@@ -163,20 +187,27 @@ def sync_arrays(
     Accepted when the envelope `score` and `ratio` pass **and** the raw-audio refinement
     correlates at least `min_refine_corr`: a wrong lag can win the envelope test on short clips,
     but it never correlates on the raw samples (0.012-0.019 against 0.99 for the true one).
+    Periodic audio is the exception (tones: the wrong lag refines at 0.85), so the order ends
+    with the ambiguity check of 001.7: score, ratio, refine, weak refine, ambiguity.
     """
     coarse = coarse_offset(envelope(master, sr), envelope(member, sr), HOP_MS)
     coarse_ms = round(coarse.offset_ms)
     if coarse.score < cfg.min_score:
-        return _rejected(coarse, coarse_ms, "pico de correlacion bajo")
+        return _rejected(coarse, coarse_ms, REASON_SCORE)
     if coarse.ratio < cfg.min_ratio:
-        return _rejected(coarse, coarse_ms, "pico ambiguo (hay otro casi igual de alto)")
+        return _rejected(coarse, coarse_ms, REASON_RATIO)
     refined_ms, refine_corr = refine_offset(master, member, sr, coarse.offset_ms)
     if refine_corr < cfg.min_refine_corr:
         reason = (
-            f"sync_weak_refine: la correlacion del refinado ({refine_corr:.3f}) "
+            f"{REASON_WEAK_REFINE}: la correlacion del refinado ({refine_corr:.3f}) "
             f"esta bajo min_refine_corr ({cfg.min_refine_corr})"
         )
         return _rejected(coarse, round(refined_ms), reason, refine_corr)
+    loose = coarse.loose_offset_ms
+    if loose is not None and abs(loose - coarse.offset_ms) > AMBIGUITY_LAG_MS:
+        lags = (coarse_ms, round(loose))
+        reason = f"{REASON_AMBIGUOUS}: dos desfases posibles ({lags[0]} ms y {lags[1]} ms)"
+        return _rejected(coarse, round(refined_ms), reason, refine_corr, lags)
     spread = drift(master, member, sr, refined_ms)
     warn = spread.drift_ms is not None and spread.drift_ms > cfg.max_drift_ms
     return SyncResult(
@@ -194,8 +225,13 @@ def sync_arrays(
 
 
 def _rejected(
-    coarse: CoarseResult, offset_ms: int, reason: str, refine_corr: float | None = None
+    coarse: CoarseResult,
+    offset_ms: int,
+    reason: str,
+    refine_corr: float | None = None,
+    lags: tuple[int, int] | None = None,
 ) -> SyncResult:
+    lag_a, lag_b = lags if lags is not None else (None, None)
     return SyncResult(
         False,
         offset_ms,
@@ -207,6 +243,8 @@ def _rejected(
         reason,
         False,
         refine_corr,
+        lag_a,
+        lag_b,
     )
 
 

@@ -51,11 +51,12 @@ class ChildProcess:
         self._args = args
         self._exit_grace_s = grace_s
         self._log = log
-        self._start = time.monotonic()
         self._note = ""
         self._stderr_text: str | None = None
         self._stderr_file: IO[bytes] = tempfile.TemporaryFile()  # noqa: SIM115 - lives with the child
         try:
+            if log is not None:  # before the launch: nothing about the log can strand a child
+                append_log(log, "$ " + subprocess.list2cmdline(args) + "\n")
             self._popen = subprocess.Popen(
                 args,
                 stdin=subprocess.PIPE if stdin_pipe else subprocess.DEVNULL,
@@ -69,8 +70,16 @@ class ChildProcess:
         except OSError as exc:
             self._stderr_file.close()
             raise ToolError(f"no pude arrancar {_name(args)}: {exc}") from None
-        if log is not None:
-            append_log(log, "$ " + subprocess.list2cmdline(args) + "\n")
+        except BaseException:
+            self._stderr_file.close()
+            raise
+        try:
+            self._start = time.monotonic()  # the last step of __init__: the child is running
+        except BaseException:
+            self._popen.kill()
+            self._popen.wait()
+            self._stderr_file.close()
+            raise
 
     @property
     def stdin(self) -> IO[bytes] | None:

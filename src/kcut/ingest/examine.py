@@ -26,7 +26,11 @@ _MS_PER_HOUR = 3_600_000
 
 
 def examine(
-    project: Project, item: Found, reusable: dict[str, Clip], log: Path, notices: list[Notice]
+    project: Project,
+    item: Found,
+    reusable: dict[str, Clip],
+    log: Path | None,
+    notices: list[Notice],
 ) -> None:
     """Fill in what is known about one file. A broken file is marked, never fatal."""
     if item.ext in DOC_EXT:
@@ -94,7 +98,7 @@ def first_line(exc: BaseException) -> str:
     return (str(message).strip().splitlines() or [""])[0][:200]
 
 
-def _probe(path: Path, log: Path) -> MediaInfo:
+def _probe(path: Path, log: Path | None) -> MediaInfo:
     """Run ffprobe and keep only the whitelisted fields; the raw JSON is dropped right here."""
     result = proc.run(
         ffprobe_args(proc.tool_path("ffprobe"), path), log=log, timeout_s=FFPROBE_TIMEOUT_S
@@ -116,7 +120,11 @@ def _image_meta(path: Path) -> ImageMeta:
 
 
 def _audio_peak(
-    project: Project, item: Found, reusable: dict[str, Clip], log: Path, notices: list[Notice]
+    project: Project,
+    item: Found,
+    reusable: dict[str, Clip],
+    log: Path | None,
+    notices: list[Notice],
 ) -> None:
     """Get the wav16 (reusing a fresh one from the previous run) and measure its peak."""
     known = reusable.get(item.hash)

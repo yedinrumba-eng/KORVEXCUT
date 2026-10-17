@@ -11,6 +11,7 @@ from kcut.audio.wavio import write_wav_s16_mono
 from kcut.config.load import parse_config
 from kcut.config.model import SyncSection
 from kcut.errors import ProjectError
+from kcut.ingest import sync as sync_module
 from kcut.ingest.sync import (
     HOP_MS,
     coarse_offset,
@@ -20,6 +21,7 @@ from kcut.ingest.sync import (
     sync_arrays,
     sync_pair,
 )
+from kcut.ingest.sync_reasons import rejection_motive
 from tests.unit.sync_signals import SR, Audio, speechlike, world
 
 
@@ -169,6 +171,7 @@ class TestSyncPair:
         assert not sync_pair(*paths, _cfg(min_score=0.8)).accepted
         assert not sync_pair(*paths, _cfg(min_ratio=1000.0)).accepted
 
+    @pytest.mark.slow
     def test_drift_over_the_limit_is_flagged_not_rejected(self, tmp_path: Path) -> None:
         scene = speechlike(130, 3)
         master = scene[: 120 * SR]
@@ -202,7 +205,9 @@ def test_partial_overlap_75s_accepted(tmp_path: Path) -> None:
     assert result.ratio >= 1.5
 
 
-def test_weak_refine_rejects_a_12s_pair_shifted_5s(tmp_path: Path) -> None:
+def test_weak_refine_rejects_a_12s_pair_shifted_5s(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The verifier's case: 12 s clips, B starts 5 s later. A wrong lag wins the envelope test
     (score and ratio pass) but its raw-audio refinement barely correlates (0.012-0.019)."""
     scene = speechlike(40, 11)
@@ -216,11 +221,13 @@ def test_weak_refine_rejects_a_12s_pair_shifted_5s(tmp_path: Path) -> None:
     assert strict.refine_corr is not None and strict.refine_corr < 0.1
     assert strict.score >= 0.35 and strict.ratio >= 1.5  # the envelope alone would have passed
 
+    monkeypatch.setattr(sync_module, "AMBIGUITY_LAG_MS", math.inf)  # 001.7: the 2nd net off too
     lenient = sync_pair(*paths, _cfg(min_refine_corr=0.0))
     assert lenient.accepted
     assert abs(lenient.offset_ms - 5000) > 2  # accepted, and wrong: what the rule prevents
 
 
+@pytest.mark.slow
 def test_short_batch_never_accepts_a_wrong_offset() -> None:
     """Seeded batch of short clips (8-12 s) with offsets of 3-6 s: no wrong offset gets in."""
     rng = np.random.default_rng(2026)
@@ -245,3 +252,17 @@ def test_synth_cam_b_is_accepted_at_1200ms(tmp_path: Path) -> None:
     assert result.accepted, result.reason
     assert abs(result.offset_ms - 1200) <= 1
     assert result.refine_corr is not None and result.refine_corr > 0.9
+
+
+def test_warning_from_reason_each_real_rejection_maps_to_its_motive() -> None:
+    """The motive comes from the `reason` text that `sync_arrays` really writes (001.7, point 6)."""
+    master, member = _pair(SR)
+    expected = {
+        "score": sync_arrays(master, member, SR, _cfg(min_score=2.0)),
+        "ratio": sync_arrays(master, member, SR, _cfg(min_ratio=1000.0)),
+        "weak_refine": sync_arrays(master, member, SR, _cfg(min_refine_corr=1.5)),
+        "ambiguous": sync_arrays(world(0.0), world(4.0), SR, _cfg()),
+    }
+    for motive, result in expected.items():
+        assert not result.accepted and result.reason is not None, motive
+        assert rejection_motive(result.reason) == motive
