@@ -67,11 +67,13 @@ src/kcut/doctor/result.py  chain_checks.py                      S1.1/S1.2 (parti
 src/kcut/assets/fonts/inter-latin-{600,800,900}-normal.woff2  OFL-Inter.txt   S1.1
 src/kcut/jsonio.py  schema_util.py  timebase.py  paths.py  project.py          S1.2
 src/kcut/config/__init__.py  model.py  load.py  template.py                    S1.2
+src/kcut/config/names.py  fields.py                                            S1.2 (partidos por la regla de 300 líneas; 001.6)
 src/kcut/recursos/__init__.py  manifest.py                                     S1.2
 src/kcut/ff/__init__.py  color.py  args.py                                     S1.2 (`fnum` vive en `ff/args.py`)
 src/kcut/audio/__init__.py  wavio.py                                           S1.2
 src/kcut/ingest/__init__.py  probe.py  naming.py  classify.py  inventory.py  sync.py  workfiles.py  run.py   S1.2
 src/kcut/ingest/inventory_model.py  sync_stage.py                              S1.2 (partidos por la regla de 300 líneas; 001.4)
+src/kcut/ingest/scan.py  examine.py  inventory_check.py  inventory_json.py     S1.2 (partidos por la regla de 300 líneas; 001.6)
 src/kcut/commands/new.py  ingest.py                                            S1.2
 src/kcut/text/__init__.py  normalize.py  corrections.py                        S1.3
 src/kcut/transcribe/__init__.py  model.py  engine.py  cache.py                 S1.3
@@ -102,6 +104,7 @@ src/kcut/commands/qa.py  build.py  catalog.py                                  S
 src/kcut/storyboard/__init__.py  beats.py  notes.py  panel.py  html.py  sheet.py  run.py     S1.10
 src/kcut/commands/storyboard.py                                                S1.10
 tests/__init__.py  conftest.py  unit/__init__.py  integration/__init__.py  e2e/__init__.py  fixtures/__init__.py   S1.1/S1.2
+tests/fixtures/links.py                         S1.2 (crea junctions, symlinks y hard links para los tests; 001.6)
 ```
 
 Reglas de código: una entidad por archivo, **≤ 300 líneas por archivo** (si un archivo se pasa,
@@ -278,7 +281,9 @@ devuelve el código.
 4. Locks con `msvcrt.locking` (Windows) / `fcntl.flock` (POSIX). **Prohibido `os.kill(pid, 0)`**:
    en Windows la señal 0 es `CTRL_C_EVENT` y otras señales terminan el proceso. (DS11)
 5. `os.replace` sobre un destino abierto por un reproductor da `PermissionError` → exit 3 con
-   "cierra el archivo <ruta> en el reproductor y repite".
+   "cierra el archivo <ruta> en el reproductor y repite". Si en el destino (p. ej.
+   `.kcut/inventory.json` o un sidecar) hay una **carpeta**, el mensaje es otro: "en <ruta> hay una
+   carpeta donde kcut espera un archivo; bórrala o muévela" (exit 3). (001.6)
 6. Los tests crean proyectos en rutas con espacio y ñ (`<tmp>/proyecto ñandú`).
 7. Rutas rechazadas: absolutas, con letra de unidad, UNC (`\\`), con `..` que escape, con `:`
    (flujos ADS), con byte NUL, con nombres reservados (`CON PRN AUX NUL COM1-9 LPT1-9`, con o sin
@@ -293,12 +298,18 @@ devuelve el código.
 
 ### 0.11 Logs, progreso y locks
 
-- Log por comando: `.kcut/logs/<comando>-<YYYYmmdd-HHMMSS>.log` (UTF-8): stderr de los hijos,
+- Log por comando: `.kcut/logs/<comando>-<YYYYmmdd-HHMMSS>-<pid>.log` (UTF-8): stderr de los hijos,
   tiempos por paso, tracebacks. Formato por hijo (001.1): al arrancar, una línea de cabecera
   `$ <argumentos unidos con subprocess.list2cmdline>`; al terminar, en un solo bloque, su stderr
   completo (pasado por `scrub_media_metadata`) y la línea `[exit <código> en <s> s]`. Cabecera y
   bloque se escriben en modo append bajo un `threading.Lock` por ruta de log resuelta, así que
   dos hijos concurrentes nunca se pisan. La cola de un error sale solo del stderr de ese hijo.
+- Creación y uso seguro del log (001.6; `cli._run_log` y `proc.append_log`): cada corrida crea su
+  log con creación exclusiva (`os.open(..., O_CREAT | O_EXCL | O_WRONLY)`, nombre único con el pid)
+  dentro de `.kcut/logs/` ya validado (`check_layout_inside`). Antes de **cada** append se comprueba
+  con `os.lstat` que la ruta es un archivo regular (`stat.S_ISREG`), con `st_nlink == 1` y que
+  resuelve dentro de la caché real; si no, no se escribe ahí (el log va solo a stderr, con aviso).
+  Así un hard link plantado en `.kcut/logs/` no puede escribir dentro de `crudo/`.
 - Progreso a stderr como mucho cada 2 s: `render v1: 640/1469 frames (43%) - 18.2 fps - faltan 45 s`.
 - Lock por salida: `.kcut/locks/build-vN.lock`, abierto y bloqueado sin espera durante todo el
   comando (`render`, `mix`, `build`, `graphics capture` comparten `build-vN`); si no se puede
@@ -600,7 +611,9 @@ Mensajes en español con la ruta: `spans[3].zoom: debe estar entre 1.0 y 3.0 (vi
 - `@dataclass(frozen=True) class Layout` con todas las rutas de 0.3 a partir de `root`
   (`crudo`, `recursos`, `manifest`, `edit`, `salida`, `qa`, `cache`, `inventory`, `proxy`, `wav16`,
   `wav48`, `mezz`, `transcripts`, `view`, `frames`, `build`, `storyboard_cache`, `logs`, `locks`),
-  y `build_dir(version: int) -> Path`, `qa_dir(version: int) -> Path`.
+  y `build_dir(version: int) -> Path`, `qa_dir(version: int) -> Path`,
+  `all_paths() -> tuple[Path, ...]` (todas las carpetas del layout: `crudo/`, `recursos/`, `edit/`,
+  `salida/`, `qa/`, `.kcut/` y cada subcarpeta de `.kcut/`) (001.6).
 - `find_project(start: Path) -> Path` (sube hasta `kcut.toml`; `ProjectError` si no).
 - `resolve_in_project(root: Path, rel: str) -> Path`: reglas 0.10.7; resultado resuelto debe
   quedar dentro de `root.resolve()` (comparación con `normcase`); si no → `ProjectError`.
@@ -613,13 +626,18 @@ Mensajes en español con la ruta: `spans[3].zoom: debe estar entre 1.0 y 3.0 (vi
 (001.4) Rechaza el proyecto con `ProjectError` si `.kcut` o cualquier carpeta de `Layout` que exista
 resuelve fuera de la raíz del proyecto (junction o symlink): se comprueba con `Path.resolve()` y
 `normcase` antes de devolver el `Project`.
+(001.6) La comprobación vive en `check_layout_inside(root: Path, layout: Layout) -> None`: para cada
+ruta de `layout.all_paths()` que exista, `ProjectError` si es symlink o junction
+(`os.path.islink` / `os.path.isjunction`) **o** si resuelve fuera de la raíz. Así se rechazan también
+los enlaces internos: `.kcut → crudo/`, `.kcut → edit/`, `.kcut/logs → crudo/`. La llaman
+`open_project` y `kcut new` (cuando la carpeta ya existe), antes de escribir nada.
 `load_inventory(project) -> Inventory` → `ProjectError` "corre kcut ingest" si falta.
 
 #### `src/kcut/config/model.py` — CREAR
 Dataclasses congeladas: `ProjectSection(name, language, created)`, `OutputSection(preset, fps, w, h, safe_top_px, safe_bottom_px)`,
 `BrandSection(accent, accent2, dark, light)`, `TranscribeSection(model, compute_type, beam_size, cpu_threads, fillers, prompt_extra)`,
 `AnalysisSection(silence_db, min_silence_ms, phrase_pause_ms, long_pause_ms, low_prob)`,
-`SyncSection(master, min_score, min_ratio, max_drift_ms, manual: Mapping[str, int])`,
+`SyncSection(master, min_score, min_ratio, max_drift_ms, min_refine_corr, manual: Mapping[str, int])` (`min_refine_corr` desde 001.6),
 `CaptionsSection(enabled, uppercase, max_words, max_chars, y, font_px, color, active_color, stroke_color)`,
 `VoiceChain(highpass_hz, denoise_nr, denoise_nf, comp_threshold_db, comp_ratio)`,
 `AudioSection(voice_lufs, target_lufs, target_tp, voice: VoiceChain)`,
@@ -641,13 +659,13 @@ nombrándola. Rangos (fuera de rango → `ProjectError`):
 | `output.fps` | int | 30 | `ALLOWED_FPS` |
 | `output.safe_top_px` / `safe_bottom_px` | int | 250 / 500 (9:16), 60 / 120 (16:9) | 0–600 |
 | `brand.accent/accent2/dark/light` | hex | `#E5FF1F` `#2FA8FF` `#0B0B0E` `#FFFFFF` | hex |
-| `glossary.terms` | list[str] | `[]` | ≤ 200, cada uno 1–40 |
+| `glossary.terms` | list[str] | `[]` | ≤ 200, cada uno 1–40; sin `Cc`/`Cf`/`Zl`/`Zp` (001.6, se implementa en S1.3) |
 | `transcribe.model` | str | `"medium"` | `tiny base small medium large-v3` |
 | `transcribe.compute_type` | str | `"int8"` | `int8 int8_float32 float32` |
 | `transcribe.beam_size` | int | 5 | 1–10 |
 | `transcribe.cpu_threads` | int | 0 (= `os.cpu_count()`) | 0–64 |
-| `transcribe.fillers` | list[str] | ver plantilla | ≤ 50 |
-| `transcribe.prompt_extra` | str | `""` | ≤ 400 |
+| `transcribe.fillers` | list[str] | ver plantilla | ≤ 50, cada uno 1–40; sin `Cc`/`Cf`/`Zl`/`Zp` (001.6, S1.3) |
+| `transcribe.prompt_extra` | str | `""` | ≤ 400; sin `Cc`/`Cf`/`Zl`/`Zp` (001.6, S1.3) |
 | `analysis.silence_db` | float | −42.0 | −70 a −20 |
 | `analysis.min_silence_ms` | int | 250 | 50–2000 |
 | `analysis.phrase_pause_ms` | int | 300 | 100–3000 |
@@ -655,6 +673,7 @@ nombrándola. Rangos (fuera de rango → `ProjectError`):
 | `analysis.low_prob` | float | 0.5 | 0–1 |
 | `sync.master` | str | `""` | `""` o id de clip |
 | `sync.min_score` / `min_ratio` / `max_drift_ms` | float/float/int | 0.35 / 1.5 / 20 | 0–1 / ≥ 1 / 1–1000 |
+| `sync.min_refine_corr` | float | 0.1 | 0–1 (001.6) |
 | `sync.manual` | tabla id → int ms | vacía | ids `^[a-z][0-9]+$` |
 | `captions.enabled` / `uppercase` | bool | true / true | — |
 | `captions.max_words` / `max_chars` | int | 3 / 18 | 1–6 / 6–40 |
@@ -720,6 +739,7 @@ master = ""
 min_score = 0.35
 min_ratio = 1.5
 max_drift_ms = 20
+min_refine_corr = 0.1
 
 [sync.manual]
 
@@ -848,6 +868,8 @@ colapsar, recortar `-`, máx. 40; vacío → `"clip"`), `qhash(path: Path) -> st
   relativa sin distinguir mayúsculas), y `id_high` se actualiza. Un id que desaparece queda retirado
   para siempre. Ej.: `a1`, `a2` (cam2); se re-exporta cam2 (otro `qhash`) → `a3`; luego entra
   cam3 → `a4`; nunca vuelve `a2`.
+  (001.6) `ID_HIGH_MAX = 999_998`: si un prefijo llega a ese tope, `ProjectError` en vez de emitir un
+  id que el validador (`^[a-z][0-9]{1,6}$`) rechazaría.
 
 #### `src/kcut/ingest/inventory.py` — CREAR (dataclasses en `ingest/inventory_model.py`, 001.4)
 Dataclasses + `load_inventory(path) -> Inventory`, `save_inventory(path, inv) -> None`.
@@ -893,6 +915,10 @@ desde cero) con el aviso `inventory_invalid`; nunca se confía en él. Formato `
   (más de `warn_duration_h`), `too_long` (más de `max_duration_h`: el clip se registra pero no se
   procesa), `skipped_link` (carpeta junction/symlink que no se recorrió), `inventory_invalid`,
   `cache_rebuilt` (un archivo de caché corrupto se reconstruyó).
+  Desde 001.6: `sync_weak_refine` (la correlación del refinado quedó bajo `min_refine_corr`: el par se
+  rechaza y va a `sync.rejected` con `refine_corr`). Un archivo que no se pudo leer para el `qhash`
+  no recibe clip ni id: va a la lista de avisos del ingest como
+  `{"code": "probe_failed", "file": "crudo/x.mov", "message_es": "..."}`.
   `dv_profile_unsupported` cuando `dv_profile == 5` (sin capa base compatible: colores incorrectos, F2).
   `av_start_offset` cuando `abs(video.start_ms - audio.start_ms) > 1000 // fps`.
 
@@ -916,6 +942,11 @@ desde cero) con el aviso `inventory_invalid`; nunca se confía en él. Formato `
 - `sync_pair(master_wav: Path, member_wav: Path, cfg: SyncSection) -> SyncResult` (acepta si
   `score >= min_score` y `ratio >= min_ratio`; `offset_ms = round(refinado)`; aviso `drift` si
   `drift_ms > max_drift_ms`).
+  (001.6, decisión del dueño) Después de `refine_offset`, si su correlación es menor que
+  `min_refine_corr` (default 0.1), el par se **rechaza** con motivo y aviso `sync_weak_refine`
+  aunque `score` y `ratio` pasen. Calibración medida: offsets equivocados en clips cortos dan
+  0.012–0.019, el correcto 0.99, y el piloto real (dos iPhones) 0.489. El piso de solape de 0.75
+  (001.5) se mantiene. Aceptados y rechazados guardan `refine_corr` en el inventario.
 
 #### `src/kcut/ingest/workfiles.py` — CREAR
 `ensure_wav16(project, clip) -> Path`, `ensure_wav48(project, clip) -> Path` (mismo esquema en
@@ -928,6 +959,12 @@ Proxy: lado largo 960, lado corto `2*round(corto*960/largo/2)`, `video_chain` de
 `layout.cache` (comparación con `normcase`); si no → `ProjectError`. Se llama al **inicio** de toda
 función que escribe, mueve o borra (`_build`, `adopt` con su origen **y** su destino, `discard`),
 antes de tocar el disco. Un wav16 previo solo se reutiliza si su ruta resuelve bajo `.kcut/wav16/`.
+(001.6) `_assert_in_cache` además exige `layout.cache.resolve() == (root / ".kcut").resolve()` y que el
+destino no quede bajo `crudo/`. `_copy(src, dst)` vuelve sin hacer nada si
+`src.resolve() == dst.resolve()` (nunca borra el origen). Los trabajos de wav16 y proxy llevan
+`-t <max_duration_h*3600 + 60>` (no se confía en la duración declarada) y, después de construir el
+wav16, `long_duration`/`too_long` se recalculan con su largo real (`nframes / 16000`); si queda
+`too_long`, ese wav16 se borra (por `discard`, con `_assert_in_cache`).
 (001.4) Pico del wav16 calculado por bloques (`wave.readframes` de a 1 048 576 frames), sin cargar el
 archivo entero. Cada trabajo de ffmpeg lleva `timeout_s = 10 × duración_s + 60` de su fuente;
 ffprobe, `timeout_s = 60`.
@@ -954,12 +991,18 @@ Reglas agregadas en 001.4 (la etapa de sincronía vive en `ingest/sync_stage.py`
 - wav16 que falla después de un ffprobe bueno → el clip conserva la clase que le da el probe (p. ej.
   `video_mudo` si tiene video), su proxy y sus `frames`; aviso `wav16_failed` (no `probe_failed`).
 - Un `ProjectError` de `proxy_size` (tamaño declarado 0) marca el clip `probe_failed` y sigue.
+- (001.6) `ingest/scan.py`: un `OSError` al calcular el `qhash` de un archivo lo marca
+  `probe_failed` (sin clip ni id estable; el aviso nombra el archivo) y el ingest sigue con los demás.
 
 #### `src/kcut/commands/new.py` — CREAR
 `kcut new <path> [--name N] [--preset 9:16|16:9] [--fps F] [--lang LL]`:
 - `inside_kcut_repo(path)` → `ProjectError` "los proyectos de video no van dentro del repo de kcut" (DS14).
 - Si `<path>/kcut.toml` existe → `ProjectError` "ya es un proyecto". La carpeta puede existir con
   archivos: no se tocan; se avisa "hay N archivos fuera de crudo/; muévelos a crudo/".
+- (001.6) Si la carpeta ya existe: llama `check_layout_inside` antes de escribir nada, y su recorrido
+  poda junctions y symlinks. El aviso de "archivos fuera de crudo/" **no** cuenta los archivos del
+  propio layout (`kcut.toml`, todo lo de `edit/`, `recursos/`, `salida/`, `qa/` y `.kcut/`): nunca se
+  le dice al usuario que mueva `estrategia.md` u otro archivo del gate a `crudo/`.
 - (001.4) Nombre: `--name` con caracteres de las categorías Unicode `Cc`, `Cf`, `Zl`, `Zp` o con más
   de 80 caracteres → `UsageError` (2). Nombre por defecto (de la carpeta): se le quitan esos
   caracteres y se recorta a 80; si queda vacío, `"proyecto"`.
@@ -990,7 +1033,7 @@ aprobado_por:
 - Agregar `"kcut.commands.new"`, `"kcut.commands.ingest"` a `COMMAND_MODULES`.
 - (001.1) `InternalError` (incluye toda excepción no prevista convertida en `InternalError`): si
   hay proyecto (`--project` o subiendo desde el cwd; buscarlo aquí no lanza si no existe), el
-  traceback completo va a `.kcut/logs/<comando>-<YYYYmmdd-HHMMSS>.log` y el mensaje corto dice la
+  traceback completo va a `.kcut/logs/<comando>-<YYYYmmdd-HHMMSS>-<pid>.log` y el mensaje corto dice la
   ruta de ese log; sin proyecto, el traceback va a stderr solo con `-v`. El traceback nunca entra al
   JSON de `--json`.
 - (001.4) El log es **el mismo** que usan los hijos de esa corrida: `cli.main` decide una sola ruta
@@ -1024,7 +1067,7 @@ cámara B en R=1.2 s.
 - `crudo/cam b.mov`: 1080×1920, 30 fps, 12.0 s, `testsrc2` + destello en
   el frame 144 (R = 6.0), `format=yuv420p10le`, `setparams=color_primaries=bt2020:color_trc=arib-std-b67:colorspace=bt2020nc`,
   libx264 `-profile:v high10` con `-color_primaries bt2020 -color_trc arib-std-b67 -colorspace bt2020nc`;
-  audio 48 kHz = R(t+1.2) + `anoisesrc=a=0.01` (+ flite con `adelay=3000`).
+  audio 48 kHz = R(t+1.2) + `anoisesrc=a=0.01:seed=42` (semilla fija, 001.6) (+ flite con `adelay=3000`).
 - `crudo/pantalla.mp4`: 1894×866, 30 fps, 8 s, `testsrc2`, sin audio.
 - `crudo/foto.png` (Pillow, 800×600 RGBA con círculo) y `crudo/brief.txt` ("brief de prueba").
 - `MediaTruth`: `offset_b_ms = 1200`, `flash_a_f = 90`, `flash_b_f = 144`, `beeps_real_s = (3.0, 6.0)`,
@@ -1072,6 +1115,17 @@ HLG, DOVI perfil 8). `screen_sdr_pc.json` = h264 1894×866 30/1 `color_range pc`
 | 26 | `proxy_size` con tamaño declarado 0 → clip `probe_failed` y el ingest sigue (001.4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/integration/test_ingest_failures.py::test_proxy_size_zero_probe_failed" -q` → `1 passed` | ❌ |
 | 27 | `read_json` convierte `ValueError` y `RecursionError` en `ProjectError`; un sidecar corrupto se reconstruye (aviso `cache_rebuilt`) en vez de fallar siempre (001.4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_jsonio.py "tests/integration/test_ingest_failures.py::test_corrupt_sidecar_rebuilt" -q` → exit 0 | ❌ |
 | 28 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas (incluye los partidos `inventory_model.py`, `sync_stage.py`, `doctor/result.py`, `doctor/chain_checks.py`) (001.4) | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 29 | Sync rechaza refinados débiles: dos clips de 12 s parecidos a voz con B empezando 5 s después → rechazados con `sync_weak_refine` (no aceptados con offset 2295); lote sembrado de clips cortos (8–12 s, offsets 3–6 s) → ninguno aceptado con offset equivocado (error > 2 ms); la cámara B sintética sigue aceptada con 1200 ±1 ms (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_sync.py -q -k "weak_refine or short_batch or synth_cam_b"` → exit 0, 3 passed | ❌ |
+| 30 | Enlaces internos: `.kcut → crudo/`, `.kcut → edit/` y `.kcut/logs → crudo/` → proyecto rechazado (`ProjectError`) y nada escrito (archivos de `crudo/` y `edit/` idénticos en hash y mtime) (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_cache_trust.py -q -ra -k internal_link` → exit 0 (skip con motivo si no se puede crear el enlace) | ❌ |
+| 31 | Log seguro: con un hard link plantado `.kcut/logs/ingest-*.log` que apunta a un archivo de `crudo/`, después de `kcut ingest` ese archivo de `crudo/` queda byte a byte igual; `append_log` rechaza una ruta con `st_nlink == 2` (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_log_safety.py -q -ra` → exit 0 (skip con motivo si no se puede crear el hard link) | ❌ |
+| 32 | `OSError` al calcular el `qhash` de un archivo → ese archivo queda `probe_failed` sin id, el aviso lo nombra y los demás se ingieren (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/integration/test_ingest_failures.py::test_hash_oserror_probe_failed" -q` → `1 passed` | ❌ |
+| 33 | `_copy` con origen y destino que resuelven al mismo archivo no lo borra ni lo trunca (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_workfiles.py -q -k copy_same` → exit 0 | ❌ |
+| 34 | Límites con la duración real: los args de wav16 y proxy llevan `-t <max_duration_h*3600 + 60>`; un clip que declara 1 s pero cuyo wav16 real pasa de `max_duration_h` (configurado chico en el test) termina `too_long` y su wav16 se borra (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_ingest_limits.py -q -k real_length` → exit 0 | ❌ |
+| 35 | `kcut new` sobre una carpeta existente: rechaza enlaces internos del layout, poda junctions al recorrer, y el aviso de "fuera de crudo/" no cuenta `edit/estrategia.md`, `recursos/recursos.json` ni `kcut.toml` (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_new.py -q -ra -k "existing_folder"` → exit 0 | ❌ |
+| 36 | `ID_HIGH_MAX = 999_998`: asignar un id nuevo con `id_high` en el tope → `ProjectError`; todo id emitido pasa el validador (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_classify.py -q -k id_cap` → exit 0 | ❌ |
+| 37 | Una carpeta donde va `.kcut/inventory.json` o un sidecar → `ProjectError` con "hay una carpeta donde kcut espera un archivo" (no el mensaje del reproductor) (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_jsonio.py -q -k directory_target` → exit 0 | ❌ |
+| 38 | El ruido de `anoisesrc` del fixture es determinista: dos generaciones de `cam b.mov` dan el mismo sha256 del audio decodificado (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_synth_media.py -q -k seed` → exit 0 | ❌ |
+| 39 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas (incluye `config/names.py`, `config/fields.py`, `ingest/scan.py`, `ingest/examine.py`, `ingest/inventory_check.py`, `ingest/inventory_json.py`, `tests/fixtures/links.py`) (001.6) | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
 
 ---
 
@@ -1205,6 +1259,12 @@ no silenciosos. Con caché válida no transcribe (salvo `--force`). Carga el mod
 Lee inventario, transcripciones, wav16, correcciones; escribe `edit/transcripcion.md` y
 `edit/palabras.tsv`. Clip transcribible sin transcripción → `[AVISO]` y línea "sin transcribir".
 
+#### `src/kcut/config/load.py` — MODIFICAR (001.6, higiene ante inyección de prompt)
+Los textos del usuario en `kcut.toml` que llegan al contexto de Claude o al prompt de Whisper
+(`glossary.terms`, `transcribe.fillers`, `transcribe.prompt_extra`, además de `project.name` que ya lo
+hace desde 001.4) rechazan cualquier carácter de las categorías Unicode `Cc`, `Cf`, `Zl` y `Zp`
+(`ProjectError` que nombra el campo y la posición).
+
 #### `src/kcut/cli.py` — MODIFICAR (agregar `transcribe`, `pack`)
 
 ### Criterios de aceptación S1.3
@@ -1220,6 +1280,7 @@ Lee inventario, transcripciones, wav16, correcciones; escribe `edit/transcripcio
 | 7 | Transcripción: proyecto mínimo con un solo clip `crudo/voz.wav` generado con flite ("hello world this is a test", `adelay=1000`, 6 s, sin tonos) → idioma `en`, "hello" y "world" a ±400 ms de lo esperado; segunda corrida `cached: true` | `... -m pytest tests/integration/test_transcribe_synth.py -q` → exit 0 (skip limpio si falta modelo o flite) | ❌ |
 | 8 | Sin modelo y sin `--allow-download` → exit 7 con el comando en el mensaje | caso `test_missing_model_exit7` (monkeypatch) → passed | ❌ |
 | 9 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 10 | `glossary.terms`, `transcribe.fillers` y `transcribe.prompt_extra` con U+2028, U+2029, U+0085, U+202E o U+200B → `ProjectError` que nombra el campo (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_config.py -q -k prompt_hygiene` → exit 0 | ❌ |
 
 ---
 
@@ -1287,6 +1348,8 @@ Frame fuera de `[0, frames)` → `UsageError`.
 ```json
 {"schema": "kcut.edl/1", "version": 1, "fps": 30, "output": {"w": 1080, "h": 1920},
  "frames": 345, "look": "neutro",
+ "sources": {"a1": {"qhash": "sha256:4b1e..."}, "a2": {"qhash": "sha256:9f2c..."},
+             "b1": {"qhash": "sha256:07aa..."}},
  "clips": [
   {"kind": "gap", "at_f": 0, "dur_f": 30, "why": "gancho sobre color"},
   {"kind": "voice", "at_f": 30, "src": "a1", "in_f": 60, "out_f": 240, "why": "frase 1"},
@@ -1310,7 +1373,9 @@ Frame fuera de `[0, frames)` → `UsageError`.
 
 Campos (todo `*_f` entero; claves desconocidas = error):
 - Raíz: `schema` = `"kcut.edl/1"`, `version` (= N del nombre), `fps` (= proyecto), `output` (= proyecto),
-  `frames` (total de salida), `look` (default `"neutro"`), `clips`, `spans`.
+  `frames` (total de salida), `look` (default `"neutro"`), `sources`, `clips`, `spans`.
+- `sources` (001.6, decisión del dueño): mapa `{"<id de clip>": {"qhash": "<qhash del inventario>"}}` con
+  **todo** `src` usado por `clips` o `spans`. Así un id renumerado nunca corta el video equivocado.
 - `clips` = línea de **audio**, contigua: `voice` {`at_f`, `src` (clip con audio del inventario),
   `in_f`, `out_f` (reloj de `src`, `out_f` exclusivo), `why`} o `gap` {`at_f`, `dur_f`, `why`}.
   Duración de voice = `out_f − in_f`.
@@ -1346,6 +1411,7 @@ junta los errores de esquema como `Issue(code="E01", ...)`); `load_edl(project, 
 | E01 | error | esquema: tipo, clave desconocida, faltante, `*_f` no entero |
 | E02 | error | `fps` ≠ proyecto o `version` ≠ N del nombre |
 | E03 | error | `output` ≠ tamaño del preset del proyecto |
+| E04 | error | `sources`: falta, no cubre algún `src` usado, el clip con ese id no está en el inventario, o su `qhash` en el inventario es distinto del de `sources` (el mensaje nombra el id) (001.6) |
 | E05 | error | `src` desconocido o de clase incompatible (voice: clase con audio; cam/broll/screen: con video) |
 | E06 | error | voice: `in_f < 0`, `out_f > frames del src`, `out_f <= in_f` |
 | E07 | error | clips no contiguos (`at_f` ≠ suma acumulada) |
@@ -1501,7 +1567,8 @@ Agregar `looks` (requerido): cada cadena de `LOOKS` corre en el lector sobre
 #### `src/kcut/cli.py` — MODIFICAR (agregar `edl`, `render`)
 
 #### `tests/fixtures/synth_edl.py` — CREAR
-`write_edl_v1(root: Path) -> EdlTruth`: escribe exactamente el EDL de ejemplo de arriba en
+`write_edl_v1(root: Path) -> EdlTruth`: escribe exactamente el EDL de ejemplo de arriba (con
+`sources` llenado con los `qhash` reales de a1, a2 y b1 del inventario, 001.6) en
 `edit/edl-v1.json` y `edit/estrategia.md` con `aprobado: si`. `EdlTruth`: `frames = 345`,
 `flash_out_f = (60, 150)`, `beep_out_s = (2.0, 5.0)`.
 
@@ -1524,6 +1591,7 @@ Agregar `looks` (requerido): cada cadena de `LOOKS` corre en el lector sobre
 | 13 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
 | 14 | Gate a prueba de inyección: `aprobado: no` + U+2028/U+2029/U+0085 + `aprobado: si` en la misma línea física → no aprobado; `aprobado` repetido → no aprobado; línea que no pasa el `fullmatch` → no aprobado (001.4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_gate.py -q -k injection` → exit 0 | ❌ |
 | 15 | `video.mp4` del render sintético con `color_space`, `color_primaries`, `color_transfer` = `bt709` y `color_range` = `tv` (001.4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/integration/test_render_synth.py::test_video_color_tags" -q` → `1 passed` | ❌ |
+| 16 | `sources` protege contra ids renumerados: `qhash` distinto en el inventario, clip ausente del inventario, o `src` sin entrada en `sources` → `kcut edl check` exit 1 con E04 que nombra el id, y `kcut render` también sale con 1 sin renderizar (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_edl_validate.py tests/integration/test_render_synth.py -q -k sources` → exit 0 | ❌ |
 
 Detección de destello (test): frame `f` es destello si su gris medio ≥ 170 y supera por ≥ 60 el
 promedio de los frames `f±3`. Pitido: filtro pasa-banda Butterworth 1800–2200 Hz (scipy), envolvente
@@ -2299,3 +2367,42 @@ S1.5 los criterios 14–15. No hay entrada 001.3 en esta rama: la agrega otra ra
 ### 001.5 — 16/10/2026 — piso de solape de la sincronía (aprobado por Yedin)
 
 - S1.2 `sync.py`: el piso de solape pasa de `min(10 s, 0.5 × el más corto)` a `min(10 s, 0.75 × el más corto)`. Con 0.5, un pico secundario en un solape chico se inflaba al normalizar por el solape (cámara B sintética: ratio 1.39 < `min_ratio` 1.5, rechazada, contradiciendo S1.2-7). Con 0.75: ratio 1.77, aceptada con offset 1200 ms. En clips largos (≥ 13.4 s el más corto) el piso sigue siendo 10 s, así que el caso de 75 s de solape (S1.2-22) no cambia. Lo reportó el implementador como BLOQUEADO; Yedin eligió la opción A.
+
+### 001.6 — 16/10/2026 — ronda 3 de S1.2 (aprobado por Yedin)
+
+Revisión de S1.2, ronda 2: el verificador encontró 1 ALTO y varios MEDIO; seguridad aprobó con 1
+MEDIO y algunos BAJO. Incluye decisiones de Yedin del 16/10/2026. S1.2 suma los criterios 29–39,
+S1.3 el 10 y S1.5 el 16.
+
+1. **ALTO — sync con refinado débil** (S1.2 `sync.py`, config `[sync] min_refine_corr`, default 0.1,
+   rango 0–1; decisión del dueño): si la correlación de `refine_offset` queda bajo el umbral, el par
+   se rechaza con `sync_weak_refine`. Se mantiene el piso de solape de 0.75. Calibración: offsets
+   equivocados en clips cortos 0.012–0.019, correcto 0.99, piloto real 0.489. Criterio S1.2-29.
+2. **`sources` en el EDL** (S1.5, decisión del dueño): mapa `id → {qhash}` con todo `src` usado;
+   `edl check`, `render` y `build` salen con 1 (E04 con el id) si el `qhash` no coincide o el clip
+   falta. Criterio S1.5-16.
+3. **MEDIO — enlaces internos** (S1.2 `paths.Layout.all_paths`, `project.check_layout_inside`,
+   `workfiles._assert_in_cache`): toda ruta del layout que sea symlink o junction se rechaza, además
+   de exigir que resuelva dentro de la raíz; `_assert_in_cache` exige que la caché sea de verdad
+   `<raíz>/.kcut` y que el destino no esté bajo `crudo/`. Criterio S1.2-30.
+4. **MEDIO — log** (§0.11, `cli._run_log`, `proc.append_log`): creación exclusiva con nombre único
+   (incluye el pid: `<comando>-<YYYYmmdd-HHMMSS>-<pid>.log`); antes de cada append, archivo regular
+   con `st_nlink == 1` dentro de la caché real, si no solo stderr. Criterio S1.2-31.
+5. **MEDIO — `OSError` al hashear** (S1.2 `ingest/scan.py`): ese archivo queda `probe_failed` sin id
+   y el ingest sigue. Criterio S1.2-32.
+6. **BAJOs** (S1.2): `_copy` no hace nada si origen y destino son el mismo archivo; `-t` en wav16 y
+   proxy y recálculo de `long_duration`/`too_long` con el largo real del wav16 (se borra si queda
+   `too_long`); `kcut new` llama `check_layout_inside`, poda junctions y su aviso no cuenta los
+   archivos del layout; `ID_HIGH_MAX = 999_998` con `ProjectError` en el tope; `anoisesrc` del
+   fixture con `seed=42`; mensaje claro cuando hay una carpeta donde va un archivo.
+   Criterios S1.2-33 a S1.2-38.
+7. **Árbol** (§0.2): `config/names.py`, `config/fields.py`, `ingest/scan.py`, `ingest/examine.py`,
+   `ingest/inventory_check.py`, `ingest/inventory_json.py`, `tests/fixtures/links.py`. Criterio S1.2-39.
+8. **Higiene ante inyección de prompt** (S1.3 `config/load.py — MODIFICAR`): `glossary.terms`,
+   `transcribe.fillers` y `transcribe.prompt_extra` rechazan `Cc`/`Cf`/`Zl`/`Zp` como `project.name`.
+   Criterio S1.3-10.
+9. **Lección pagada** (para `PROGRESO.md`, la anota el `sdd-archiver`): en Windows, dentro de un venv,
+   `sys.executable` es un lanzador que arranca al intérprete base como otro proceso; `kill()` mata al
+   lanzador y el intérprete real sigue vivo (y retiene pipes). Todo `proc.run([sys.executable, ...])`
+   futuro en kcut, o en sus tests, que dependa de matar al hijo debe usar el intérprete base
+   (`sys._base_executable`), sabiendo que ese no ve los paquetes del venv.
