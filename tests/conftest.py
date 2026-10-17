@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.fixtures.synth_media import MediaTruth, make_media
+
 
 def run_kcut(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     """Run `python -m kcut <args>` in a fresh isolated interpreter, capturing UTF-8 text."""
@@ -82,3 +84,18 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         for marker, (available, reason) in _REQUIREMENTS.items():
             if item.get_closest_marker(marker) is not None and not available():
                 item.add_marker(pytest.mark.skip(reason=reason))
+
+
+@pytest.fixture(scope="session")
+def synth_project(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, MediaTruth]:
+    """A synthetic project in `<tmp>/proyecto ñandú`: `kcut new`, generated media, `kcut ingest`.
+
+    Tests that use it carry the `ffmpeg` marker, so they are skipped when ffmpeg is missing.
+    """
+    root = tmp_path_factory.mktemp("synth") / "proyecto ñandú"
+    created = run_kcut("new", str(root))
+    assert created.returncode == 0, created.stderr
+    truth = make_media(root / "crudo")
+    ingested = run_kcut("ingest", "--project", str(root), "--json")
+    assert ingested.returncode == 0, ingested.stderr
+    return root, truth

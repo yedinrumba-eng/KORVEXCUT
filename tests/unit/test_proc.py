@@ -11,7 +11,8 @@ import pytest
 from kcut import proc
 from kcut.errors import MissingDependency, ToolError
 
-PY = sys.executable
+# The real interpreter, not the venv launcher: killing a launcher leaves its child sleeping.
+PY = str(getattr(sys, "_base_executable", None) or sys.executable)
 SLEEPER = [PY, "-c", "import time; time.sleep(60)"]
 
 

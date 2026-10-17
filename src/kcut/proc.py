@@ -1,6 +1,5 @@
 """External process helpers: argument lists only, one stderr file per child (spec 0.8, 0.11)."""
 
-import os
 import subprocess
 import tempfile
 import threading
@@ -11,13 +10,12 @@ from types import TracebackType
 from typing import IO, NoReturn, Self
 
 from kcut.errors import MissingDependency, ToolError
+from kcut.logfile import append_log as append_log
 from kcut.scrub import scrub_media_metadata as scrub_media_metadata
 from kcut.toolpath import tool_path as tool_path
 
 _TAIL_LINES = 20
 _DEFAULT_GRACE_S = 5.0
-_LOG_LOCKS: dict[str, threading.Lock] = {}
-_LOG_LOCKS_GUARD = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -64,7 +62,7 @@ class ChildProcess:
             self._stderr_file.close()
             raise ToolError(f"no pude arrancar {_name(args)}: {exc}") from None
         if log is not None:
-            _log_append(log, "$ " + subprocess.list2cmdline(args) + "\n")
+            append_log(log, "$ " + subprocess.list2cmdline(args) + "\n")
 
     @property
     def stdin(self) -> IO[bytes] | None:
@@ -180,7 +178,7 @@ class ChildProcess:
         if body and not body.endswith("\n"):
             body += "\n"
         footer = f"[exit {'?' if code is None else code} en {elapsed:.1f} s]\n"
-        _log_append(self._log, body + (self._note + "\n" if self._note else "") + footer)
+        append_log(self._log, body + (self._note + "\n" if self._note else "") + footer)
 
 
 def run(
@@ -241,14 +239,3 @@ def _validate(args: object) -> None:
 
 def _name(args: list[str]) -> str:
     return Path(args[0]).name
-
-
-def _log_append(log: Path, text: str) -> None:
-    """Append `text` to the log under a lock shared by every writer of that log path."""
-    key = os.path.normcase(str(log.resolve()))
-    with _LOG_LOCKS_GUARD:
-        lock = _LOG_LOCKS.setdefault(key, threading.Lock())
-    with lock:
-        log.parent.mkdir(parents=True, exist_ok=True)
-        with log.open("a", encoding="utf-8", newline="\n") as fh:
-            fh.write(text)

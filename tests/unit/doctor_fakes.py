@@ -17,25 +17,34 @@ def filters_text(names: tuple[str, ...]) -> str:
 
 
 class FakeFfmpeg:
-    """Stands in for `proc.run`: answers -version, -filters and -encoders from canned text."""
+    """Stands in for `proc.run`: answers -version, -filters and -encoders from canned text.
+
+    Any other call (the synthetic lavfi probes of `tonemap_chain` and `soxr`, which end in `-`)
+    exits with `probe_exit` and prints `probe_stderr`.
+    """
 
     def __init__(
         self,
         filters: tuple[str, ...] = checks.REQUIRED_FILTERS + checks.OPTIONAL_FILTERS,
         encoders: str = ENCODERS_811,
         version: str = VERSION_811,
+        probe_exit: int = 0,
+        probe_stderr: str = "",
     ) -> None:
         self.filters_text = filters_text(filters)
         self.encoders_text = encoders
         self.version_text = version
+        self.probe_exit = probe_exit
+        self.probe_stderr = probe_stderr
         self.calls: list[list[str]] = []
 
     def __call__(self, args: list[str], **_kwargs: object) -> RunResult:
         self.calls.append(args)
-        flag = args[-1]
-        text = {
+        canned = {
             "-version": self.version_text,
             "-filters": self.filters_text,
             "-encoders": self.encoders_text,
-        }[flag]
-        return RunResult(0, text.encode("utf-8"), "")
+        }
+        if args[-1] in canned:
+            return RunResult(0, canned[args[-1]].encode("utf-8"), "")
+        return RunResult(self.probe_exit, b"", self.probe_stderr)

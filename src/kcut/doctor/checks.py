@@ -6,13 +6,14 @@ import shutil
 import sys
 import time
 from collections.abc import Iterable
-from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
 from typing import Literal
 
 from kcut import proc
+from kcut.doctor.chain_checks import check_soxr, check_tonemap_chain
 from kcut.doctor.ffmpeg_caps import parse_encoders, parse_filters, parse_version
+from kcut.doctor.result import CheckResult as CheckResult
 from kcut.errors import KcutError
 
 REQUIRED_FILTERS = (
@@ -64,17 +65,6 @@ _FFMPEG_FIX = "instala ffmpeg 7 o superior (build full de gyan.dev) en el PATH o
 _FULL_BUILD_FIX = "usa el build full de gyan.dev"
 
 
-@dataclass(frozen=True)
-class CheckResult:
-    """One line of the doctor report."""
-
-    id: str
-    required: bool
-    ok: bool
-    detail: str
-    fix_es: str | None
-
-
 def run_all(model_name: str) -> list[CheckResult]:
     """Run every check, in the documented order. Never raises for an expected failure."""
     filters, filters_optional = check_filters()
@@ -85,6 +75,8 @@ def run_all(model_name: str) -> list[CheckResult]:
         filters,
         filters_optional,
         check_encoders(),
+        check_tonemap_chain(),
+        check_soxr(),
         check_libs(),
         check_whisper_model(model_name),
         check_chromium(),

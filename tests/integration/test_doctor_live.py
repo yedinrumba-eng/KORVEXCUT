@@ -15,6 +15,8 @@ EXPECTED_IDS = [
     "filters",
     "filters_optional",
     "encoders",
+    "tonemap_chain",
+    "soxr",
     "libs",
     "whisper_model",
     "chromium",

@@ -12,6 +12,8 @@ import pytest
 from kcut import proc
 from kcut.errors import ToolError
 
+# The real interpreter, not the venv launcher: killing a launcher leaves its child sleeping.
+PY = str(getattr(sys, "_base_executable", None) or sys.executable)
 TIMEOUT_S = 1.0
 GRACE_S = 1.0
 GRANDCHILD_SLEEP_S = 60
@@ -47,7 +49,7 @@ def test_run_gives_up_when_a_grandchild_holds_the_pipe(tmp_path: Path) -> None:
     log = tmp_path / "timeout.log"
     started = time.monotonic()
     with pytest.raises(ToolError) as info:
-        proc.run([sys.executable, "-c", CHILD_CODE], log=log, timeout_s=TIMEOUT_S, grace_s=GRACE_S)
+        proc.run([PY, "-c", CHILD_CODE], log=log, timeout_s=TIMEOUT_S, grace_s=GRACE_S)
     elapsed = time.monotonic() - started
     grandchild = _grandchild_pid(log)
     try:
@@ -66,7 +68,7 @@ def test_run_times_out_on_a_plain_sleeping_child(tmp_path: Path) -> None:
     started = time.monotonic()
     with pytest.raises(ToolError, match="se paso del tiempo"):
         proc.run(
-            [sys.executable, "-c", "import time; time.sleep(60)"],
+            [PY, "-c", "import time; time.sleep(60)"],
             log=tmp_path / "plain.log",
             timeout_s=0.5,
             grace_s=GRACE_S,
@@ -76,7 +78,7 @@ def test_run_times_out_on_a_plain_sleeping_child(tmp_path: Path) -> None:
 
 def test_childprocess_wait_enforces_the_same_hard_timeout(tmp_path: Path) -> None:
     started = time.monotonic()
-    sleeper = [sys.executable, "-c", "import time; time.sleep(60)"]
+    sleeper = [PY, "-c", "import time; time.sleep(60)"]
     with (
         proc.popen(sleeper, log=tmp_path / "w.log") as c,
         pytest.raises(ToolError, match="se paso del tiempo"),
@@ -87,7 +89,7 @@ def test_childprocess_wait_enforces_the_same_hard_timeout(tmp_path: Path) -> Non
 
 
 def test_leaving_the_with_block_by_exception_kills_the_child(tmp_path: Path) -> None:
-    sleeper = [sys.executable, "-c", "import time; time.sleep(60)"]
+    sleeper = [PY, "-c", "import time; time.sleep(60)"]
     with pytest.raises(RuntimeError), proc.popen(sleeper, log=tmp_path / "x.log") as child:
         raise RuntimeError("boom")
     assert child.wait(timeout_s=5) != 0
