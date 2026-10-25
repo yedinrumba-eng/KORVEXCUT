@@ -82,6 +82,7 @@ src/kcut/text/__init__.py  normalize.py  corrections.py                        S
 src/kcut/transcribe/__init__.py  model.py  engine.py  cache.py                 S1.3
 src/kcut/analysis/__init__.py  energy.py                                       S1.3
 src/kcut/pack/__init__.py  phrases.py  markers.py  votes.py  writer.py         S1.3
+src/kcut/pack/pii.py                                                           S1.3 (001.13: PII enmascarada en lo que lee Claude)
 src/kcut/pack/assemble.py  src/kcut/transcribe/document.py                    S1.3 (partidos por la regla de 300 líneas; 001.11)
 src/kcut/commands/transcribe.py  pack.py                                       S1.3
 src/kcut/timeparse.py  ff/reader.py                                            S1.4
@@ -1337,6 +1338,10 @@ hace desde 001.4) rechazan cualquier carácter de las categorías Unicode `Cc`, 
 | 28 | Partir una palabra que dura menos ms que tokens resultan → `CheckFailed` "la palabra <id> dura N ms y no se puede partir en M" (001.12 punto 12) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_corrections.py -q -k split_too_short` → exit 0 | ❌ |
 | 29 | `jsonio.read_json` no parsea un archivo de más de 64 MB (tope por defecto, configurable por parámetro): lo trata como corrupto con el mismo camino que hoy (001.12 punto 13) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_jsonio.py -q -k size_cap` → exit 0 | ❌ |
 | 30 | `safe_text` con camino rápido da exactamente lo mismo que la versión carácter por carácter en los 0x110000 code points, y además escapa U+115F, U+1160, U+3164, U+FFA0 y U+2800 (001.12 punto 14) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_console_hygiene.py -q -k "safe_text_fast or invisible_fillers"` → exit 0 | ❌ |
+| 31 | PII por dígitos: en una transcripción sintética, un teléfono partido en palabras ("972", "808", "3211"), una cédula "001-1234567-8" y una tarjeta "4111 1111 1111 1111" salen enmascarados en `transcripcion.md`, en `palabras.tsv` (columnas `text`, `alt` y `corrected`) y en `kcut pack --json`: solo quedan los 2 últimos dígitos de cada tramo y se conservan los separadores (`***`, `***`, `**11`); la caché `.kcut/transcripts/` sigue cruda (001.13 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py tests/unit/test_pack_command.py -q -k "pii_digits"` → exit 0 | ❌ |
+| 32 | Números dichos en palabras (inglés y español) que llegan a 7 dígitos seguidos ("nine seven two eight zero eight three", "nueve siete dos ocho cero ocho tres") se enmascaran; no se tocan "2026", "15 minutes", "Terminal C21", "flight 1234" ni "5:31" (menos de 7 dígitos seguidos) (001.13 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k "pii_spoken or pii_not_masked"` → exit 0 | ❌ |
+| 33 | Correos escritos ("john.doe@gmail.com") y dichos ("john at gmail dot com", "juan arroba gmail punto com") salen como `j***@***.com` (001.13 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email` → exit 0 | ❌ |
+| 34 | Con `[privacy] mask_pii = false` no se enmascara nada y `pack` avisa en cada corrida "PII sin enmascarar (privacy.mask_pii = false)"; una corrección que apunta a una palabra enmascarada → `CheckFailed` "la palabra <id> está enmascarada por privacidad; no se corrige desde aquí"; la marca `P` sale en `flags` del tsv en el orden F R ? H C P y la `V` al final (001.13 puntos 3–5) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k "pii_config or pii_correction or pii_flag"` → exit 0 | ❌ |
 
 ---
 
@@ -2854,3 +2859,31 @@ S1.3 suma los criterios 18–30. Ronda 2 de 3.
 15. **Nota para el spec 002** (sin código): un `.kcut/` que viene en una carpeta ajena puede traer
     transcripciones "en caché" que no salen del audio. El plugin indica borrar `.kcut/` de proyectos
     recibidos o correr `kcut transcribe --force`.
+
+### 001.13 — 25/10/2026 — PII enmascarada en lo que lee Claude (decisión de Yedin)
+
+Yedin decidió el 25/10/2026 ("Enmascarar (Recomendado)") cómo cumplir su regla §10, "PII nunca entra al prompt de un LLM". Lo que se dice en un video llega a `transcripcion.md`, a `palabras.tsv` y al `--json`, y eso lo lee Claude. Teléfonos, cédulas, tarjetas y correos se enmascaran ahí. El texto crudo se queda **local** en la caché, para los subtítulos (S1.6) y el QA (S1.9). S1.3 suma los criterios 31–34. Va en la ronda 3 de S1.3.
+
+1. **Módulo nuevo `src/kcut/pack/pii.py`** (puro), con la función `mask_pii(words: list[Word]) -> tuple[list[Word], set[str]]`. Devuelve las palabras para mostrar y el conjunto de ids enmascarados. Se aplica **una sola vez**, en `pack`, después de las correcciones y de la votación (la votación sigue sobre crudo, como dice 001.12 punto 3). Antes del writer. Se agrega al árbol §0.2.
+2. **Detección** (sobre el texto de cada palabra, sin la puntuación que la rodea):
+   - **Tramos de dígitos.** Son palabras seguidas en las que cada una:
+     - es solo dígitos o separadores `0-9 ( ) + - .`;
+     - o es un número de una cifra dicho en palabras: en inglés `zero oh one two three four five six seven eight nine`, en español `cero uno dos tres cuatro cinco seis siete ocho nueve`, sin tildes y en minúsculas, comparado tras `norm_token`.
+
+     Si el tramo suma **7 dígitos o más**, es PII. Eso cubre teléfonos, cédulas (3-7-1), tarjetas (13–19) y cuentas.
+   - **No es PII:** tramos de menos de 7 dígitos, como años, horas tipo "5:31" o "12:54", "C21" y números de vuelo de 4 cifras. Una palabra con letras y dígitos mezclados ("C21") corta el tramo.
+   - **Correos escritos:** una palabra con `@` y un `.` después.
+   - **Correos dichos:** una palabra, después `at` o `arroba`, después una palabra, después `dot` o `punto`, y después uno de `com net org edu gov io co us do`. Todas las palabras de ese tramo cuentan como PII.
+   - **Cómo se enmascara:**
+     - En un tramo de dígitos, cada dígito pasa a `*` salvo los **2 últimos dígitos del tramo**. Los separadores se conservan y cada palabra mantiene su límite. Un número dicho en palabras pasa a `*`, o al dígito si es uno de los 2 últimos.
+     - Un correo pasa a `<primera letra>***@***.<tld>`. Si el correo es dicho, ese texto va en la primera palabra del tramo y las demás quedan vacías.
+3. **Dónde se ve:**
+   - En `transcripcion.md`: el texto de la palabra.
+   - En `palabras.tsv`: las columnas `text`, `alt` y `corrected`. Si la alternativa de la otra cámara contiene PII, también se enmascara.
+   - En `--json` de `pack`: todo texto de palabra. `transcribe --json` no imprime palabras, solo conteos.
+   - En `flags` aparece la marca **`P`**. El orden queda F R ? H C P, y después `V`.
+   - El md no lleva marca visible extra.
+   - **La caché cruda no se toca.**
+4. **Config:** `[privacy] mask_pii`, booleano, por defecto `true`. Va en `config/model.py`, `load.py` y `template.py`, con su comentario en la plantilla. Con `false` no se enmascara nada y `pack` avisa en cada corrida, en stderr y en `--json` warnings, con el código `pii_unmasked` y el texto "PII sin enmascarar (privacy.mask_pii = false)".
+5. **Correcciones:** si una corrección apunta a una palabra enmascarada → `CheckFailed` (exit 1) con el texto fijo "la palabra <id> está enmascarada por privacidad; no se corrige desde aquí". La corrección no se aplica. El mensaje nunca muestra el texto crudo.
+6. **Nota para S1.6 y S1.9:** los subtítulos y el QA leen la caché cruda. Si el cliente dijo su teléfono, sale en sus subtítulos, porque es lo que dijo en su video. Lo que no ve nunca es Claude.
