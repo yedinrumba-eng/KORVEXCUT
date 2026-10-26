@@ -85,27 +85,38 @@ src/kcut/pack/__init__.py  phrases.py  markers.py  votes.py  writer.py         S
 src/kcut/pack/pii.py                                                           S1.3 (001.13: PII enmascarada en lo que lee Claude)
 src/kcut/pack/assemble.py  src/kcut/transcribe/document.py                    S1.3 (partidos por la regla de 300 líneas; 001.11)
 src/kcut/commands/transcribe.py  pack.py                                       S1.3
+src/kcut/transcribe/loaded.py                                                  S1.4 (001.15 T1: cargador común de palabras corregidas; `pack` lo usa)
 src/kcut/timeparse.py  ff/reader.py                                            S1.4
 src/kcut/viz/__init__.py  draw.py  timeline.py  grid.py                        S1.4
 src/kcut/commands/view.py  frames.py                                           S1.4
-src/kcut/edl/__init__.py  model.py  validate.py  timeline.py  words.py  gate.py              S1.5
-src/kcut/render/__init__.py  looks.py  geometry.py  screen_card.py  mezz.py  reads.py  compose.py  encoder.py  lock.py   S1.5
-src/kcut/audio/voice_track.py                                                  S1.5
-src/kcut/pipeline/__init__.py  mux.py                                          S1.5
-src/kcut/commands/edl.py  render.py                                            S1.5
-src/kcut/gfx/__init__.py  anchors.py  schema.py  components.py  captions.py  resolve.py  assets.py  page.py  capture.py  overlay.py   S1.6
-src/kcut/gfx/web/runtime.js  base.css                                          S1.6
-src/kcut/gfx/web/components/captions.js  title.js  label.js  kinetic.js  endcard.js          S1.6
-src/kcut/gfx/web/components/steps.js  sticker.js  holo_board.js  globe.js     S1.7
-src/kcut/commands/graphics.py                                                  S1.6
-src/kcut/audio/sfx_synth.py  sfx_library.py  sfx_schema.py  sfx_bus.py  gain.py             S1.8
-src/kcut/audio/chords.py  music_synth.py  music_file.py  music_schema.py       S1.8
-src/kcut/audio/loudnorm.py  mix_graph.py  mixer.py                             S1.8
-src/kcut/commands/mix.py                                                       S1.8
-src/kcut/qa/__init__.py  streams.py  loudness.py  detect.py  transcript_diff.py  contact.py  report.py  run.py   S1.9
-src/kcut/pipeline/snapshot.py  build.py                                        S1.9
-src/kcut/catalog/__init__.py  model.py  static_items.py  planned.py  collect.py               S1.9
-src/kcut/commands/qa.py  build.py  catalog.py                                  S1.9
+tests/unit/test_no_cv2_path_io.py                                              S1.4 (001.15 T8: prohíbe `cv2.imread(`/`cv2.imwrite(` en `src/`)
+src/kcut/issues.py                                                             S1.5a (001.15 T1: `Issue` y `exit_code`, neutro)
+src/kcut/edl/__init__.py  model.py  validate.py  refs.py  ranges.py  check.py  timeline.py  words.py  kept.py  gate.py   S1.5a (refs, ranges, check, kept: 001.15)
+src/kcut/render/__init__.py  geometry.py                                       S1.5a (001.15: W01 la usa)
+src/kcut/commands/edl.py                                                       S1.5a (`check` y `sources`, 001.15)
+src/kcut/render/looks.py  frame_fx.py  screen_card.py  mezz.py  reads.py  compose.py  encoder.py  lock.py   S1.5b (frame_fx: 001.15)
+src/kcut/audio/voice_track.py                                                  S1.5b
+src/kcut/pipeline/__init__.py  mux.py                                          S1.5b
+src/kcut/commands/render.py                                                    S1.5b
+src/kcut/params.py  anchors.py                                                 S1.6a (001.15 T1: `ParamSpec` y anclas de tiempo, neutros; sale `gfx/anchors.py`)
+src/kcut/gfx/__init__.py  schema.py  components.py  components_base.py  captions.py  resolve.py  assets.py  page.py   S1.6a (components_base: 001.15)
+src/kcut/gfx/web/runtime.js  base.css                                          S1.6a
+src/kcut/gfx/web/components/captions.js  title.js  label.js  kinetic.js  endcard.js          S1.6a
+src/kcut/commands/graphics.py                                                  S1.6a (`check`; S1.6b agrega `capture` y `still`)
+src/kcut/gfx/capture.py  overlay.py                                            S1.6b
+src/kcut/render/preview.py                                                     S1.6b (001.15: frame base desde el proxy para `graphics still` y el storyboard)
+src/kcut/gfx/components_showpiece.py                                           S1.7 (001.15)
+src/kcut/gfx/web/components/steps.js  sticker.js  holo_board.js  globe.js     S1.7 (un componente puede tener varios `.js`: `ComponentDef.js_files`, 001.15)
+tests/fixtures/showpiece_stills.py                                             S1.7 (001.15: stills para que Yedin los mire)
+src/kcut/audio/sfx_synth.py  sfx_library.py  sfx_schema.py  sfx_events.py  sfx_bus.py  gain.py   S1.8a (sfx_events: 001.15)
+src/kcut/audio/chords.py  music_synth.py  music_file.py  music_schema.py       S1.8b
+src/kcut/audio/loudnorm.py  mix_graph.py  mixer.py                             S1.8b
+src/kcut/commands/mix.py                                                       S1.8b
+src/kcut/qa/__init__.py  streams.py  loudness.py  detect.py  transcript_diff.py  ear.py  contact.py  report.py  run.py   S1.9a (ear: 001.15)
+src/kcut/catalog/__init__.py  model.py  static_items.py  planned.py  collect.py               S1.9a
+src/kcut/commands/qa.py  catalog.py                                            S1.9a
+src/kcut/pipeline/snapshot.py  build.py                                        S1.9b
+src/kcut/commands/build.py                                                     S1.9b
 src/kcut/storyboard/__init__.py  beats.py  notes.py  panel.py  html.py  sheet.py  run.py     S1.10
 src/kcut/commands/storyboard.py                                                S1.10
 tests/__init__.py  conftest.py  unit/__init__.py  integration/__init__.py  e2e/__init__.py  fixtures/__init__.py   S1.1/S1.2
@@ -135,14 +146,15 @@ Comentarios y docstrings en inglés; mensajes al usuario (`*_es`, salida humana)
   edit/palabras.tsv         kcut pack (S1.3)
   edit/correcciones.json    lo escribe Claude (S1.3)
   edit/edl-vN.json          lo escribe Claude (S1.5)
-  edit/graphics.json        lo escribe Claude (S1.6)
+  edit/graphics.json        lo escribe Claude (S1.6); opcional: sin él, subtítulos por defecto (001.15)
   edit/sfx.json  edit/music.json   los escribe Claude (S1.8)
   edit/storyboard.html      kcut storyboard (S1.10)
   salida/vN.mp4             kcut build (S1.9)
   qa/vN/report.json  qa/vN/contact.jpg  qa/vN/inputs/   kcut qa / build (S1.9)
   qa/storyboard.png  [qa/storyboard-p2.png ...]         kcut storyboard (S1.10)
+  qa/showpieces/            stills de los componentes de lucimiento (script de S1.7; 001.15)
   .kcut/                    regenerable: inventory.json proxy/ wav16/ wav48/ mezz/ transcripts/
-                            view/ frames/ build/vN/ storyboard/ logs/ locks/
+                            view/ frames/ build/vN/ storyboard/ logs/ locks/ qa_ear/ (001.15)
 ```
 
 ### 0.4 CLI común
@@ -169,15 +181,16 @@ Comentarios y docstrings en inglés; mensajes al usuario (`*_es`, salida humana)
 | `kcut ingest` | `[--no-proxy] [--resync]` | S1.2 |
 | `kcut transcribe` | `[IDS...] [--force] [--allow-download]` | S1.3 |
 | `kcut pack` | (sin argumentos) | S1.3 |
-| `kcut view` | `<clip> <start> <end> [--filmstrip N] [--out PNG]` | S1.4 |
+| `kcut view` | `<clip> <start> <end> [--filmstrip N] [--out PNG]` (`N` de 0 a 12, defecto 0; 001.15) | S1.4 |
 | `kcut frames` | `<clip> <t> [<t> ...] [--grid PCT] [--width PX] [--out DIR]` | S1.4 |
-| `kcut edl check` | `[EDL]` | S1.5 |
-| `kcut render` | `[--edl EDL] [--no-graphics]` | S1.5 (+S1.6) |
-| `kcut graphics` | `check [--edl EDL]` · `capture [--edl EDL] [--force]` · `still <f> [<f> ...] [--edl EDL] [--out DIR]` | S1.6 |
-| `kcut mix` | `[--edl EDL]` | S1.8 |
-| `kcut qa` | `<video> [--edl EDL]` | S1.9 |
-| `kcut build` | `[--edl EDL] [--skip-qa] [--force]` | S1.9 |
-| `kcut catalog` | `[--category C]` | S1.9 |
+| `kcut edl check` | `[EDL]` | S1.5a |
+| `kcut edl sources` | `[IDS...]` (001.15) | S1.5a |
+| `kcut render` | `[--edl EDL] [--no-graphics]` | S1.5b (+S1.6b) |
+| `kcut graphics` | `check [--edl EDL]` (S1.6a) · `capture [--edl EDL] [--force]` · `still <f> [<f> ...] [--edl EDL] [--out DIR] [--alpha]` (S1.6b; `--alpha`: 001.15) | S1.6a/S1.6b |
+| `kcut mix` | `[--edl EDL]` | S1.8b |
+| `kcut qa` | `salida/vN.mp4 [--edl EDL]` (solo videos de `salida/`; 001.15 T3) | S1.9a |
+| `kcut build` | `[--edl EDL] [--skip-qa] [--force]` | S1.9b |
+| `kcut catalog` | `[--category C]` | S1.9a |
 | `kcut storyboard` | `[--edl EDL] [--min-beat-ms MS]` | S1.10 |
 
 ### 0.5 Códigos de salida (`src/kcut/errors.py`)
@@ -208,6 +221,21 @@ devuelve el código.
   segundos solo aparecen en texto humano y en campos `*_display` de tipo string. (DS1)
 - Reloj de fuente: el frame `f` de un clip es el instante `f/fps` s desde el inicio del archivo
   (`format.start_time`); la muestra `n` del wav de 48 kHz es `n/48000` s desde ese mismo inicio.
+- (001.15 T5) Lo que hace ffmpeg con ese reloj, medido con ffmpeg 8.1.1 el 25/10/2026 (un archivo con
+  el audio 0.3 s después del video y otro con el video 0.5 s después del audio):
+  - **Audio:** `wav_args` usa `aresample=...:first_pts=0`, que rellena con silencio desde el inicio del
+    contenedor. La muestra `n` del wav16/wav48 ya es el instante `n/sr` de este reloj, sea cual sea
+    `audio.start_ms`.
+  - **Video:** el proxy (filtro `fps`, sin `-ss`) arranca en el primer frame de video: su índice `i` es
+    el frame `i + vs_f` de este reloj, con `vs_f = ms_to_f_round(video.start_ms, fps)`. Un mezzanine
+    hecho con `-ss start_f/fps` empieza exactamente en el frame `start_f` de este reloj **solo si**
+    `start_f >= vs_f`; con un `-ss` anterior al primer frame de video arranca en ese primer frame.
+  - Por eso todo frame de video de un clip vive en `[vs_f, frames)`, y todo lector del proxy pide el
+    índice `f − vs_f` (`ff/reader.proxy_index`, S1.4).
+  - Regla (001.15 T5, opción A, decisión del coordinador del 25/10/2026): **un solo reloj**, este. Solo
+    se corrige el lado del video: `shift_f` y `build_voice` no cambian (correr la voz duplicaría el
+    desfase), `plan_mezz` no deja empezar un rango antes de `vs_f`, `proxy_index` resta `vs_f` y E12
+    exige `[vs_f, frames)`.
 - En JSON, todo campo `*_f` debe ser entero JSON: `30.0` o `true` → error de esquema.
 - Comparaciones ms↔frames siempre con enteros, en unidades de `1/(1000·fps)` s: ms se multiplica
   por `fps`, frames por `1000`. Prohibido `float` para comparar tiempos.
@@ -246,6 +274,16 @@ devuelve el código.
   medios llevan `-map_metadata -1`. Todo texto de un hijo que vaya a un mensaje de error, a
   `--json` o al log pasa antes por `proc.scrub_media_metadata`. El JSON crudo de ffprobe nunca se
   guarda ni se imprime; de sus `tags` solo se lee `rotate`.
+- (001.15 T3) **Excepción para los filtros de medición** (`loudnorm` con `print_format=json`,
+  `ebur128`, `blackdetect`, `freezedetect`): solo imprimen su resultado a nivel `info`, así que esos
+  ffmpeg van **sin** `-loglevel error`, con `-hide_banner -nostdin -nostats`. Se corren con
+  `proc.run(..., capture_stderr=True, log=<log>)`: el stderr crudo solo lo lee el parser; el log recibe
+  el texto ya limpio por `scrub_media_metadata` (como todo hijo) y ningún mensaje ni `--json` cita ese
+  stderr. Solo se corren sobre intermedios de `.kcut/` o sobre `salida/vN.mp4` (los hace kcut, sin
+  metadatos del usuario); nunca sobre un archivo de `crudo/` ni de `recursos/`. `ebur128` va siempre
+  con `framelog=quiet` (sin eso imprime una línea cada 100 ms; el bloque `Summary` sale igual: medido).
+  El segundo pase de `loudnorm` no es medición: sigue con `-loglevel error`.
+- (001.15 T9) `proc.popen(..., log: Path | None, ...)`: con `None` no se escribe log (como `run`).
 - **Ninguna ruta de archivo dentro de un filtergraph** (los `C:` de Windows rompen el parser).
   Los archivos entran por `-i`; lo que ffmpeg mide se lee de stderr; textos y etiquetas se dibujan
   con Pillow, nunca con `drawtext`.
@@ -278,6 +316,12 @@ devuelve el código.
   `paths.resolve_in_project` (S1.2). Se guardan siempre en formato POSIX relativo.
 - Validación de esquemas a mano (sin `jsonschema`) con `schema_util.py` (S1.2): claves
   desconocidas → error con su ruta (`spans[3].zoom`), tipos estrictos, rangos.
+- (001.15 T4) **Escrituras fuera de `.kcut/`**: antes de escribir cualquier archivo fuera de `.kcut/`
+  se llama `project.assert_writable(project, rel)` (S1.4) con la ruta relativa al proyecto: hoy
+  `edit/transcripcion.md` y `edit/palabras.tsv` (`pack`), el `--out` de `view`, `frames` y `graphics
+  still`, `qa/vN/*`, `qa/showpieces/*`, `salida/vN.partial.mp4` y `salida/vN.mp4`, `edit/storyboard.html`
+  y `qa/storyboard*.png`. Dentro de `.kcut/` sigue mandando `workfiles._assert_in_cache`. `kcut new`
+  (S1.2) no cambia.
 
 ### 0.10 Windows (requisitos, no detalles)
 
@@ -301,6 +345,9 @@ devuelve el código.
     (0.8). (001.1)
 12. Varios hijos que heredan el mismo handle de log se pisan en Windows (2 hijos × 200 líneas
     dejaron 220 líneas en vez de 402): cada hijo escribe su stderr a su propio temporal (0.11). (001.1)
+13. (001.15 T8) `cv2.imread` y `cv2.imwrite` con una ruta fallan en Windows con rutas no ASCII
+    (`proyecto ñandú`): están prohibidos en `src/`. Se usa `cv2.imdecode(np.fromfile(ruta, np.uint8), flag)`
+    / `cv2.imencode(ext, img)[1].tofile(ruta)` o Pillow. Un test lo revisa (S1.4).
 
 ### 0.11 Logs, progreso y locks
 
@@ -1358,45 +1405,164 @@ hace desde 001.4) rechazan cualquier carácter de las categorías Unicode `Cc`, 
 
 ## S1.4 — `kcut view` + `kcut frames`
 
+(001.15) Este slice también deja listas piezas que usan los siguientes: el cargador común de palabras
+(T1), `assert_writable` (T4), `read_wav_range` (T7), `popen` sin log (T9) y la regla contra
+`cv2.imread`/`cv2.imwrite` (T8).
+
 ### Archivos
 
-#### `src/kcut/timeparse.py` — CREAR (puro)
-`parse_time(s: str, fps: int) -> int`: `^\d+$` → frames; `^\d+(\.\d+)?s$` → segundos → `round`;
-`^(\d+):(\d{1,2}(\.\d+)?)$` → mm:ss → `round`; otro → `UsageError`.
+#### `src/kcut/timeparse.py` — CREAR (puro) (001.15: sin `float`)
+`parse_time(s: str, fps: int) -> int`: frames enteros del reloj de fuente. Ningún paso usa `float`.
+- Más de 32 caracteres → `UsageError`.
+- `^\d+$` → frames tal cual.
+- `^(\d+)(\.\d+)?s$` → segundos leídos con `fractions.Fraction` (el texto sin la `s`);
+  `ms = floor(seg·1000 + 1/2)` en `Fraction` (mitad hacia arriba); resultado `ms_to_f_round(ms, fps)`.
+- `^(\d+):(\d{1,2})(\.\d+)?$` → mm:ss; la parte entera de `ss` debe ser < 60, si no `UsageError`;
+  segundos = `mm·60 + Fraction("ss[.dd]")`, y desde ahí igual que el caso anterior.
+- Cualquier otra cosa → `UsageError`.
+- Casos fijos del test (fps 30): `"90"` → 90 · `"3s"` → 90 · `"0.15s"` → 5 (en `float` daba 4) ·
+  `"2.5s"` → 75 · `"3.0167s"` → 91 · `"1:02"` → 1860 · `"0:03.5"` → 105 · `"1:75"`, `"1e3s"`, `"-3"`,
+  `""` y un número de 5000 dígitos → `UsageError`.
 
-#### `src/kcut/ff/reader.py` — CREAR
-`class FrameReader` (iterador de `NDArray[np.uint8]` BGR `(h, w, 3)`):
-`__init__(self, path: Path, start_f: int, count: int, fps: int, size: tuple[int, int], *, rgb_filters: str = "", log: Path)`.
-Argumentos: `-ss fnum(max(0, (start_f - 0.25)/fps)) -i path -frames:v count -vf "scale=in_color_matrix=bt709:in_range=tv,format=rgb24[,RGB_FILTERS],format=bgr24" -f rawvideo -`
-(el −0.25 de frame cae justo en el frame pedido, técnica del piloto). Lee exactamente `w*h*3` bytes
-por frame; si el proceso entrega menos frames que `count` → `ToolError` con cuántos llegaron.
-Función pura `reader_args(...) -> list[str]` testeada. `grab(path: Path, f: int, fps: int, size: tuple[int, int], *, rgb_filters: str = "", log: Path) -> NDArray[np.uint8]` = un frame.
+#### `src/kcut/ff/reader.py` — CREAR (001.15: entradas como lista, `proxy_index`, log opcional)
+- `reader_args(ffmpeg: Path, inputs: list[str], count: int, *, pre_filters: str = "", rgb_filters: str = "") -> list[str]` (puro):
+  `[ffmpeg, -hide_banner, -nostdin, -loglevel, error, *inputs, -map, 0:v:0, -an, -frames:v, <count>, -vf, <VF>, -f, rawvideo, -]`,
+  con `VF` = (`<pre_filters>,` si no está vacío) + `scale=in_color_matrix=bt709:in_range=tv,format=rgb24`
+  + (`,<rgb_filters>` si no está vacío) + `,format=bgr24`. `inputs` es la parte de entrada completa:
+  `seek_input(...)` para un archivo, o `["-f", "lavfi", "-i", "<grafo fijo>"]` (check `looks` del
+  doctor, S1.5b). `count < 1` → `ValueError`. `pre_filters` es solo para filtros de tiempo
+  (`fps=1/2:round=up` de la hoja de contacto, S1.9a), nunca de color.
+- `seek_input(path: Path, start_f: int, fps: int) -> list[str]` (puro) =
+  `["-ss", fnum(max(0, (start_f - 0.25)/fps)), "-i", str(path)]`: el −0.25 de frame cae justo en el
+  frame pedido (técnica del piloto). `start_f` es el **índice dentro de ese archivo**.
+- `proxy_index(clip: Clip, f: int, fps: int) -> int` (puro) = `f − ms_to_f_round(clip.video.start_ms, fps)`
+  (0.6, 001.15 T5); `clip.video is None` → `ProjectError`.
+- `class FrameReader` (iterador de `NDArray[np.uint8]` BGR `(h, w, 3)`, context manager):
+  `__init__(self, path: Path, start_f: int, count: int, fps: int, size: tuple[int, int], *, pre_filters: str = "", rgb_filters: str = "", log: Path | None)`.
+  Lanza `reader_args(tool_path("ffmpeg"), seek_input(path, start_f, fps), count, ...)` con
+  `proc.popen(..., stdout_pipe=True, log=log)`. `size = (w, h)` de los frames tal como salen (después
+  de `pre_filters`). Lee exactamente `w*h*3` bytes por frame; si el proceso entrega menos frames que
+  `count` → `ToolError` con cuántos llegaron. Al salir del `with` espera al hijo (0.8).
+- `grab(path: Path, f: int, fps: int, size: tuple[int, int], *, rgb_filters: str = "", log: Path | None) -> NDArray[np.uint8]`
+  = un frame (índice `f` del archivo).
 
 #### `src/kcut/viz/draw.py` — CREAR
 `font(size: int) -> ImageFont.FreeTypeFont` (`ImageFont.load_default(size=size)`, cacheado),
 `text_box(draw, xy, text, size, fill, bg=None) -> None`, `wrap(text, size, max_px) -> list[str]`.
 
-#### `src/kcut/viz/timeline.py` — CREAR (técnica de `piloto/view.py`)
-`render_timeline(wav16: Path, words: list[Word], start_f: int, end_f: int, fps: int, cfg: AnalysisSection, filmstrip: list[NDArray] | None) -> Image.Image`.
-Lienzo 2400 × 420 (+ 220 si hay filmstrip, arriba). Fondo `(18, 18, 22)`. Envolvente RMS a 10 ms
-(barras azules), línea roja en `silence_db`, bandas de silencio ≥ `min_silence_ms` en rojo oscuro con
-su duración, regla cada 0.5 s con segundos y número de frame, cajas de palabras en 3 filas
-escalonadas con texto + sufijo de id (`w0031`), cajas amarillas (p ≥ `low_prob`) o naranjas (dudosas).
+#### `src/kcut/viz/timeline.py` — CREAR (técnica de `piloto/view.py`; 001.15: pura)
+- `@dataclass(frozen=True) class ViewWord: id: str; text: str; s_ms: int; e_ms: int; doubtful: bool`.
+- `window_words(words: Sequence[Word], start_f: int, end_f: int, fps: int, low_prob: float, silences: Sequence[tuple[int, int]]) -> list[ViewWord]` (puro):
+  las palabras con texto no vacío que tocan la ventana, comparando en enteros (0.6):
+  `e_ms·fps > start_f·1000` y `s_ms·fps < end_f·1000`. `doubtful` = la palabra lleva `?` o `H` en
+  `pack.markers.word_flags([palabra], (), low_prob, silences)` (o sea `p < low_prob`, o la palabra
+  entera cae en un silencio).
+- `render_timeline(db: NDArray[np.float32], silences: Sequence[tuple[int, int]], words: Sequence[ViewWord], start_f: int, end_f: int, fps: int, cfg: AnalysisSection, filmstrip: Sequence[NDArray[np.uint8]] | None, notice: str | None) -> Image.Image` (puro).
+  `db` = `analysis.energy.rms_db` de las muestras de la ventana a 10 ms; `silences` en ms del clip.
+  Lienzo 2400 × 420 (+ 220 si hay filmstrip, arriba). Fondo `(18, 18, 22)`. Envolvente (barras
+  azules), línea roja en `silence_db`, una banda rojo oscuro por cada tramo de `silences` que toca la
+  ventana (recortada a la ventana y rotulada con la duración completa del tramo), regla cada 0.5 s con
+  segundos y número de frame, cajas de palabras en 3 filas escalonadas con texto + sufijo de id
+  (`w0031`): relleno amarillo `(240, 200, 40)` si no es dudosa, naranja `(255, 120, 30)` si lo es.
+  Con `notice`, el texto va arriba a la izquierda de la zona de onda, en blanco, tamaño 28.
 
 #### `src/kcut/viz/grid.py` — CREAR
 `grid_overlay(img: NDArray, pct: int) -> Image.Image` (líneas cada `pct` %, etiquetas `0.1 … 0.9` en
 borde superior e izquierdo, cruz en el centro) y `sheet(images: list[Image.Image], labels: list[str], cols: int = 8) -> Image.Image`.
 
-#### `src/kcut/commands/view.py` — CREAR
-`kcut view <clip> <start> <end> [--filmstrip N] [--out PNG]`: tiempos del reloj de fuente del clip;
-rango máximo 60 s (si no → `UsageError`); `N` de 0 a 12 frames del proxy equiespaciados. Salida por
-defecto `.kcut/view/<clip>_<start_f>-<end_f>.png`. Imprime la ruta; `--json` → `{"ok": true, "png": "...", "words": 23, "silences": 4}`.
+#### `src/kcut/transcribe/loaded.py` — CREAR (001.15 T1)
+- `@dataclass(frozen=True) class LoadedWords: transcripts: dict[str, Transcript]; words: dict[str, list[Word]]`
+  (por id de clip: la transcripción cruda y sus palabras con las correcciones aplicadas).
+- `load_corrected(project: Project, inventory: Inventory, notices: list[Notice], log: Path | None) -> LoadedWords`.
+  Hace **exactamente** lo que hace `commands/pack.py::_load` al cerrar S1.3 entre "ya tengo el
+  inventario" y "ya tengo las palabras corregidas", sin la votación: por cada clip con voz y wav16,
+  `load_transcript` validado contra el largo de su wav16 (`wav16_length_ms`), la comprobación de mismo
+  audio de 001.11 punto 1 en el orden de 001.14 punto 3, el índice leído una vez (001.14 punto 6),
+  `unmatched` → `CheckFailed(mismatch_message(...))`, la regla de 001.13 punto 5 si `pack` la aplica
+  ahí, y `apply`. Mismos mensajes, mismos avisos, mismos códigos de salida.
+- No enmascara (cada consumidor llama `pack.pii.mask_pii` sobre la lista completa de un clip, T2) y no
+  vota.
 
-#### `src/kcut/commands/frames.py` — CREAR
+#### `src/kcut/commands/pack.py` — MODIFICAR (001.15 T1 y T4)
+`_load` usa `load_corrected` y sigue votando sobre `transcripts` crudos (001.12 punto 3). Las dos
+escrituras de `edit/` pasan antes por `assert_writable`. Ningún test de S1.3 cambia.
+
+#### `src/kcut/audio/wavio.py` — MODIFICAR (001.15 T7)
+`read_wav_range(path: Path, start: int, count: int) -> tuple[NDArray[np.float32], int]`: muestras
+`[start, min(start + count, n))` en float32 `[-1, 1)` y la frecuencia. `start < 0` o `count < 0` →
+`ValueError`. Un wav que no es mono de 16 bits → `ProjectError` (como `read_wav_s16_mono`). Antes de
+leer aplica la comprobación de cabecera de 001.14 punto 4 (los datos declarados deben caber en el
+archivo real; si no, `ProjectError` "el wav está truncado o su cabecera miente; corre kcut ingest"), y
+`n` es el número de frames ya comprobado. `start >= n` → arreglo vacío. Usa `wave.setpos(start)` y un
+solo `readframes(min(count, n − start))`: nunca lee ni reserva más que eso. Lo usan `view` (S1.4) y
+`build_voice` (S1.5b).
+
+#### `src/kcut/jsonio.py` — MODIFICAR (001.15)
+`write_bytes_atomic(path: Path, data: bytes) -> None`: lo mismo que `write_text_atomic` (carpeta en el
+destino, `.tmp` borrado antes, `os.replace`, mensajes de 0.10.5) para bytes. Los PNG y JPG de kcut se
+codifican en memoria (`io.BytesIO`) y se escriben con esta función.
+
+#### `src/kcut/project.py` — MODIFICAR (001.15 T4)
+`assert_writable(project: Project, rel: str) -> Path`, con `rel` relativa al proyecto y con `/`:
+1. Aplica las reglas de 0.10.7 (las de `paths.resolve_in_project`) antes de resolver nada.
+2. Recorre cada componente desde `project.root.resolve()` hasta el destino: todo componente que exista y
+   sea symlink o junction (`os.path.islink` / `os.path.isjunction`) → `ProjectError` "<rel> pasa por un
+   enlace (symlink o junction): kcut no escribe a través de enlaces".
+3. El destino resuelto debe quedar dentro de la raíz y fuera de `crudo/` (comparación de 0.10.7 con
+   `normcase`); si no → `ProjectError` "kcut no escribe en <rel>".
+4. Si el destino ya existe: si es una carpeta, el `ProjectError` de 0.10.5 ("hay una carpeta donde kcut
+   espera un archivo"); con `st_nlink > 1` → `ProjectError` (un hard link plantado).
+5. Devuelve la ruta absoluta del destino. No crea carpetas: el llamador hace
+   `mkdir(parents=True, exist_ok=True)` del padre después.
+
+#### `src/kcut/proc.py` — MODIFICAR (001.15 T9)
+`popen(..., log: Path | None, ...)`: `None` = sin log (sin cabecera ni bloque de stderr), igual que `run`.
+`stderr_tail` sigue funcionando.
+
+#### `src/kcut/commands/view.py` — CREAR (001.15: reglas completas)
+`kcut view <clip> <start> <end> [--filmstrip N] [--out PNG]`, tiempos del reloj de fuente (0.6):
+1. Clip desconocido → `UsageError`. `end_f <= start_f`, o más de 60 s (`end_f − start_f > 60·fps`) →
+   `UsageError`.
+2. Audio: un clip sin audio (`clip.audio is None`) → `UsageError` "<id> no tiene audio; usa kcut frames".
+   Con audio pero sin wav16 (`work.wav16` nulo o el archivo no existe) → `ProjectError` "falta el wav16
+   de <id>; corre kcut ingest". Con `real_f = ms_to_f_ceil(wav16_length_ms(wav16), fps)`, si
+   `end_f > real_f` → `UsageError`.
+3. Ventana de audio: `s0 = start_f·16000 // fps`, `s1 = end_f·16000 // fps`,
+   `read_wav_range(wav16, s0, s1 − s0)` (T7) → `db = rms_db(x, 16000, 10)`.
+4. Silencios: sobre el tramo `[r0, r1)` = la ventana más `MAX_WORD_MS` (30 s) a cada lado, acotado al
+   wav16 y con `r0` múltiplo de 160 muestras (los bloques de 10 ms de `pack`), `silence_runs` de su
+   energía, pasado a ms del clip.
+5. Palabras: `load_corrected` (T1). Sin transcripción del clip → ninguna palabra y
+   `notice = "sin transcripcion"`. Con transcripción: si `privacy.mask_pii` (001.13 punto 4) es
+   verdadero, `mask_pii` sobre **todas** las palabras corregidas del clip, en orden, antes de recortar;
+   si es falso, palabras crudas y aviso `pii_unmasked` con el texto de 001.13 punto 4. Luego
+   `window_words`.
+6. `--filmstrip N`: de 0 a 12 (defecto 0), si no `UsageError`. Con `N > 0`: un clip sin video →
+   `UsageError`; proxy ausente → `ProjectError` "falta el proxy de <id>; corre kcut ingest". El frame `k`
+   (0…N−1) es `start_f + ((2k + 1)·(end_f − start_f)) // (2N)`, leído con
+   `grab(proxy, proxy_index(...), ...)`; un índice fuera de `[0, frames − vs_f)` deja ese hueco gris
+   `(40, 40, 46)`.
+7. Salida por defecto `.kcut/view/<clip>_<start_f>-<end_f>.png` (con `_assert_in_cache`). `--out PNG`
+   debe terminar en `.png` (sin distinguir mayúsculas), si no `UsageError`, y pasa por
+   `assert_writable`. PNG con Pillow + `write_bytes_atomic`.
+8. Humano: `[OK] <ruta>`. `--json` → `{"ok": true, "png": "...", "words": 23, "silences": 4, "notice": null, "warnings": []}`
+   (`words` = cajas dibujadas, `silences` = bandas, `notice` = `null` o `"sin transcripcion"`,
+   `warnings` = `[{"code", "message_es"}]`).
+
+#### `src/kcut/commands/frames.py` — CREAR (001.15: proxy, `proxy_index`, `--out`)
 `kcut frames <clip> <t> [<t> ...] [--grid 10] [--width 540] [--out DIR]`: cada tiempo → PNG del
 proxy con rejilla y rótulo (`a1 f1903 63.43 s`); con más de un tiempo, además una hoja
 `<clip>_sheet_<f1>-<fn>.png`. Defecto `.kcut/frames/`. `--json` → `{"ok": true, "frames": [{"f": 90, "png": "..."}], "sheet": "..."}`.
-Frame fuera de `[0, frames)` → `UsageError`.
+(001.15) Un clip sin video → `UsageError`; proxy ausente → `ProjectError` "falta el proxy de <id>;
+corre kcut ingest". Un frame fuera de `[vs_f, frames)` (`vs_f = ms_to_f_round(video.start_ms, fps)`,
+0.6) → `UsageError`; se lee el índice `proxy_index(clip, f, fps)` con tamaño
+`(work.proxy_w, work.proxy_h)`. `--width` de 64 a 1920 (defecto 540), si no `UsageError`; se escala con
+Pillow (LANCZOS) manteniendo el aspecto. `--out DIR`: cada archivo pasa por
+`assert_writable(project, "<DIR>/<nombre>")`; sin `--out`, `_assert_in_cache`. PNG con Pillow +
+`write_bytes_atomic`.
+
+#### `tests/unit/test_no_cv2_path_io.py` — CREAR (001.15 T8)
+Recorre todo `src/**/*.py` y falla si alguna línea casa con `cv2\.(imread|imwrite)\(`.
 
 #### `src/kcut/cli.py` — MODIFICAR (agregar `view`, `frames`)
 
@@ -1404,16 +1570,31 @@ Frame fuera de `[0, frames)` → `UsageError`.
 
 | # | Tiene que cumplirse | Se comprueba con | Estado |
 |---|---|---|---|
-| 1 | Parser de tiempos | `... -m pytest tests/unit/test_timeparse.py -q` → exit 0 | ❌ |
-| 2 | Args del lector: matrices bt709, `-ss` con −0.25 frame, filtros RGB intercalados | `... -m pytest tests/unit/test_reader_args.py -q` → exit 0 | ❌ |
-| 3 | Imagen de timeline: tamaño 2400×420 / 2400×640, nº de bandas = nº de silencios | `... -m pytest tests/unit/test_timeline_img.py tests/unit/test_grid_img.py -q` → exit 0 | ❌ |
+| 1 | Parser de tiempos (001.15: `Fraction`, sin `float`; los casos fijos de `timeparse.py`) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_timeparse.py -q` → exit 0 | ❌ |
+| 2 | Args del lector: matrices bt709, `-ss` con −0.25 frame, filtros RGB intercalados (001.15: `inputs` como lista, entrada `-f lavfi`, `pre_filters` antes del `scale`, `-map 0:v:0 -an`; `proxy_index` resta `vs_f`) | `... -m pytest tests/unit/test_reader_args.py -q` → exit 0 | ❌ |
+| 3 | Imagen de timeline: tamaño 2400×420 / 2400×640, nº de bandas = nº de silencios (001.15: con la firma pura; una caja dudosa tiene píxeles `(255, 120, 30)` y una segura `(240, 200, 40)`; con `notice` y sin palabras se dibuja igual) | `... -m pytest tests/unit/test_timeline_img.py tests/unit/test_grid_img.py -q` → exit 0 | ❌ |
 | 4 | `kcut frames a1 90` en el sintético devuelve el destello (gris medio ≥ 200) y `kcut frames a1 60` no (≤ 180): índice de frame correcto | `... -m pytest tests/integration/test_view_frames_synth.py -q` → exit 0 | ❌ |
-| 5 | `kcut view a1 60 240 --filmstrip 6 --json` crea el PNG | mismo archivo (caso `test_view_png`) → passed | ❌ |
+| 5 | `kcut view a1 60 240 --filmstrip 6 --json` crea el PNG (001.15: el JSON trae `words`, `silences`, `notice` y `warnings`) | mismo archivo (caso `test_view_png`) → passed | ❌ |
 | 6 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 7 | (001.15 T1/T2) `view` usa palabras corregidas y enmascaradas: con una corrección y un teléfono dicho ("nueve siete dos ocho cero ocho tres"), `window_words` recibe el texto corregido y los dígitos con `*` salvo los 2 últimos; con `privacy.mask_pii = false` salen crudos y hay aviso `pii_unmasked`; dudosa = `p < low_prob` o `H` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_view_words.py -q` → exit 0 | ❌ |
+| 8 | (001.15) Bordes de `view`/`frames`: clip sin transcripción → PNG con `"notice": "sin transcripcion"` y `"words": 0`; sin wav16 → exit 3 con "corre kcut ingest"; `frames` sin proxy → exit 3; `view b1 ...` (sin audio) → exit 2; `--filmstrip 13` → exit 2 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k "no_transcript or no_wav16 or no_proxy or no_audio or filmstrip_range"` → exit 0 | ❌ |
+| 9 | (001.15 T4) `assert_writable` rechaza: fuera de la raíz, bajo `crudo/`, un componente que es junction o symlink, un destino que es carpeta o tiene `st_nlink > 1`; `view ... --out crudo/x.png` y `frames ... --out crudo` → exit 3 y `crudo/` queda igual (hash y mtime); `--out x.txt` → exit 2 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_assert_writable.py tests/integration/test_view_frames_synth.py -q -ra -k "writable or out_"` → exit 0 (skip con motivo si no se puede crear el enlace) | ❌ |
+| 10 | (001.15 T7) `read_wav_range` da el mismo tramo que `read_wav_s16_mono`; pasado el final devuelve menos; `start` negativo → `ValueError`; cabecera mentirosa → `ProjectError`; nunca pide a `readframes` más de `min(count, n − start)` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_wavio_range.py -q` → exit 0 | ❌ |
+| 11 | (001.15 T8) Ningún `cv2.imread(` ni `cv2.imwrite(` en `src/` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_no_cv2_path_io.py -q` → `1 passed` | ❌ |
+| 12 | (001.15 T9) `popen([...], log=None)` corre, no crea ningún archivo de log y `stderr_tail` devuelve el stderr del hijo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_proc.py -q -k popen_log_none` → exit 0 | ❌ |
+| 13 | (001.15 T1) `pack` usa `load_corrected` y los tests de S1.3 pasan sin tocarlos | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -m "not whisper" -k "pack or corrections or pii or loaded"` → exit 0; y `git diff --exit-code HEAD -- tests/unit/test_pack_command.py tests/unit/test_pack_cameras.py tests/unit/test_pack_writer.py tests/unit/test_pii.py` → exit 0 | ❌ |
+| 14 | (001.15 T5, 0.6) Clip con el video 0.5 s después del audio (proyecto aparte con un solo `.mov` sintético, id `a1`, hecho con `-itsoffset 0.5` en la entrada de video y destello en su frame de video 30, que es el instante 1.5 s): `kcut frames a1 45` da el destello (gris medio ≥ 200) y `kcut frames a1 14` → exit 2 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k video_start_offset` → exit 0 | ❌ |
+| 15 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
 
 ---
 
 ## S1.5 — EDL en frames + `kcut edl check` + `kcut render` base
+
+(001.15) Se parte en dos slices que se cierran por separado: **S1.5a** = EDL (modelo, validación,
+mapeo, palabras conservadas), gate, geometría, `kcut edl check` y `kcut edl sources`; **S1.5b** =
+render (looks, `frame_fx`, mezzanines, lecturas, compose, voz, mux, `kcut render` y check `looks` del
+doctor). Cada archivo dice su mitad. Los criterios van en dos tablas, con la equivalencia de los
+números viejos debajo de cada una. El reloj de fuente es uno solo (§0.6; 001.15 punto 5).
 
 ### Formato `edit/edl-vN.json` (lo escribe Claude)
 
@@ -1448,6 +1629,7 @@ Campos (todo `*_f` entero; claves desconocidas = error):
   `frames` (total de salida), `look` (default `"neutro"`), `sources`, `clips`, `spans`.
 - `sources` (001.6, decisión del dueño): mapa `{"<id de clip>": {"qhash": "<qhash del inventario>"}}` con
   **todo** `src` usado por `clips` o `spans`. Así un id renumerado nunca corta el video equivocado.
+  (001.15) `kcut edl sources` imprime este bloque listo para pegar.
 - `clips` = línea de **audio**, contigua: `voice` {`at_f`, `src` (clip con audio del inventario),
   `in_f`, `out_f` (reloj de `src`, `out_f` exclusivo), `why`} o `gap` {`at_f`, `dur_f`, `why`}.
   Duración de voice = `out_f − in_f`.
@@ -1465,18 +1647,28 @@ Campos (todo `*_f` entero; claves desconocidas = error):
     `< dur_f`; `crop = [cx, cy, cw]` normalizados al ancho/alto de la fuente, `cw` 0.05–1; `card = [w, h]`
     px de salida con `w ≤ W − 16`, `h ≤ H − 120`), `remap` opcional (primero `at_f = 0`, creciente,
     `speed` 0.25–4, default 1.0), `card_y` 0–1 (default 0.47).
+    (001.15) Con `remap`, `src_f` debe ser igual a `remap[0].src_f` (si no, E18) y manda `remap`.
   - `color`: `color` hex.
+- (001.15) `look` en un span `color` se ignora con el aviso W05; en un `screen` se aplica a la fuente
+  de la tarjeta (en el lector), nunca al fondo.
 
 ### Archivos
 
-#### `src/kcut/edl/model.py` — CREAR
+#### `src/kcut/edl/model.py` — CREAR (S1.5a)
 Dataclasses `VoiceClip`, `GapClip`, `CamSpan`, `BrollSpan`, `ScreenSpan`, `ColorSpan`, `ScreenKey`,
 `RemapPoint`, `Edl`; `parse_edl(data, path_label) -> tuple[Edl | None, list[Issue]]` (no lanza:
 junta los errores de esquema como `Issue(code="E01", ...)`); `load_edl(project, rel) -> tuple[Edl | None, list[Issue], int]` (versión del nombre).
+(001.15) `Issue` se importa de `src/kcut/issues.py`. `find_edl(project, rel: str | None) -> tuple[str, int]`
+aplica la regla de 0.4 (sin `rel`, el `edit/edl-vN.json` de N más alto; nombre
+`edl-v([1-9][0-9]{0,3})\.json`; ninguno → `ProjectError`) y devuelve la ruta relativa y N.
 
-#### `src/kcut/edl/validate.py` — CREAR (puro)
-`validate(edl, inv: Inventory, cfg: ProjectConfig, version_from_name: int) -> list[Issue]`,
-`Issue(code: str, level: Literal["error", "warning"], path: str, message_es: str)`. Reglas:
+#### `src/kcut/edl/validate.py` — CREAR (puro) (S1.5a; partido en 001.15)
+`validate(edl, inv: Inventory, cfg: ProjectConfig, version_from_name: int, audio_f: Mapping[str, int]) -> list[Issue]`
+= `refs.check_refs(edl, inv, cfg, version_from_name)` + `ranges.check_ranges(edl, inv, cfg, audio_f)`,
+en ese orden. `Issue(code: str, level: Literal["error", "warning"], path: str, message_es: str)` vive
+en `src/kcut/issues.py` (001.15 T1). `audio_f` = frames de voz utilizables por clip (E06). E01 lo da
+`parse_edl`; E10 y E16 están reservados y nadie los emite. Reglas (en `refs.py`: E02 E03 E04 E05 E11
+E14; en `ranges.py`: el resto):
 
 | Código | Nivel | Regla |
 |---|---|---|
@@ -1485,32 +1677,61 @@ junta los errores de esquema como `Issue(code="E01", ...)`); `load_edl(project, 
 | E03 | error | `output` ≠ tamaño del preset del proyecto |
 | E04 | error | `sources`: falta, no cubre algún `src` usado, el clip con ese id no está en el inventario, o su `qhash` en el inventario es distinto del de `sources` (el mensaje nombra el id) (001.6) |
 | E05 | error | `src` desconocido o de clase incompatible (voice: clase con audio; cam/broll/screen: con video) |
-| E06 | error | voice: `in_f < 0`, `out_f > frames del src`, `out_f <= in_f` |
+| E06 | error | voice: `in_f < 0`, `out_f > audio_f[src]`, `out_f <= in_f`; `audio_f[src] = min(frames del inventario, ms_to_f_floor(wav16_length_ms(wav16), fps))` (001.15 T6) |
 | E07 | error | clips no contiguos (`at_f` ≠ suma acumulada) |
 | E08 | error | suma de clips ≠ `frames` ≠ suma de spans |
 | E09 | error | spans no contiguos o `dur_f <= 0` |
+| E10 | — | reservado (001.15): no se emite |
 | E11 | error | cam sincronizado sobre un `gap`, o sobre un voice de otro grupo, o `src` rechazado/sin sync |
-| E12 | error | frames de fuente fuera de `[0, frames del src)` (calculados con `timeline.py`) |
+| E12 | error | frames de fuente fuera de `[0, frames del src)` (calculados con `timeline.py`); los de video, fuera de `[vs_f, frames)` con `vs_f = ms_to_f_round(video.start_ms, fps)` (0.6, 001.15 T5) |
 | E13 | error | valor numérico fuera de rango (tabla de campos) o tarjeta que no cabe |
 | E14 | error | `look` desconocido |
 | E15 | error | `keys`/`remap` mal ordenados o fuera del span |
+| E16 | — | reservado (001.15): no se emite |
 | E17 | error | `fade_in_f + fade_out_f > dur_f` |
-| W01 | warning | span `cam` o `broll` que escala > 10 % por encima de la resolución disponible (`upscale_factor > 1.10`) |
+| E18 | error | `screen` con `remap` y `src_f` distinto de `remap[0].src_f` (001.15) |
+| W01 | warning | span `cam` o `broll` que escala > 10 % por encima de la resolución disponible (`upscale_factor(zoom_max, display_w, display_h, W, H) > 1.10`, con `zoom_max` = `zoom·(1+push)` en cam y `1+push` en broll; 001.15) |
 | W02 | warning | clip voice de menos de 3 frames |
 | W03 | warning | corte entre dos `cam` del mismo `src` con cambio de zoom < 15 % (salto sin disimular) |
 | W04 | warning | span sincronizado que cruza un corte de voz (aviso informativo) |
+| W05 | warning | `look` en un span `color`: se ignora (001.15) |
 
-#### `src/kcut/edl/timeline.py` — CREAR (puro)
+#### `src/kcut/issues.py` — CREAR (S1.5a; 001.15 T1)
+`@dataclass(frozen=True) class Issue(code: str, level: Literal["error", "warning"], path: str, message_es: str)`,
+`GATE_CODES = frozenset({"G10", "M04"})` y `exit_code(issues: Sequence[Issue]) -> int`: 5 si algún
+error tiene código en `GATE_CODES`; si no, 1 si hay algún error; si no, 0.
+`issue_json(issue: Issue) -> dict[str, str]` = `{"code", "path", "message"}`. No importa nada de `kcut`.
+Lo usan `edl`, `gfx`, `audio` y `storyboard`.
+
+#### `src/kcut/edl/refs.py` — CREAR (puro) (S1.5a; 001.15)
+`check_refs(edl, inv, cfg, version_from_name) -> list[Issue]`: E02, E03, E04, E05, E11 y E14.
+
+#### `src/kcut/edl/ranges.py` — CREAR (puro) (S1.5a; 001.15)
+`check_ranges(edl, inv, cfg, audio_f: Mapping[str, int]) -> list[Issue]`: E06, E07, E08, E09, E12,
+E13, E15, E17, E18 y W01–W05. Un `src` que ya dio E04 o E05 no se evalúa aquí (sin cascada de errores).
+
+#### `src/kcut/edl/check.py` — CREAR (lectura) (S1.5a; 001.15)
+- `audio_frames(project, inv, edl) -> dict[str, int]`: por cada `src` de un clip `voice` que existe en
+  el inventario con audio, `min(clip.frames, ms_to_f_floor(wav16_length_ms(wav16), fps))` (T6). wav16
+  ausente → `ProjectError` "falta el wav16 de <id>; corre kcut ingest".
+- `check_edl_file(project, inv, rel: str | None) -> EdlCheck(rel: str, version: int, edl: Edl | None, issues: list[Issue])`:
+  `find_edl` + `load_edl` + `audio_frames` + `validate`. Lo usan `edl check`, `render`, `graphics`,
+  `mix`, `build` y `storyboard`.
+
+#### `src/kcut/edl/timeline.py` — CREAR (puro) (S1.5a)
 - `voice_at(edl, out_f) -> VoiceClip | None`.
 - `shift_f(inv, voice_src, cam_src, fps) -> int` = `ms_to_f_round(off(voice_src) − off(cam_src))`
   con `off(master) = 0`, `off(miembro) = offset_ms`. (Ej.: a2 con +4722 ms a 30 fps → −142.)
+  (001.15 T5: un solo reloj, §0.6; esta fórmula no cambia, porque el mezzanine ya entrega el frame de
+  fuente exacto desde `vs_f`.)
 - `span_source_frames(edl, span, inv) -> list[int]`: un frame de fuente por frame de salida.
   cam sincronizado: `c.in_f + (k − c.at_f) + shift_f(c.src, span.src)`; cam libre/broll:
   `src_f + (k − at_f)`; screen: con `remap`, último punto con `at_f ≤ r` →
-  `p.src_f + floor((r − p.at_f) * p.speed)`, sin remap `src_f + r`; color: lista vacía.
+  `p.src_f + floor((r − p.at_f) * p.speed)` (001.15: el producto con `Fraction(repr(p.speed))`, nunca
+  en float: `0.29 * 100` da 28.999… en float), sin remap `src_f + r`; color: lista vacía.
 - `source_to_output(edl, src, f) -> list[int]` (frames de salida donde se oye ese frame de fuente).
 
-#### `src/kcut/edl/words.py` — CREAR (puro; regla de la lección 4)
+#### `src/kcut/edl/words.py` — CREAR (puro; regla de la lección 4) (S1.5a)
 `map_words(edl, transcripts: Mapping[str, list[Word]], fps) -> list[KeptWord]`,
 `KeptWord(id, text, clip_index, out_s_f, out_e_f, src, s_ms, e_ms)`, ordenadas por `out_s_f`.
 En unidades enteras de 0.6 (`A = in_f*1000`, `B = out_f*1000`, `S = s_ms*fps`, `E = e_ms*fps`):
@@ -1523,7 +1744,20 @@ En unidades enteras de 0.6 (`A = in_f*1000`, `B = out_f*1000`, `S = s_ms*fps`, `
   del clip, `out_s_f = out_e_f − 1`).
 - Se aplican las correcciones antes de mapear; palabras con texto vacío se descartan.
 
-#### `src/kcut/edl/gate.py` — CREAR (puro + lectura)
+#### `src/kcut/edl/kept.py` — CREAR (S1.5a; 001.15 T1 y T2)
+- `@dataclass(frozen=True) class KeptWords: words: list[KeptWord]; shown: dict[str, str]; missing: tuple[str, ...]; masked: bool`.
+- `kept_words(project: Project, edl: Edl, inventory: Inventory, *, notices: list[Notice], log: Path | None) -> KeptWords`:
+  `load_corrected` (S1.4) → `map_words(edl, words, fps)` con las palabras corregidas de cada `src` de
+  voz del EDL → `words` (texto corregido **sin** enmascarar: subtítulos del MP4 y QA).
+  `shown`: id de cada palabra de `words` → su texto para lo que lee Claude. Con `privacy.mask_pii`
+  verdadero sale de `mask_pii` aplicado a la lista **completa** de palabras corregidas del clip, en
+  orden (así un tramo se detecta igual que en `transcripcion.md`); puede ser `""` (una palabra que un
+  correo dicho se tragó). Con `privacy.mask_pii` falso, `shown` = texto crudo, `masked = False` y se
+  agrega `Notice("pii_unmasked", "PII sin enmascarar (privacy.mask_pii = false)")`.
+  `missing`: los `src` de clips `voice` sin transcripción, en orden de primera aparición.
+- Regla para todo lo que lee Claude desde S1.5a: los textos salen de `shown`, nunca de `words`.
+
+#### `src/kcut/edl/gate.py` — CREAR (puro + lectura) (S1.5a)
 `read_front_matter(text: str) -> dict[str, str]`: el archivo debe empezar con una línea `---`; se
 leen líneas `clave: valor` (split en el primer `:`, strip) hasta la siguiente `---`.
 (001.4, cierra en falso ante cualquier duda) Las líneas se separan **solo** por `"\n"` (nunca
@@ -1535,7 +1769,7 @@ el motivo, y `render`/`build` salen con 5.
 `strategy_approved(project) -> GateStatus(approved: bool, file: str, reason_es: str)`: aprobado solo
 si `aprobado` normalizado (`norm_token`) es `"si"` (acepta `si` y `sí`). Archivo ausente → no aprobado.
 
-#### `src/kcut/render/looks.py` — CREAR (DS3, D10)
+#### `src/kcut/render/looks.py` — CREAR (DS3, D10) (S1.5b)
 `LOOKS: Mapping[str, LookDef]`, `LookDef(id, chain: str, name_es, purpose_es, avoid_es, cost)`.
 Cadenas exactas (solo filtros RGB):
 
@@ -1550,7 +1784,7 @@ Cadenas exactas (solo filtros RGB):
 
 `look_chain(look_id, brand) -> str` (`bn-acento` sustituye `RRGGBB` desde el hex validado).
 
-#### `src/kcut/render/geometry.py` — CREAR (puro)
+#### `src/kcut/render/geometry.py` — CREAR (puro) (S1.5a; 001.15: W01 la usa)
 - `cover_box(sw, sh, W, H) -> tuple[float, float]`: mayor rectángulo con aspecto `W/H` dentro de la fuente.
 - `cam_crop(sw, sh, W, H, zoom, cx, cy, anchor) -> tuple[int, int, int, int]` (x, y, w, h): tamaño
   = `cover_box / zoom`; x centrado en `cx*sw` acotado a `[0, sw − w]`; y: `top` → 0, `bottom` → `sh − h`,
@@ -1559,9 +1793,11 @@ Cadenas exactas (solo filtros RGB):
 - `ease_in_out_cubic(x)`, `back_out(x)` (fórmulas de `piloto/compose.py`).
 - `screen_state(keys, rel_f) -> tuple[crop, card]`: interpolación `ease_in_out_cubic` entre claves,
   se mantiene la última.
-- `upscale_factor(span, mezz_dims, W, H) -> float`.
+- `upscale_factor(zoom_max: float, sw: int, sh: int, W: int, H: int) -> float` = `W·zoom_max / cover_box(sw, sh, W, H)[0]`
+  (001.15: con números y las dimensiones de display; el mezzanine nunca baja de la resolución que
+  evita escalar, así que el factor solo depende de la fuente).
 
-#### `src/kcut/render/screen_card.py` — CREAR (técnica de `piloto/compose.py::screen_frame`)
+#### `src/kcut/render/screen_card.py` — CREAR (técnica de `piloto/compose.py::screen_frame`) (S1.5b)
 `make_background(W, H, dark, accent) -> NDArray` (base `dark` + brillo radial del `accent` en
 (0.5, 0.47) con sigma 0.32 e intensidad 0.16) y
 `screen_frame(src, rel_f, fps, span, bg, accent) -> NDArray`: alto del recorte = `cw_px * card_h / card_w`;
@@ -1569,7 +1805,7 @@ relleno con `dark` donde el recorte sale de la fuente; entrada `scale = 0.72 + 0
 `alpha = min(1, rel_s/0.18)`; esquinas redondeadas r = `max(6, 28*scale)`; borde `accent` de 4 px;
 sombra desplazada 24 px, blur sigma 28, opacidad 0.65; centro en `(W/2, card_y*H)`.
 
-#### `src/kcut/render/mezz.py` — CREAR (DS12)
+#### `src/kcut/render/mezz.py` — CREAR (DS12) (S1.5b)
 - `plan_mezz(edl, inv, cfg) -> list[MezzJob]` (puro): frames de fuente necesarios por clip (de
   `span_source_frames`) → rangos `[a, b)`; dos rangos se unen si el hueco entre ellos es `< 2*fps`
   → a cada rango `±fps//2` de margen acotado a `[0, frames)` → los que se tocan o solapan tras el
@@ -1580,24 +1816,47 @@ sombra desplazada 24 px, blur sigma 28, opacidad 0.65; centro en `(W/2, card_y*H
   `<id>_<start>-<end>_<w>x<h>_<CHAIN_VERSION>.mp4` en `.kcut/mezz/`.
 - `ensure_mezz(project, jobs, progress) -> MezzIndex`: reutiliza un archivo existente que cubra el
   rango con las mismas dimensiones y cadena; si no, lo genera con `mezz_args`.
+  (001.15) Cada mezzanine lleva un sidecar de frescura `<archivo>.json` con el formato de `workfiles`
+  (`{"qhash": clip.qhash, "params": {...}}`), con `params = {"chain", "start_f", "end_f", "w", "h",
+  "fps", "crf": 14, "chain_version": CHAIN_VERSION, "mezz_version": 1}`. Un archivo solo se reusa si
+  `workfiles.sidecar_state(ruta, clip.qhash, params) == "fresh"`; `corrupt` → aviso `cache_rebuilt` y se
+  rehace; `stale` o `missing` → se rehace. Se escribe a `<nombre>.partial.mp4` + `os.replace`, y el
+  sidecar después; `_assert_in_cache` antes de escribir o borrar.
+  (001.15 T5) Ningún rango empieza antes de `vs_f` del clip: el margen de `plan_mezz` se acota a
+  `[vs_f, frames)` en vez de `[0, frames)`, y desde ahí el `-ss start_f/fps` de `mezz_args` es exacto (§0.6).
   `MezzIndex.locate(clip_id, f) -> tuple[Path, int, tuple[int, int]]`.
 
-#### `src/kcut/render/reads.py` — CREAR (puro)
+#### `src/kcut/render/reads.py` — CREAR (puro) (S1.5b)
 `plan_reads(src_frames: list[int], max_gap: int = 8) -> list[ReadRun]`: corre de índices no
 decrecientes con saltos ≤ `max_gap` → `ReadRun(first, last, picks: list[int])` (un lector lee
 `[first, last]` seguido y se eligen los frames, con repetición si `speed < 1`).
 
-#### `src/kcut/render/encoder.py` — CREAR
+#### `src/kcut/render/encoder.py` — CREAR (S1.5b)
 `class Encoder`: `__init__(self, dst: Path, W, H, fps, log)`; `write(self, frame_bgr) -> None`;
 `close(self) -> int` (frames escritos). Args: `-f rawvideo -pix_fmt bgr24 -s WxH -r F -i - -vf scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv -c:v libx264 -preset slow -crf 18 -g 2F -pix_fmt yuv420p` + flags de color + `-movflags +faststart dst`. (001.4: el `setparams` final, igual que en los
 proxies, para que el video lleve las 4 etiquetas bt709/tv.)
 
-#### `src/kcut/render/lock.py` — CREAR (DS11)
+#### `src/kcut/render/lock.py` — CREAR (DS11) (S1.5b)
 `class OutputLock` (context manager): `__init__(self, locks_dir: Path, name: str)`; bloqueo sin
 espera con `msvcrt.locking(fd, LK_NBLCK, 1)` / `fcntl.flock(fd, LOCK_EX | LOCK_NB)` → si falla,
 `LockedError`. `atomic_replace(partial: Path, final: Path) -> None` (`PermissionError` → `ProjectError` de 0.10.5).
 
-#### `src/kcut/render/compose.py` — CREAR
+#### `src/kcut/render/frame_fx.py` — CREAR (puro) (S1.5b; 001.15)
+Una sola función por frame para el render y para las vistas previas (`render/preview.py`, S1.6b, que
+usan `graphics still` y el storyboard):
+- `@dataclass(frozen=True) class FxContext: W: int; H: int; fps: int; bg: NDArray[np.uint8]; dark: str; accent: str`
+  (`bg` = `make_background(W, H, dark, accent)`, calculado una vez).
+- `look_for(edl: Edl, span: Span, brand: BrandSection) -> str`: la cadena de look que lleva el lector de
+  ese span. `color` → `""` (su `look` se ignora; W05). Los demás → `look_chain(span.look, o edl.look si
+  es null, brand)`. En `screen` esa cadena va al lector de la fuente de la tarjeta; el fondo `bg`
+  nunca pasa por un look.
+- `span_frame(src: NDArray[np.uint8] | None, span: Span, i: int, ctx: FxContext) -> NDArray[np.uint8]`:
+  frame `(H, W, 3)` BGR del frame `i` (0-based) del span, con las fórmulas de `compose_video` de abajo
+  (crop/zoom/push de cam y broll con `cam_crop`/`broll_crop` y `cv2.resize`, `sharpen` y `dim` de
+  broll, `screen_frame` con `ctx.bg`, relleno de `color`, fades). `src` es el frame de fuente BGR al
+  tamaño que tenga (mezzanine o proxy: la geometría usa `src.shape`); `None` solo en `color`.
+
+#### `src/kcut/render/compose.py` — CREAR (S1.5b)
 `compose_video(project, edl, inv, mezz: MezzIndex, dst: Path, overlay: OverlaySource | None, progress) -> int`.
 Por span en orden: frames de fuente → `plan_reads` → `FrameReader` del mezzanine con
 `look_chain` → geometría (cam/broll con `cv2.resize`, `INTER_AREA` al bajar, `INTER_CUBIC` al
@@ -1607,63 +1866,114 @@ broll `sharpen s`: `img*(1+s) - GaussianBlur(img, sigma=2.0)*s` y luego `*dim`, 
 (como `piloto/compose.py::ferrari_frame`); fade in: si `i < fade_in_f`, `*(i+1)/(fade_in_f+1)`;
 fade out: si `i >= n - fade_out_f`, `*(n-i)/(fade_out_f+1)` → `overlay.blend(frame, out_f)`
 si hay overlay → `Encoder.write`. Afirma frames escritos == `edl.frames` (si no → `InternalError`).
+(001.15) Esas fórmulas viven en `frame_fx.span_frame`: `compose_video` lee con `look_for(...)` como
+`rgb_filters`, llama `span_frame` y después `overlay.blend`.
 
-#### `src/kcut/audio/voice_track.py` — CREAR (técnica de `piloto/audio.py`)
+#### `src/kcut/audio/voice_track.py` — CREAR (técnica de `piloto/audio.py`) (S1.5b)
 `build_voice(project, edl, inv) -> NDArray[np.float32]` de largo exacto `frames*spf`: por clip
 `voice`, muestras `[in_f*spf, out_f*spf)` del wav48 de `src` (lo crea `ensure_wav48`) en
 `at_f*spf`, con fundidos lineales de 5 ms (240 muestras) en ambos bordes, **salvo** en la unión de
-dos clips contiguos en la fuente (`in_f` = `out_f` anterior, mismo `src`). Wav más corto que lo pedido →
-`InternalError` (el `edl check` debió atraparlo).
+dos clips contiguos en la fuente (`in_f` = `out_f` anterior, mismo `src`).
+(001.15) Firma `build_voice(project, edl, inv, log: Path | None) -> NDArray[np.float32]`. Cada clip se
+lee con `read_wav_range(wav48, in_f·spf, (out_f − in_f)·spf)` (T7; nunca el wav entero). Si llegan
+menos muestras de las pedidas → `CheckFailed` (exit 1, nunca `InternalError`; T6): "el wav48 de <src>
+tiene <n> muestras y clips[<i>] pide hasta <m>; corre kcut ingest o acorta el clip". La muestra
+`in_f·spf` es el instante `in_f/fps` del reloj de 0.6 (medido en 001.15; T5: `build_voice` no cambia).
 
-#### `src/kcut/pipeline/__init__.py` — CREAR (docstring) · `src/kcut/pipeline/mux.py` — CREAR
+#### `src/kcut/pipeline/__init__.py` — CREAR (docstring) · `src/kcut/pipeline/mux.py` — CREAR (S1.5b)
 `mux_args(ffmpeg: Path, video: Path, audio: Path, dst: Path, *, audio_f32: bool) -> list[str]`:
 `-i video` + (si `audio_f32`: `-f f32le -ar 48000 -ac 1`) `-i audio -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -movflags +faststart dst`.
 
-#### `src/kcut/commands/edl.py` — CREAR
+#### `src/kcut/commands/edl.py` — CREAR (S1.5a)
 `kcut edl check [EDL]`: humano (`[ERROR] E06 clips[4]: ...`, `[AVISO] W03 spans[7]: ...`, estado de
 la estrategia) y `--json`:
 `{"schema": "kcut.edlcheck/1", "edl": "edit/edl-v1.json", "ok": false, "frames": 345, "duration_display": "00:11.5", "errors": [{"code": "E06", "path": "clips[4]", "message": "..."}], "warnings": [...], "gate": {"approved": false, "file": "edit/estrategia.md"}}`.
 Exit 1 si hay errores (los avisos no fallan).
+(001.15) `kcut edl check` usa `check_edl_file`.
+(001.15) `kcut edl sources [IDS...]`: el bloque `sources` listo para pegar en el EDL (hace usable 001.6
+punto 2). Requiere inventario (si no, `ProjectError` "corre kcut ingest"); no requiere EDL. Sin ids:
+todo clip con `video` o `audio`, en el orden del inventario. Un id que no existe o que es `imagen`,
+`doc` o `desconocido` → `UsageError`. Humano: una línea `[INFO] "sources": {...}` (el JSON en una
+línea, `ensure_ascii=False`) y una línea `[INFO]` por clip (`a1 - 3936 frames - 2160x3840 - voz hasta f3936`).
+`--json` → `{"ok": true, "sources": {"a1": {"qhash": "sha256:..."}}, "clips": [{"id": "a1", "qhash": "sha256:...", "frames": 3936, "w": 2160, "h": 3840, "vs_f": 0, "audio_f": 3936}]}`:
+`w`/`h` = `display_w`/`display_h` (`null` sin video), `vs_f` de 0.6 (`null` sin video), `audio_f` de
+E06 (`null` sin audio o sin wav16). Sin nombres de archivo. El esquema de `sources` del EDL no cambia
+(solo `qhash`).
 
-#### `src/kcut/commands/render.py` — CREAR
+#### `src/kcut/commands/render.py` — CREAR (S1.5b)
 `kcut render [--edl EDL] [--no-graphics]`: lock `build-vN` → gate (no aprobado → `GateError` 5) →
 validación (errores → 1) → `plan_mezz` + `ensure_mezz` → `compose_video` a
 `.kcut/build/vN/video.mp4` → `build_voice` → `.kcut/build/vN/voice_raw.f32` → mux de revisión
 `.kcut/build/vN/render.mp4` (video copiado + voz cruda en AAC 192k estéreo, con `pipeline/mux.py`).
 `--json` → `{"ok": true, "video": "...", "render": "...", "frames": 345, "mezz_built": 3, "mezz_reused": 0, "elapsed_s": 41.2}`.
+(001.15) Valida con `check_edl_file` y llama `build_voice(..., log)`.
+(001.15, punto 40) Los tests de S1.5b llaman `kcut render --no-graphics` (en S1.5b la bandera no
+cambia nada): desde S1.6b, sin `edit/graphics.json` hay subtítulos por defecto, que necesitan transcripción.
 
-#### `src/kcut/doctor/checks.py` — MODIFICAR
+#### `src/kcut/doctor/checks.py` — MODIFICAR (S1.5b)
 Agregar `looks` (requerido): cada cadena de `LOOKS` corre en el lector sobre
 `-f lavfi -i color=c=gray:s=64x64:d=0.04` con exit 0.
+(001.15) Exactamente:
+`proc.run(reader_args(ffmpeg, ["-f", "lavfi", "-i", "color=c=gray:s=64x64:d=0.04"], 1, rgb_filters=look_chain(id, brand)), timeout_s=30)`,
+con la marca por defecto de la plantilla (`accent = #E5FF1F`), exit 0 y 12 288 bytes en stdout. Si
+`checks.py` se pasa de 300 líneas, el check va a `doctor/chain_checks.py`.
 
-#### `src/kcut/cli.py` — MODIFICAR (agregar `edl`, `render`)
+#### `src/kcut/cli.py` — MODIFICAR (agregar `edl` en S1.5a y `render` en S1.5b)
 
-#### `tests/fixtures/synth_edl.py` — CREAR
+#### `tests/fixtures/synth_edl.py` — CREAR (S1.5a)
 `write_edl_v1(root: Path) -> EdlTruth`: escribe exactamente el EDL de ejemplo de arriba (con
 `sources` llenado con los `qhash` reales de a1, a2 y b1 del inventario, 001.6) en
 `edit/edl-v1.json` y `edit/estrategia.md` con `aprobado: si`. `EdlTruth`: `frames = 345`,
 `flash_out_f = (60, 150)`, `beep_out_s = (2.0, 5.0)`.
 
-### Criterios de aceptación S1.5
+### Criterios de aceptación S1.5a (001.15)
 
 | # | Tiene que cumplirse | Se comprueba con | Estado |
 |---|---|---|---|
-| 1 | Cada regla E01–E17/W01–W04 tiene un caso que la dispara; el EDL de ejemplo da 0 errores y solo el aviso W01 en `spans[3]` (zoom 1.5 sobre 2560 px) | `... -m pytest tests/unit/test_edl_model.py tests/unit/test_edl_validate.py -q` → exit 0 | ❌ |
-| 2 | Mapeo de frames: shift −142 para +4722 ms, remap con speed, libre vs sincronizado | `... -m pytest tests/unit/test_edl_timeline.py -q` → exit 0 | ❌ |
+| 1 | Cada código de la tabla tiene un caso que lo dispara (E01–E09, E11–E15, E17, E18, W01–W05); E10 y E16 están reservados y ningún archivo de `src/kcut/` contiene `"E10"` ni `"E16"`; el EDL de ejemplo da 0 errores y solo el aviso W01 en `spans[3]` (zoom 1.5 sobre 2560 px) (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_edl_model.py tests/unit/test_edl_refs.py tests/unit/test_edl_ranges.py -q` → exit 0 | ❌ |
+| 2 | Mapeo de frames: shift −142 para +4722 ms, remap con speed, libre vs sincronizado (001.15: `speed` 0.29 durante 100 frames avanza 29, con `Fraction`) | `... -m pytest tests/unit/test_edl_timeline.py -q` → exit 0 | ❌ |
 | 3 | Palabras conservadas: inicio temprano (lección 4), estirada sobre el corte, varios clips, mínimo 120 ms | `... -m pytest tests/unit/test_edl_words.py -q` → exit 0 | ❌ |
 | 4 | Gate: `si`/`sí` aprueban; `no`, vacío, sin front-matter o archivo ausente no | `... -m pytest tests/unit/test_gate.py -q` → exit 0 | ❌ |
-| 5 | Geometría, plan de mezzanines (rangos, margen, escala por zoom) y plan de lecturas | `... -m pytest tests/unit/test_geometry.py tests/unit/test_mezz_plan.py tests/unit/test_reads.py -q` → exit 0 | ❌ |
-| 6 | Voz exacta a la muestra: largo `frames*1600`, fades de 240 muestras, sin fade en uniones contiguas | `... -m pytest tests/unit/test_voice_track.py -q` → exit 0 | ❌ |
-| 7 | Lock: segundo lock al mismo nombre → `LockedError`; se libera al cerrar | `... -m pytest tests/unit/test_lock.py -q` → exit 0 | ❌ |
-| 8 | Looks: neutro conserva gris 128 ±2; calido R−B ≥ 4; frio B−R ≥ 4; contraste oscurece 64 y aclara 192; cinematico esquina ≥ 3 más oscura que el centro; bn-acento deja gris un rojo puro y conserva el acento (G−B ≥ 100); ida y vuelta encoder→lector del lima `#E5FF1F` ±4; con `-v verbose`, ninguna línea `auto_scale_*` convierte desde o hacia un formato `yuv*` | `... -m pytest tests/integration/test_looks_ffmpeg.py -q` → exit 0 | ❌ |
-| 9 | Render sin aprobación → exit 5; con aprobación → `video.mp4` de 345 frames 1080×1920 bt709 y `voice_raw.f32` de 552000 muestras | `... -m pytest tests/integration/test_render_synth.py -q` → exit 0 | ❌ |
-| 10 | Mezzanines perezosos: a1 tiene 3 archivos (`45-135`, `195-255`, `285-360`, todos 1440×2560), ninguno cubre el frame 0; a2 uno (`69-189`) tone-mapeado con etiquetas bt709; b1 dos (`0-45`, `75-164`) | mismo archivo (caso `test_mezz_lazy`) → passed | ❌ |
-| 11 | **Sincronía A/V de punta a punta**: destellos detectados en los frames de salida {60, 150} ±1 y pitidos de 2 kHz en {2.000, 5.000} s ±1 frame en `voice_raw.f32` | `... -m pytest tests/e2e/test_av_sync.py -q` → exit 0 | ❌ |
-| 12 | `kcut edl check --json` en el ejemplo → `"ok": true`, `"frames": 345` | mismo archivo de integración (caso `test_edl_check_cli`) → passed | ❌ |
+| 5 | `kcut edl check --json` en el ejemplo → `"ok": true`, `"frames": 345` (001.15: archivo de test propio) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_edl_check_cli.py -q -k check_cli` → exit 0 | ❌ |
+| 6 | Gate a prueba de inyección: `aprobado: no` + U+2028/U+2029/U+0085 + `aprobado: si` en la misma línea física → no aprobado; `aprobado` repetido → no aprobado; línea que no pasa el `fullmatch` → no aprobado (001.4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_gate.py -q -k injection` → exit 0 | ❌ |
+| 7 | `sources` protege contra ids renumerados: `qhash` distinto en el inventario, clip ausente del inventario, o `src` sin entrada en `sources` → `kcut edl check` exit 1 con E04 que nombra el id (001.6; la parte de `render` es S1.5b-9) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_edl_refs.py tests/integration/test_edl_check_cli.py -q -k sources` → exit 0 | ❌ |
+| 8 | `kcut edl sources --json` en el sintético: `sources` con exactamente `a1`, `a2` y `b1` y sus `qhash` del inventario; pegado tal cual en un EDL de prueba no da E04; `clips[]` trae `frames`, `w`, `h`, `vs_f` y `audio_f` (`audio_f` es `null` en b1); `kcut edl sources x9` → exit 2 (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_edl_check_cli.py -q -k edl_sources` → exit 0 | ❌ |
+| 9 | Geometría: `cover_box`, `cam_crop`, `broll_crop`, easings, `screen_state` y `upscale_factor(zoom_max, sw, sh, W, H)` (antes en el criterio 5; 001.15: firma con números) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_geometry.py -q` → exit 0 | ❌ |
+| 10 | E06 con el largo real (T6): un voice con `out_f` dentro de `frames` del inventario pero más allá del wav16 real → E06 que nombra el clip; sin wav16 → exit 3 con "corre kcut ingest" (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_edl_ranges.py tests/integration/test_edl_check_cli.py -q -k real_audio` → exit 0 | ❌ |
+| 11 | `kept_words` (T1/T2): `words` con el texto corregido crudo y `shown` enmascarado (un teléfono dicho sale con `*` salvo sus 2 últimos dígitos en `shown` y crudo en `words`); con `privacy.mask_pii = false`, `shown` = crudo, `masked` falso y aviso `pii_unmasked`; un clip voice sin transcripción sale en `missing` (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_edl_kept.py -q` → exit 0 | ❌ |
+| 12 | Capas sin ciclos (T1): importar `kcut.edl.check` y `kcut.edl.kept` no carga `kcut.gfx`, `kcut.storyboard`, ningún `kcut.audio.*` salvo `wavio`, ni ningún `kcut.render.*` salvo `geometry` (001.15) | `.venv/Scripts/python.exe -I -X utf8 -c "import sys, kcut.edl.check, kcut.edl.kept; ok={'kcut.audio','kcut.audio.wavio','kcut.render','kcut.render.geometry'}; bad=sorted(m for m in sys.modules if m.startswith(('kcut.gfx','kcut.audio','kcut.render','kcut.storyboard')) and m not in ok); print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
 | 13 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
-| 14 | Gate a prueba de inyección: `aprobado: no` + U+2028/U+2029/U+0085 + `aprobado: si` en la misma línea física → no aprobado; `aprobado` repetido → no aprobado; línea que no pasa el `fullmatch` → no aprobado (001.4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_gate.py -q -k injection` → exit 0 | ❌ |
-| 15 | `video.mp4` del render sintético con `color_space`, `color_primaries`, `color_transfer` = `bt709` y `color_range` = `tv` (001.4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/integration/test_render_synth.py::test_video_color_tags" -q` → `1 passed` | ❌ |
-| 16 | `sources` protege contra ids renumerados: `qhash` distinto en el inventario, clip ausente del inventario, o `src` sin entrada en `sources` → `kcut edl check` exit 1 con E04 que nombra el id, y `kcut render` también sale con 1 sin renderizar (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_edl_validate.py tests/integration/test_render_synth.py -q -k sources` → exit 0 | ❌ |
+| 14 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+
+Equivalencias: S1.5-1 → a-1 (cambia: tabla nueva) · S1.5-2 → a-2 · S1.5-3 → a-3 · S1.5-4 → a-4 ·
+S1.5-12 → a-5 (con archivo de test propio) · S1.5-14 → a-6 · S1.5-16 → a-7 (su parte de `render` es b-9) ·
+S1.5-5 → a-9 (geometría) y b-1 (mezzanines y lecturas) · S1.5-13 → a-13 y b-16.
+`tests/unit/test_edl_validate.py` se parte en `test_edl_refs.py` y `test_edl_ranges.py`.
+
+### Criterios de aceptación S1.5b (001.15)
+
+| # | Tiene que cumplirse | Se comprueba con | Estado |
+|---|---|---|---|
+| 1 | Plan de mezzanines (rangos, margen, escala por zoom) y plan de lecturas (001.15: la geometría pasó a S1.5a-9; con `vs_f` > 0 el margen se acota a `[vs_f, frames)` y ningún rango empieza antes de `vs_f`) | `... -m pytest tests/unit/test_mezz_plan.py tests/unit/test_reads.py -q` → exit 0 | ❌ |
+| 2 | Voz exacta a la muestra: largo `frames*1600`, fades de 240 muestras, sin fade en uniones contiguas | `... -m pytest tests/unit/test_voice_track.py -q` → exit 0 | ❌ |
+| 3 | Lock: segundo lock al mismo nombre → `LockedError`; se libera al cerrar | `... -m pytest tests/unit/test_lock.py -q` → exit 0 | ❌ |
+| 4 | Looks: neutro conserva gris 128 ±2; calido R−B ≥ 4; frio B−R ≥ 4; contraste oscurece 64 y aclara 192; cinematico esquina ≥ 3 más oscura que el centro; bn-acento deja gris un rojo puro y conserva el acento (G−B ≥ 100); ida y vuelta encoder→lector del lima `#E5FF1F` ±4; con `-v verbose`, ninguna línea `auto_scale_*` convierte desde o hacia un formato `yuv*` | `... -m pytest tests/integration/test_looks_ffmpeg.py -q` → exit 0 | ❌ |
+| 5 | Render sin aprobación → exit 5; con aprobación → `video.mp4` de 345 frames 1080×1920 bt709 y `voice_raw.f32` de 552000 muestras | `... -m pytest tests/integration/test_render_synth.py -q` → exit 0 | ❌ |
+| 6 | Mezzanines perezosos: a1 tiene 3 archivos (`45-135`, `195-255`, `285-360`, todos 1440×2560), ninguno cubre el frame 0; a2 uno (`69-189`) tone-mapeado con etiquetas bt709; b1 dos (`0-45`, `75-164`) | mismo archivo (caso `test_mezz_lazy`) → passed | ❌ |
+| 7 | **Sincronía A/V de punta a punta**: destellos detectados en los frames de salida {60, 150} ±1 y pitidos de 2 kHz en {2.000, 5.000} s ±1 frame en `voice_raw.f32` | `... -m pytest tests/e2e/test_av_sync.py -q` → exit 0 | ❌ |
+| 8 | `video.mp4` del render sintético con `color_space`, `color_primaries`, `color_transfer` = `bt709` y `color_range` = `tv` (001.4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest "tests/integration/test_render_synth.py::test_video_color_tags" -q` → `1 passed` | ❌ |
+| 9 | Con `sources` malo (los casos de S1.5a-7), `kcut render` sale con 1 sin renderizar (001.6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_render_synth.py -q -k sources` → exit 0 | ❌ |
+| 10 | `frame_fx` (001.15): `span_frame` da `(H, W, 3)` con las fórmulas de cam (zoom y push), broll (sharpen y dim), screen, color y fades, con casos numéricos fijos; con `src` del tamaño del proxy o del mezzanine el encuadre es el mismo (diferencia media < 3); `look_for` da `""` en `color` y el look del span o el global en los demás; en `screen`, los píxeles del fondo son exactamente `ctx.bg` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_frame_fx.py -q` → exit 0 | ❌ |
+| 11 | Sidecar de mezzanine (001.15): un segundo render sin cambios reusa todo (`mezz_reused` = total y mtime igual); un sidecar con otros `params` → se rehace ese; un sidecar corrupto → se rehace con aviso `cache_rebuilt` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_render_synth.py -q -k mezz_sidecar` → exit 0 | ❌ |
+| 12 | wav48 más corto que un clip voice (T6) → `kcut render` exit 1 con `CheckFailed` que nombra el clip; nunca 10 (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_voice_track.py tests/integration/test_render_synth.py -q -k short_wav` → exit 0 | ❌ |
+| 13 | `build_voice` lee con `read_wav_range` (T7): con `read_wav_s16_mono` reemplazado por una función que lanza, da el mismo arreglo (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_voice_track.py -q -k uses_range` → exit 0 | ❌ |
+| 14 | (T5) Clip con el video 0.5 s después del audio: el `.mov` de S1.4-14 con además un pitido de 2 kHz de 0.1 s en el instante 1.5 s, y un EDL `voice` 30–75 + `cam` sincronizado del mismo clip → en `render.mp4` el destello y el pitido caen en el mismo frame de salida ±1 (001.15: prueba del reloj único, T5) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/e2e/test_av_sync.py -q -k video_start_offset` → exit 0 | ❌ |
+| 15 | Check `looks` del doctor con `reader_args` sobre `-f lavfi` (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m kcut doctor --json` → exit 0 y el check `looks` con `"ok": true` | ❌ |
+| 16 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 17 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+
+Equivalencias: S1.5-5 → b-1 (sin la geometría) · S1.5-6 → b-2 · S1.5-7 → b-3 · S1.5-8 → b-4 ·
+S1.5-9 → b-5 · S1.5-10 → b-6 · S1.5-11 → b-7 · S1.5-15 → b-8 · S1.5-16 → b-9 (parte de `render`).
 
 Detección de destello (test): frame `f` es destello si su gris medio ≥ 170 y supera por ≥ 60 el
 promedio de los frames `f±3`. Pitido: filtro pasa-banda Butterworth 1800–2200 Hz (scipy), envolvente
@@ -1672,6 +1982,11 @@ a 5 ms, inicio donde cruza el 50 % del máximo.
 ---
 
 ## S1.6 — Capa de gráficos: motor HTML con `seek(t)` + componentes base + subtítulos
+
+(001.15) Se parte en **S1.6a** = esquema, anclas (`src/kcut/anchors.py`), parámetros
+(`src/kcut/params.py`), chunks, `runtime.js`, componentes base, página y `kcut graphics check`; y
+**S1.6b** = captura con Chromium, overlay, `kcut graphics capture` y `still`, integración con el render
+y endurecimiento. Cada archivo dice su mitad; los criterios van en dos tablas con su equivalencia.
 
 ### Formato `edit/graphics.json` (lo escribe Claude)
 
@@ -1704,6 +2019,34 @@ a 5 ms, inicio donde cruza el 50 % del máximo.
 - `captions.enabled` de `graphics.json` manda sobre `kcut.toml [captions] enabled`; si falta, vale el
   de `kcut.toml`. El estilo de los subtítulos vive solo en `kcut.toml`. `captions.hide`: ventanas con
   `start`/`end` que siguen las mismas reglas (entero o ancla) que los cues.
+- (001.15, punto 40; decisión de Yedin del 25/10/2026: subtítulos por defecto) Si `edit/graphics.json`
+  no existe, vale el documento implícito `{"schema": "kcut.graphics/1", "cues": []}`: sin cues, sin
+  `captions.hide` y con `captions.enabled` de `kcut.toml`. Con captions encendidos, la capa de gráficos
+  son solo los subtítulos: palabras corregidas de `kept_words`, el componente interno `captions` y el
+  estilo de `kcut.toml [captions]` (aviso G11). Con captions apagados no hay capa de gráficos (aviso
+  G12). La falta del archivo nunca da exit 3. Si el archivo existe, manda él, como siempre.
+
+### Códigos de `graphics check` (001.15)
+
+Cada problema es un `Issue` (`src/kcut/issues.py`); la salida del comando sale de `exit_code`.
+
+| Código | Nivel | Exit | Regla |
+|---|---|---|---|
+| G01 | error | 1 | esquema de `graphics.json`: `schema` ≠ `kcut.graphics/1`, tipo, clave desconocida, faltante, `id` que no cumple `^[a-z0-9-]{1,32}$` o repetido, `start`/`end` que no es entero (sin `bool`) ni ancla con la forma de arriba |
+| G02 | error | 1 | `component` desconocido, o `captions` (es interno) |
+| G03 | error | 1 | parámetro: desconocido, tipo, rango, largo, requerido faltante, color que no es hex ni token de marca, o regla propia del componente (S1.7: `fly_to` con `exit: fly_to`, `at_f` no creciente) |
+| G04 | error | 1 | ancla de palabra a un id que no está entre las palabras conservadas del EDL |
+| G05 | error | 1 | ancla de fuente cuyo frame no se oye en la salida |
+| G06 | warning | 0 | ancla de fuente que se oye en varios frames de salida (se usa el primero) |
+| G07 | error | 1 | tras resolver no se cumple `0 <= start < end <= frames` (cue o ventana de `captions.hide`) |
+| G08 | error | 1 | captions activos y un clip `voice` del EDL sin transcripción ("corre kcut transcribe o pon captions.enabled=false") |
+| G09 | error | 1 | imagen inválida: ruta que no pasa `resolve_in_project` o no empieza con `recursos/`, extensión fuera de `.png .webp .jpg .jpeg` (SVG prohibido), más de 20 MB, o Pillow no la abre |
+| G10 | error | 5 | imagen que no está en el manifiesto o sin `approved_by` (el `GateError` de `require_approved` se convierte en este `Issue`; DS9) |
+| G11 | warning | 0 | no hay `edit/graphics.json` y `captions.enabled` es verdadero: subtítulos por defecto desde la transcripción; ruta `""`, texto fijo "no hay edit/graphics.json: subtítulos por defecto desde la transcripción" (001.15) |
+| G12 | warning | 0 | no hay `edit/graphics.json` y `captions.enabled` es falso: sin capa de gráficos; ruta `""`, texto fijo "no hay edit/graphics.json y los subtítulos están apagados: el video sale sin gráficos" (001.15) |
+
+Antes de resolver gráficos, todo comando de gráficos corre `check_edl_file`: con errores del EDL sale
+con 1 y esos errores (códigos E), sin resolver nada más.
 
 ### Componentes base (S1.6) — parámetros exactos
 
@@ -1721,6 +2064,9 @@ Texto grande: Inter 900, mayúsculas por CSS, `letter-spacing: -2px`, `line-heig
 | `kinetic` | sí | `lines` lista 1–4 de {`text` ≤ 24, `at_f` ≥ 0, `size` 140 (24–400), `color` light} · `y` 0.5 · `gap_px` 10 (0–200) · `italic` false · `rotate_deg` 0 (−15–15) · `glitch` false | cada línea `pop(start+at_f, end)`; bloque centrado en `y`; `glitch`: sombras `14g px rgba(255,0,80,.8)` y `−14g px rgba(0,220,255,.8)` con `g = 1 − prog(t, t_linea, 0.22)` |
 | `endcard` | sí | `lines` como kinetic (1–3) · `cta` str ≤ 40 opcional · `cta_at_f` 22 · `y` 0.47 | líneas como kinetic; `cta` como `label` debajo, `pop(start+cta_at_f, end)` |
 | `captions` | — | interno, de `kcut.toml [captions]` | ver abajo |
+
+(001.15) `endcard`: el bloque de las líneas más el `cta` se centra en `y`; las líneas van separadas
+10 px y el `cta` va 24 px debajo de la última línea.
 
 Subtítulos: bloque centrado en `x = 0.5`, ancho `0.87·W`, centro vertical `captions.y`; palabra
 Inter 900 `font_px`, `letter-spacing −1px`, margen `0 9px`, color `captions.color`, borde 11 px
@@ -1745,23 +2091,55 @@ Salida: `[{"s_f", "e_f", "words": [{"text", "s_f"}]}]`.
 
 ### Archivos
 
-#### `src/kcut/gfx/anchors.py` — CREAR (puro)
-`resolve_time(v: int | Mapping, kept: list[KeptWord], edl, path) -> tuple[int, list[str]]` (frame, avisos).
+#### `src/kcut/anchors.py` — CREAR (puro) (S1.6a; 001.15 T1: antes `gfx/anchors.py`)
+Neutro: lo usan `gfx` (S1.6a) y `audio/sfx_events.py` (S1.8a); solo importa de `edl`.
+`@dataclass(frozen=True) class Resolved: frame: int | None; problem: Literal["shape", "word_not_kept", "src_not_heard"] | None; repeats: int`.
+`resolve_time(v: object, kept: Sequence[KeptWord], edl: Edl) -> Resolved`:
+- entero (no `bool`) → `frame = v`, `repeats = 1`;
+- `{"word": "<id>", "edge": "start" | "end", "offset_f": int}` (`offset_f` opcional, 0) → `out_s_f` u
+  `out_e_f` de la `KeptWord` con ese id + `offset_f`; id ausente → `problem = "word_not_kept"`;
+- `{"src": "<clip>", "f": int, "offset_f": int}` (`offset_f` opcional, 0) → primer frame de
+  `source_to_output(edl, src, f)` + `offset_f`, y `repeats` = cuántos hay; ninguno → `"src_not_heard"`;
+- otra forma o claves de más → `problem = "shape"`.
+El llamador pone su código (G01/G04/G05/G06 en gráficos, A01/A04/A05/A06 en sfx) y su ruta.
 
-#### `src/kcut/gfx/components.py` — CREAR
-Registro `COMPONENTS: Mapping[str, ComponentDef]`; `ComponentDef(id, js_file, big, params: tuple[ParamSpec, ...], name_es, purpose_es, avoid_es, cost, cost_note_es, since)`;
-`ParamSpec(name, kind, required, default, lo, hi, max_len, item: tuple[ParamSpec, ...] | None, help_es)` con
-`kind` ∈ `str int float bool color point path list`. `validate_params(component, params, path) -> tuple[dict[str, object], list[Issue]]`
-(aplica defaults, resuelve colores; parámetro desconocido = error). En S1.6 registra `title`, `label`,
-`kinetic`, `endcard`; `captions` es interno y además se publica en el catálogo.
+#### `src/kcut/params.py` — CREAR (puro) (S1.6a; 001.15 T1)
+`@dataclass(frozen=True) class ParamSpec(name, kind, required, default, lo, hi, max_len, item: tuple[ParamSpec, ...] | None, help_es)`
+con `kind` ∈ `str int float bool color point path list`.
+`check_params(specs: Sequence[ParamSpec], params: object, path: str, code: str, brand: BrandSection | None) -> tuple[dict[str, object], list[Issue]]`:
+aplica defaults; tipos estrictos como `schema_util` (`bool` no vale como `int`; `int` sí vale como
+`float`); rangos y largos; un parámetro desconocido es error; `color` acepta hex o token
+`accent accent2 dark light` y devuelve hex (con `brand=None` y un `color`, `InternalError`). Cada
+problema es un `Issue` con el `code` que pasa el llamador (G03 en gráficos, A03 en sfx). Lo usan
+`gfx/components.py` y `audio/sfx_library.py` sin importarse entre ellos.
 
-#### `src/kcut/gfx/schema.py` — CREAR
+#### `src/kcut/gfx/components.py` — CREAR (S1.6a; partido en 001.15)
+Registro `COMPONENTS: Mapping[str, ComponentDef]` = los de `components_base.py` (y desde S1.7 los de
+`components_showpiece.py`). `ComponentDef(id, js_files: tuple[str, ...], big, params: tuple[ParamSpec, ...], name_es, purpose_es, avoid_es, cost, cost_note_es, since)`
+(001.15: `js_files` es una tupla, así un componente grande se parte en varios `.js`; la página los
+incluye en ese orden). `validate_params(component: ComponentDef, params: object, path: str, brand: BrandSection) -> tuple[dict[str, object], list[Issue]]`
+= `check_params(..., code="G03", brand=brand)` + las reglas propias del componente. En S1.6a registra
+`title`, `label`, `kinetic`, `endcard`; `captions` es interno y además se publica en el catálogo.
+
+#### `src/kcut/gfx/components_base.py` — CREAR (S1.6a; 001.15)
+`BASE: tuple[ComponentDef, ...]`: las definiciones de `title`, `label`, `kinetic`, `endcard` y
+`captions`, con los parámetros de la tabla de arriba.
+
+#### `src/kcut/gfx/schema.py` — CREAR (S1.6a)
 `parse_graphics(data) -> tuple[GraphicsDoc | None, list[Issue]]` (esquema de arriba; `id` único `^[a-z0-9-]{1,32}$`).
+(001.15) Con los códigos G01 y G02 de la tabla.
+(001.15, punto 40) `default_doc() -> GraphicsDoc` = el documento implícito: sin cues, sin
+`captions.hide` y con `captions.enabled` sin fijar, así manda `kcut.toml`.
 
-#### `src/kcut/gfx/captions.py` — CREAR (regla de arriba)
+#### `src/kcut/gfx/captions.py` — CREAR (regla de arriba) (S1.6a)
 `build_chunks(kept, cfg: CaptionsSection, hide: list[tuple[int, int]], fps) -> list[Chunk]`.
+(001.15 T2) `Chunk(s_f, e_f, words: list[ChunkWord])`, `ChunkWord(id, text, s_f)`: cada palabra guarda
+el id de su `KeptWord`. Los chunks se arman **una sola vez** con el texto crudo de `KeptWords.words`
+(los tiempos del MP4). `shown_chunks(chunks, shown: Mapping[str, str], cfg) -> list[Chunk]` cambia el
+texto de cada palabra por el de `shown`, con la misma regla de texto mostrado (bordes y mayúsculas);
+una palabra que queda vacía sale del chunk, y el chunk conserva `s_f`/`e_f`.
 
-#### `src/kcut/gfx/resolve.py` — CREAR
+#### `src/kcut/gfx/resolve.py` — CREAR (S1.6a)
 `resolve(project, edl, version) -> ResolvedGraphics` (lee graphics.json, transcripciones,
 correcciones; valida; resuelve anclas, colores, ventanas, chunks). `data_json(resolved) -> dict`:
 
@@ -1774,18 +2152,30 @@ correcciones; valida; resuelve anclas, colores, ventanas, chunks). `data_json(re
            "params": {"style": {}, "chunks": [{"s_f": 105, "e_f": 118, "words": [{"text": "HELLO", "s_f": 105}]}]}}]}
 ```
 Captions activos con un clip voice sin transcripción → error "corre kcut transcribe o pon captions.enabled=false".
+(001.15) Ese error es G08. Las palabras salen de `kept_words` (S1.5a): anclas y chunks con `words`;
+`ResolvedGraphics` guarda además `shown` y `masked`. `data_json(resolved, *, masked: bool) -> dict`: con
+`masked=False` (captura para el render, el MP4) los chunks llevan el texto crudo; con `masked=True`
+(`graphics still` y storyboard, que lee Claude) llevan `shown_chunks`. Los `params` de los cues no se
+tocan en `data_json` (los escribe Claude). Una imagen pasa por `assets.image_data_uri` (G09/G10).
+(001.15, punto 40) Si `edit/graphics.json` no existe (`os.path.lexists` falso), se usa
+`schema.default_doc()` con el aviso G11 o G12; si existe, se lee y valida como siempre (una carpeta o
+un JSON roto siguen siendo `ProjectError`, 0.9). `ResolvedGraphics` lleva además
+`source: Literal["file", "default"]` y `empty: bool` (verdadero si no hay nada que dibujar: ni cues ni
+subtítulos encendidos). Con el documento implícito y captions encendidos, un clip `voice` sin
+transcripción sigue siendo G08 (exit 1).
 
-#### `src/kcut/gfx/assets.py` — CREAR
+#### `src/kcut/gfx/assets.py` — CREAR (S1.6a)
 `image_data_uri(project, rel) -> str`: `require_approved`, extensión `.png .webp .jpg .jpeg`
 (SVG prohibido), ≤ 20 MB, Pillow abre sin error.
 
-#### `src/kcut/gfx/page.py` — CREAR (puro)
+#### `src/kcut/gfx/page.py` — CREAR (puro) (S1.6a)
 `build_page(data: Mapping[str, object], component_ids: list[str]) -> str`: HTML con `base.css`,
 `@font-face` Inter 600/800/900 como data URI woff2, `runtime.js`, los JS de los componentes usados y
 `<script type="application/json" id="kc-data">` con el JSON donde `</` se escribe `<\/`.
 `body` de `W×H`, fondo transparente.
+(001.15) Los JS de un componente son sus `js_files`, en ese orden.
 
-#### `src/kcut/gfx/web/runtime.js` — CREAR
+#### `src/kcut/gfx/web/runtime.js` — CREAR (S1.6a)
 Contrato:
 ```
 window.KC = {register(id, def), clamp(x,a=0,b=1), prog(t,t0,d), outCubic(x), inCubic(x),
@@ -1806,10 +2196,10 @@ Reglas para todo JS de `gfx/web/` (test que las revisa con regex): prohibidos `D
 `XMLHttpRequest`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `eval(`, y en CSS `transition` y
 `animation`. Texto siempre con `textContent`.
 
-#### `src/kcut/gfx/web/base.css`, `components/captions.js`, `title.js`, `label.js`, `kinetic.js`, `endcard.js` — CREAR
+#### `src/kcut/gfx/web/base.css`, `components/captions.js`, `title.js`, `label.js`, `kinetic.js`, `endcard.js` — CREAR (S1.6a)
 Según las tablas de arriba.
 
-#### `src/kcut/gfx/capture.py` — CREAR (técnica de `piloto/capture.py`)
+#### `src/kcut/gfx/capture.py` — CREAR (técnica de `piloto/capture.py`) (S1.6b)
 - `active_frames(resolved) -> list[int]`: unión de `[start_f, end_f)` de los cues y de los chunks.
 - `launch_options() -> dict[str, object]` (única fuente de las opciones de lanzamiento, 001.1):
   `{"headless": True, "chromium_sandbox": True}`. Si con `chromium_sandbox=True` Chromium no
@@ -1829,45 +2219,123 @@ Según las tablas de arriba.
 - Índice `.kcut/build/vN/gfx/index.json` = `{"fps": 30, "frames": [0, 1, 2], "hash": "<sha256>"}`,
   `hash` = sha256 de (data JSON + runtime + componentes + fuentes). Mismo hash → no recaptura
   (salvo `--force`).
+- (001.15) El índice se valida al leerlo (0.9): `fps` = el del proyecto; `frames` lista de enteros (sin
+  `bool`) estrictamente creciente, cada uno en `[0, edl.frames)`; `hash` de 64 hex; y para cada frame
+  existe `{f:06d}.png` como archivo regular en esa carpeta. Si algo falla, el índice se trata como
+  ausente: aviso `cache_rebuilt` y se recaptura. La captura usa siempre `data_json(resolved, masked=False)`.
 
-#### `src/kcut/doctor/checks.py` — MODIFICAR (001.1)
+#### `src/kcut/doctor/checks.py` — MODIFICAR (001.1) (S1.6b)
 El check `chromium` lanza con `gfx.capture.launch_options()`, así doctor prueba las mismas opciones
 que usa la captura.
+(001.15) Hoy (S1.1) lanza solo con `headless=True`; desde S1.6b recibe `**launch_options()`, o sea
+también `chromium_sandbox=True`.
 
-#### `src/kcut/gfx/overlay.py` — CREAR (lección 7)
+#### `src/kcut/gfx/overlay.py` — CREAR (lección 7) (S1.6b)
 `class OverlaySource`: `__init__(self, index_path: Path, W: int, H: int)`;
 `blend(self, base_bgr, out_f) -> NDArray` → si el frame está en el índice:
-`cv2.imread(path, cv2.IMREAD_UNCHANGED)`; forma ≠ `(H, W, 4)` → `InternalError`; alfa recto:
+`cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_UNCHANGED)` (001.15 T8: nunca `cv2.imread`);
+si no se decodifica o su forma ≠ `(H, W, 4)` → `ProjectError` "el gráfico <f> de la caché está dañado;
+corre kcut graphics capture --force" (001.15: la caché no es de confianza, 0.9); alfa recto:
 `out = (base·(255 − a) + rgb·a + 127) // 255` en enteros de 16 bits. Función pura `alpha_blend(base, bgra)` testeada.
 
-#### `src/kcut/commands/graphics.py` — CREAR
+#### `src/kcut/commands/graphics.py` — CREAR (S1.6a: `check`; S1.6b: `capture` y `still`)
 `kcut graphics check [--edl]` (errores → 1; `--json` con cues resueltos y chunks),
 `kcut graphics capture [--edl] [--force]` (lock `build-vN`), `kcut graphics still <f>... [--edl] [--out DIR]`
 (PNG con alfa por frame, defecto `.kcut/build/vN/gfx/stills/`).
+(001.15) Detalle:
+- `check` (S1.6a): sin `edit/graphics.json` resuelve el documento implícito (punto 40 de 001.15), con
+  G11 o G12 en `warnings`; la falta del archivo nunca da exit 3. Exit = `exit_code` de los `Issue`.
+  `--json` (`graphics_json` es `null` con el documento implícito):
+  `{"schema": "kcut.gfxcheck/1", "ok": true, "edl": "edit/edl-v1.json", "graphics_json": "edit/graphics.json", "frames": 345, "cues": [{"id": "gancho", "component": "kinetic", "start_f": 0, "end_f": 30, "params": {}}], "chunks": [{"s_f": 105, "e_f": 118, "words": [{"text": "HELLO", "s_f": 105}]}], "errors": [{"code": "G04", "path": "cues[1].start", "message": "..."}], "warnings": []}`.
+  T2: `params` va con los defaults aplicados y cada `str` de adentro (también en listas y objetos)
+  pasado por `pack.pii.mask_text`; un parámetro `path` sale como su ruta relativa, nunca como data URI.
+  `chunks` = `shown_chunks`. Con `privacy.mask_pii = false`: todo crudo y un aviso `pii_unmasked` en
+  `warnings`.
+- `still` (S1.6b): cada `f` en `[0, frames)`, si no `UsageError`. Sin `--alpha`: el still de Chromium
+  (página con `data_json(resolved, masked=True)`) compuesto con `alpha_blend` sobre
+  `render.preview.base_frame(...)` de ese frame, PNG RGB. Con `--alpha`: el PNG RGBA crudo de Chromium
+  (con la misma página enmascarada). Archivos `still_<f:06d>.png`; con `--out DIR` cada uno pasa por
+  `assert_writable(project, "<DIR>/still_<f:06d>.png")`. `--json` →
+  `{"ok": true, "stills": [{"f": 60, "png": "..."}], "alpha": false, "warnings": []}`.
+- `capture` (S1.6b): con `data_json(resolved, masked=False)`.
+- (001.15, punto 40) `capture` y `still` sin `edit/graphics.json` usan el documento implícito. Con
+  `resolved.empty`, `capture` no lanza Chromium ni escribe `index.json`, y `still` da el frame base sin
+  nada encima (con `--alpha`, un PNG RGBA con alfa 0 en todo el cuadro).
 
-#### `src/kcut/render/compose.py`, `src/kcut/commands/render.py` — MODIFICAR
+#### `src/kcut/render/compose.py`, `src/kcut/commands/render.py` — MODIFICAR (S1.6b)
 `render` sin `--no-graphics` y con `edit/graphics.json`: `resolve` → `capture` (si el hash cambió)
 → `OverlaySource` a `compose_video`. Errores de gráficos → exit 1 antes de renderizar.
+(001.15, punto 40) Sin `--no-graphics`, `render` (y `build`) siempre llama `resolve`: con
+`edit/graphics.json` manda ese archivo, y sin él vale el documento implícito. Si `resolved.empty`, no hay
+captura ni `OverlaySource` (igual que con `--no-graphics`). La captura usa
+`data_json(resolved, masked=False)`, así que el MP4 lleva el texto crudo (001.13 punto 6).
 
-#### `src/kcut/cli.py` — MODIFICAR (agregar `graphics`)
+#### `src/kcut/pack/pii.py` — MODIFICAR (S1.6a; 001.15 T2)
+`mask_text(text: str) -> str`: parte `text` por espacios en blanco en palabras falsas
+(`Word(id=f"t:{i}", i=i, text=token, s_ms=i, e_ms=i + 1, p=1.0)`), corre `mask_pii` y une con un
+espacio los textos que no quedaron vacíos. Es para textos que no son palabras de una transcripción
+(los `params` de los cues en `graphics check --json`).
 
-#### `tests/fixtures/synth_graphics.py` — CREAR
+#### `src/kcut/render/preview.py` — CREAR (S1.6b; 001.15)
+`base_frame(project, edl, inv, out_f: int, ctx: FxContext, *, log: Path | None) -> NDArray[np.uint8]`:
+el frame de salida `out_f` sin gráficos, hecho desde el **proxy**: el span que cubre `out_f`, su frame
+de fuente (`span_source_frames`, índice `out_f − span.at_f`) leído con
+`grab(proxy, proxy_index(...), ..., rgb_filters=look_for(...))` y
+`span_frame(src, span, out_f − span.at_f, ctx)` a tamaño de salida (`color`: sin lectura). Proxy
+ausente → `ProjectError` "falta el proxy de <id>; corre kcut ingest". Lo usan `graphics still` y
+`storyboard/panel.py`.
+
+#### `src/kcut/cli.py` — MODIFICAR (agregar `graphics`; S1.6a)
+
+#### `tests/fixtures/synth_graphics.py` — CREAR (S1.6a)
 `write_graphics_v1(root, with_showpieces: bool)`: con `False`, cues `gancho` kinetic 0–30, `titulo`
 title 40–80, `pill` label 90–150, `cierre` endcard 315–345; captions activos.
+(001.15) Parámetros exactos, elegidos para que cada bloque quepa con margen en la franja `y ± 0.1·H`
+(±192 px a 1920 de alto). El `kinetic` del ejemplo del formato, con 270 px, no cabe:
+- `gancho`: `{"lines": [{"text": "Esto lo hizo", "at_f": 2, "size": 72, "color": "light"}, {"text": "kcut", "at_f": 7, "size": 96, "color": "accent"}], "y": 0.45}`
+- `titulo`: `{"text": "Higgsfield", "bar": true, "size": 96, "y": 0.6}`
+- `pill`: `{"text": "hecho con kcut", "size": 40, "y": 0.58}`
+- `cierre`: `{"lines": [{"text": "Fin", "at_f": 0, "size": 96, "color": "light"}], "cta": "sigueme", "cta_at_f": 4, "y": 0.47}`
+- `captions`: `{"enabled": true}` sin `hide`; el estilo es el de la plantilla de `kcut.toml`.
+Todos los tiempos son enteros (sin anclas), así no dependen de que haya modelo de Whisper.
 
-### Criterios de aceptación S1.6
+### Criterios de aceptación S1.6a (001.15)
 
 | # | Tiene que cumplirse | Se comprueba con | Estado |
 |---|---|---|---|
 | 1 | Chunks: ≤ 3 palabras/≤ 18 caracteres, nunca mezcla clips, corte por pausa > 350 ms y por puntuación, ventanas ocultas, recortes del final | `... -m pytest tests/unit/test_captions_chunking.py -q` → exit 0 | ❌ |
-| 2 | Anclas de palabra y de fuente, palabra cortada → error | `... -m pytest tests/unit/test_anchors.py tests/unit/test_gfx_schema.py -q` → exit 0 | ❌ |
-| 3 | Página: `</script>` en un texto queda escapado; fuentes embebidas; JS sin APIs prohibidas | `... -m pytest tests/unit/test_page_build.py tests/unit/test_gfx_js_rules.py -q` → exit 0 | ❌ |
-| 4 | Mezcla alfa exacta (0, 128, 255) | `... -m pytest tests/unit/test_overlay_blend.py -q` → exit 0 | ❌ |
-| 5 | Determinismo: capturar el frame 50, luego el 200, luego el 50 otra vez → píxeles idénticos | `... -m pytest tests/integration/test_capture_determinism.py -q` → exit 0 | ❌ |
-| 6 | Cada componente base, en el frame central de su cue, deja ≥ 1000 píxeles con alfa > 0 dentro de la franja de ancho completo entre `(y-0.1)·H` y `(y+0.1)·H` (con su `y` efectivo) y < 1 % de sus píxeles con alfa fuera de ella; los subtítulos, igual con `captions.y` | `... -m pytest tests/integration/test_components_base.py -q` → exit 0 | ❌ |
-| 7 | Render con gráficos: mismo nº de frames; en el frame 60 la caja del título difiere (diferencia media > 2) del render `--no-graphics` | `... -m pytest tests/integration/test_render_graphics.py -q` → exit 0 | ❌ |
-| 8 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
-| 9 | Endurecimiento de Chromium: `launch` recibe `chromium_sandbox=True` (comprobado con un doble que registra los kwargs) y arranca de verdad en Windows; una página con `<img src="http://127.0.0.1:<puerto>/x.png">` pasada por `capture_stills` produce 0 peticiones al servidor HTTP local del test, mientras una imagen `data:` sí se pinta | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_capture_hardening.py -q` → exit 0 | ❌ |
+| 2 | Anclas de palabra y de fuente, palabra cortada → error (001.15: `kcut.anchors.resolve_time` y sus `problem`) | `... -m pytest tests/unit/test_anchors.py tests/unit/test_gfx_schema.py -q` → exit 0 | ❌ |
+| 3 | Página: `</script>` en un texto queda escapado; fuentes embebidas; JS sin APIs prohibidas (001.15: incluye los `js_files` de cada componente, en orden) | `... -m pytest tests/unit/test_page_build.py tests/unit/test_gfx_js_rules.py -q` → exit 0 | ❌ |
+| 4 | Cada código G01–G12 tiene un caso que lo dispara; `graphics check` sale con 1 con errores, con 5 con G10 y con 0 solo con avisos; con errores del EDL sale con 1 y los códigos E (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_gfx_codes.py tests/integration/test_graphics_check.py -q -k codes` → exit 0 | ❌ |
+| 5 | PII en `graphics check --json` (T2): un teléfono en las palabras (transcripción plantada con `save_transcript`) y en el `text` de un cue sale con `*` salvo sus 2 últimos dígitos en `chunks` y en `cues[].params`; con `privacy.mask_pii = false` sale crudo con aviso `pii_unmasked`; la caché `.kcut/transcripts/` queda byte a byte igual (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_graphics_check.py -q -k pii` → exit 0 | ❌ |
+| 6 | `check_params`: defaults, `bool` no vale como `int`, rangos, largos, parámetro desconocido, colores por token y por hex, y el código del llamador en cada `Issue` (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_params.py -q` → exit 0 | ❌ |
+| 7 | La fixture `write_graphics_v1(False)` escribe los parámetros exactos de su sección, y `kcut graphics check --json` en el sintético da `"ok": true` con 4 cues (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_graphics_check.py -q -k fixture` → exit 0 | ❌ |
+| 8 | `shown_chunks`: mismos `s_f`/`e_f` que los chunks crudos, texto de `shown`, y una palabra vacía sale del chunk (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_captions_chunking.py -q -k shown` → exit 0 | ❌ |
+| 9 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 10 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 11 | Sin `edit/graphics.json` (001.15, punto 40): con captions encendidos y una transcripción plantada con `save_transcript` (con un teléfono dicho), `kcut graphics check --json` → exit 0, `"graphics_json": null`, `"cues": []`, `chunks` no vacío con el teléfono enmascarado y G11 en `warnings`; con `captions.enabled = false` en `kcut.toml` → exit 0, `"chunks": []` y G12; con captions encendidos y sin transcripción → exit 1 con G08; con el archivo presente manda el archivo (los 4 cues de la fixture) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_graphics_check.py -q -k default_captions` → exit 0 | ❌ |
+
+Equivalencias: S1.6-1 → a-1 · S1.6-2 → a-2 · S1.6-3 → a-3 · S1.6-8 → a-9 y b-10.
+
+### Criterios de aceptación S1.6b (001.15)
+
+| # | Tiene que cumplirse | Se comprueba con | Estado |
+|---|---|---|---|
+| 1 | Mezcla alfa exacta (0, 128, 255) | `... -m pytest tests/unit/test_overlay_blend.py -q` → exit 0 | ❌ |
+| 2 | Determinismo: capturar el frame 50, luego el 200, luego el 50 otra vez → píxeles idénticos | `... -m pytest tests/integration/test_capture_determinism.py -q` → exit 0 | ❌ |
+| 3 | Cada componente base, capturado **solo** (un `graphics.json` con solo ese cue de la fixture y `captions.enabled = false`), en el frame central de su cue (`start + (end − start) // 2`), deja ≥ 1000 píxeles con alfa > 0 dentro de la franja de ancho completo entre `(y-0.1)·H` y `(y+0.1)·H` (con su `y` efectivo) y < 1 % de sus píxeles con alfa fuera de ella; los subtítulos, solos (sin cues, con una transcripción plantada con `save_transcript`), igual con `captions.y` en un frame con chunk (001.15: aclarado) | `... -m pytest tests/integration/test_components_base.py -q` → exit 0 | ❌ |
+| 4 | Render con gráficos: mismo nº de frames; en el frame 60 la caja del título difiere (diferencia media > 2) del render `--no-graphics` | `... -m pytest tests/integration/test_render_graphics.py -q` → exit 0 | ❌ |
+| 5 | Endurecimiento de Chromium: `launch` recibe `chromium_sandbox=True` (comprobado con un doble que registra los kwargs) y arranca de verdad en Windows; una página con `<img src="http://127.0.0.1:<puerto>/x.png">` pasada por `capture_stills` produce 0 peticiones al servidor HTTP local del test, mientras una imagen `data:` sí se pinta | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_capture_hardening.py -q` → exit 0 | ❌ |
+| 6 | `index.json` (001.15): con frames desordenados, un frame ≥ `edl.frames`, un PNG que falta o un `hash` que no es hex → se recaptura con aviso `cache_rebuilt`; un PNG dañado en la caché al renderizar → exit 3 con "corre kcut graphics capture --force" | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_capture_index.py -q` → exit 0 | ❌ |
+| 7 | `graphics still` (001.15): sin `--alpha` da un PNG RGB de W×H donde, fuera de todo cue, los píxeles son los de `base_frame` (diferencia media < 1); con `--alpha` da RGBA con alfa 0 fuera de los cues; la página de los stills recibe los chunks de `shown_chunks` (un teléfono plantado sale enmascarado en el JSON de la página) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_graphics_still.py -q` → exit 0 | ❌ |
+| 8 | `graphics still ... --out crudo` → exit 3 y `crudo/` queda igual (T4) (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_graphics_still.py -q -k out_` → exit 0 | ❌ |
+| 9 | El check `chromium` del doctor lanza con `launch_options()`: un doble de Playwright registra `chromium_sandbox=True` (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_doctor_chromium.py -q` → exit 0 | ❌ |
+| 10 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 11 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 12 | Subtítulos por defecto en el render (001.15, punto 40): sin `edit/graphics.json`, con captions encendidos y una transcripción plantada (con un teléfono dicho), `kcut render` sale con 0 y, en un frame con chunk, la franja `captions.y ± 0.1·H` de `video.mp4` difiere del render `--no-graphics` (diferencia media > 2); la página que recibe `capture` (un doble la registra) lleva el teléfono crudo y la que recibe `capture_stills` en `graphics still`, enmascarado; con `captions.enabled = false`, `kcut render` sale con 0 sin lanzar Chromium y sin crear `.kcut/build/v1/gfx/index.json` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_render_graphics.py -q -k default_captions` → exit 0 | ❌ |
+
+Equivalencias: S1.6-4 → b-1 · S1.6-5 → b-2 · S1.6-6 → b-3 (aclarado) · S1.6-7 → b-4 · S1.6-9 → b-5 ·
+S1.6-8 → a-9 y b-10.
 
 ---
 
@@ -1888,8 +2356,22 @@ title 40–80, `pill` label 90–150, `cierre` endcard 315–345; captions activ
 Según la tabla, con las reglas JS de S1.6 (el globo usa canvas 2D; los destellos y rayos, SVG creado
 con `createElementNS` y `setAttribute`).
 
+#### `src/kcut/gfx/components_showpiece.py` — CREAR (001.15)
+`SHOWPIECE: tuple[ComponentDef, ...]`: `steps`, `sticker`, `holo_board` y `globe` con sus `ParamSpec`.
+Si un `.js` se pasa de ~300 líneas, se parte y el componente los lista todos en `js_files`.
+
 #### `src/kcut/gfx/components.py` — MODIFICAR
-Registrar los 4 con sus `ParamSpec`. `sticker.image` → `assets.image_data_uri` (GateError 5 si no está aprobado).
+Registrar los 4 (de `components_showpiece.py`). `sticker.image` → `assets.image_data_uri` (G10, exit 5
+si no está aprobado; 001.15).
+
+#### `tests/fixtures/showpiece_stills.py` — CREAR (001.15)
+Ejecutable para que Yedin mire los componentes:
+`.venv/Scripts/python.exe -X utf8 -m tests.fixtures.showpiece_stills "<carpeta>"` (sin `-I`, como
+`synth_project`). `<carpeta>` no debe existir o debe estar vacía, fuera del repo (DS14); si ya es un
+proyecto, sale con 3. Arma ahí el sintético (`kcut new` + `make_media` + `kcut ingest` +
+`write_edl_v1` + `write_graphics_v1(with_showpieces=True)`) y corre `kcut graphics still` (compuesto,
+sin `--alpha`) en el frame central (`start + (end − start) // 2`) de `pasos`, `mascota`, `holo` y
+`mundo`, con `--out qa/showpieces`. Imprime las 4 rutas.
 
 #### `tests/fixtures/synth_graphics.py` — MODIFICAR
 Con `with_showpieces=True` agrega: `pasos` steps 210–270 (3 pasos en 0, 20, 40), `mascota` sticker
@@ -1902,14 +2384,21 @@ y su entrada en el manifiesto con `approved_by "test"`.
 | # | Tiene que cumplirse | Se comprueba con | Estado |
 |---|---|---|---|
 | 1 | Validación de parámetros (rangos, `fly_to` obligatorio con exit=fly_to, `at_f` crecientes) | `... -m pytest tests/unit/test_components_params.py -q` → exit 0 | ❌ |
-| 2 | Stills en el frame central del cue: steps (≥ 1000 px con alfa en la franja `(y±0.05)·H`); sticker (≥ 1000 px con alfa en el cuadrado de lado `2·w_px` centrado en `(x·W, y·H)`); holo (≥ 5000 px con alfa en el rectángulo `w_px×h_px` centrado en `center`, tras `type_at_f` hay píxeles del color `accent` ±10 dentro de él); globe (≥ 2000 px con alfa dentro del círculo de radio `1.5·r_px` y < 1 % fuera) | `... -m pytest tests/integration/test_components_showpiece.py -q` → exit 0 | ❌ |
-| 3 | Sticker con imagen sin `approved_by` → `kcut graphics check` exit 5 | mismo archivo (caso `test_sticker_unapproved_exit5`) → passed | ❌ |
+| 2 | Stills en el frame central del cue: steps (≥ 1000 px con alfa en la franja `(y±0.05)·H`); sticker (≥ 1000 px con alfa en el cuadrado de lado `2·w_px` centrado en `(x·W, y·H)`); holo (≥ 5000 px con alfa en el rectángulo `w_px×h_px` centrado en `center`, en el frame `start + type_at_f + 2` hay píxeles del color `accent` ±10 dentro de él); globe (≥ 2000 px con alfa dentro del círculo de radio `1.5·r_px` y < 1 % fuera) (001.15: stills con alfa crudo; en el frame central del `holo` todavía no cae la última letra) | `... -m pytest tests/integration/test_components_showpiece.py -q` → exit 0 | ❌ |
+| 3 | Sticker con imagen sin `approved_by` → `kcut graphics check` exit 5 (001.15: es G10) | mismo archivo (caso `test_sticker_unapproved_exit5`) → passed | ❌ |
 | 4 | Determinismo del sticker y el holo (mismo frame dos veces = mismos píxeles) | mismo archivo (caso `test_showpiece_deterministic`) → passed | ❌ |
 | 5 | Lint, formato, tipos, reglas JS | como en S1.1 + `tests/unit/test_gfx_js_rules.py` → exit 0 | ❌ |
+| 6 | Stills para que Yedin los mire: el script crea 4 PNG en `<carpeta>/qa/showpieces/`. Que Yedin los apruebe a ojo **no** es criterio: queda como pendiente en `PROGRESO.md` (001.15) | `rm -rf "$TEMP/kcut-showpieces" && .venv/Scripts/python.exe -X utf8 -m tests.fixtures.showpiece_stills "$TEMP/kcut-showpieces"` (Git Bash) → exit 0 y 4 archivos `still_*.png` en `$TEMP/kcut-showpieces/qa/showpieces/` | ❌ |
+| 7 | `js_files`: un componente con dos `.js` los mete en la página en su orden (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_page_build.py -q -k js_files` → exit 0 | ❌ |
+| 8 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
 
 ---
 
 ## S1.8 — Audio: voz, SFX sintetizados, música, ducking, loudness
+
+(001.15) Se parte en **S1.8a** = SFX (síntesis, biblioteca, esquema, eventos resueltos, bus, ganancia) y
+**S1.8b** = música (acordes, síntesis, archivo), loudnorm, grafo, mezclador y `kcut mix`. Cada archivo
+dice su mitad; los criterios van en dos tablas con su equivalencia.
 
 ### Formato `edit/sfx.json`
 
@@ -1927,27 +2416,31 @@ y su entrada en el manifiesto con `approved_by "test"`.
 - `at`: frame de salida o ancla (mismas reglas de S1.6). `align` ∈ `start` (default), `center`,
   `end` → la muestra 0 / la del medio / la última cae en `at_f·spf`; lo que quede antes de 0 se recorta.
 - `gain` lineal 0–2 (default por tipo), `seed` int ≥ 0, `freq` (solo pop) 100–4000 Hz.
+  (001.15) `seed` solo vale en los tipos que lo tienen en la tabla (whoosh, boom, key, hat, typing,
+  riser) y `rate` solo en typing; en otro tipo, A03. `dur_f` va de 1 a `frames` del EDL.
 - **Sin normalización global del bus** (lección 10): el nivel se ajusta con `gain`, `bus_gain_db`
   (−24 a +12) y `windows` (`gain_db` −24 a +12, rampas de 10 ms).
 
 Biblioteca (port exacto de `piloto/audio.py`, determinista por semilla; largo en muestras =
 `dur_f·spf` cuando el tipo usa duración):
+(001.15: largos fijos en muestras a 48 kHz y semillas como parámetros con su default, sacados de
+`piloto/audio.py`):
 
-| type | dur_f | params | gain default | para qué |
-|---|---|---|---|---|
-| `whoosh` | default `round(0.45·fps)` | seed | 0.45 | cambio de plano, entrada de gráfico |
-| `boom` | fijo 0.9 s | — | 0.75 | golpe de gancho o cierre |
-| `pop` | fijo 0.12 s | freq 820 | 0.6 | aparición de texto |
-| `shimmer` | default `round(1.1·fps)` | — | 0.6 | brillo, revelación |
-| `key` | fijo 0.05 s | seed | 0.6 | tecla suelta |
-| `click` | fijo 0.06 s | — | 0.7 | clic de interfaz |
-| `kick` | fijo 0.32 s | — | 0.9 | bombo para beat |
-| `hat` | fijo 0.045 s | seed | 0.95 | hi-hat |
-| `pad` | requerido | — | 0.55 | colchón armónico corto |
-| `typing` | requerido | rate 13.0 (4–25) | 0.85 | tecleo |
-| `riser` | requerido | — | 0.45 | subida antes de un golpe |
-| `blip8` | fijo 0.22 s | — | 0.7 | arpegio 8-bit |
-| `powerup` | fijo 0.55 s | — | 0.7 | aparición mágica |
+| type | dur_f | params (default) | largo fijo (muestras) | gain default | para qué |
+|---|---|---|---|---|---|
+| `whoosh` | default `ms_to_f_round(450, fps)` | seed 1 | — | 0.45 | cambio de plano, entrada de gráfico |
+| `boom` | fijo | seed 7 | 43200 | 0.75 | golpe de gancho o cierre |
+| `pop` | fijo | freq 820 (100–4000) | 5760 | 0.6 | aparición de texto |
+| `shimmer` | default `ms_to_f_round(1100, fps)` | — | — | 0.6 | brillo, revelación |
+| `key` | fijo | seed 0 (usa `default_rng(100 + seed)`) | 2400 | 0.6 | tecla suelta |
+| `click` | fijo | — (`pop` a 1900 Hz de 2880 muestras × 0.8) | 2880 | 0.7 | clic de interfaz |
+| `kick` | fijo | — | 15360 | 0.9 | bombo para beat |
+| `hat` | fijo | seed 0 (usa `default_rng(300 + seed)`) | 2160 | 0.95 | hi-hat |
+| `pad` | requerido | — | — | 0.55 | colchón armónico corto |
+| `typing` | requerido | rate 13.0 (4–25) · seed 55 (el azar del ritmo; la tecla `k` es `key` con seed `k`) | — | 0.85 | tecleo |
+| `riser` | requerido | seed 77 | — | 0.45 | subida antes de un golpe |
+| `blip8` | fijo | — (4 notas de 2640) | 10560 | 0.7 | arpegio 8-bit |
+| `powerup` | fijo | — (lleva un `shimmer` de 26400) | 26400 | 0.7 | aparición mágica |
 
 ### Formato `edit/music.json`
 
@@ -1970,52 +2463,133 @@ Biblioteca (port exacto de `piloto/audio.py`, determinista por semilla; largo en
   `makeup` 1–4, `knee` 1–8.
 - Sin `edit/music.json` = `mode: none`. Sin `edit/sfx.json` = sin SFX.
 
+### Códigos de `sfx.json` y `music.json` (001.15)
+
+Son `Issue` de `src/kcut/issues.py` y la salida sale de `exit_code`. Los emiten `parse_sfx` y
+`resolve_events` (S1.8a) y `parse_music` (S1.8b); los muestran `kcut mix`, `build` y `storyboard`.
+
+| Código | Nivel | Exit | Regla |
+|---|---|---|---|
+| A01 | error | 1 | esquema de `sfx.json`: `schema` ≠ `kcut.sfx/1`, tipo, clave desconocida, faltante, `bus_gain_db` o `windows[].gain_db` fuera de −24…+12, `at` que no es entero ni ancla |
+| A02 | error | 1 | `type` desconocido |
+| A03 | error | 1 | parámetro del evento: `gain` fuera de 0–2, `seed` < 0, `freq` fuera de 100–4000, `rate` fuera de 4–25, un parámetro que su tipo no tiene, `dur_f` en un tipo fijo, `dur_f` faltante en un tipo requerido, `dur_f` fuera de 1…`frames`, `align` desconocido |
+| A04 | error | 1 | ancla de palabra a un id que no está entre las palabras conservadas |
+| A05 | error | 1 | ancla de fuente que no se oye en la salida |
+| A06 | warning | 0 | ancla de fuente que se oye en varios frames (se usa el primero) |
+| A07 | error | 1 | `at_f` resuelto fuera de `[0, frames)`, o ventana fuera de `0 <= start < end <= frames` |
+| A08 | warning | 0 | parte del evento cae antes de 0 o después del final y se recorta |
+| M01 | error | 1 | esquema de `music.json`: `schema` ≠ `kcut.music/1`, tipo, clave desconocida, faltante, `mode` desconocido, `gain_db` fuera de −40…+6, rangos de `duck`, `mode: synth` sin `synth` o `mode: file` sin `file` |
+| M02 | error | 1 | `synth`: `bpm` fuera de 60–180, `progression` vacía o de más de 16, acorde que no es raíz + `m` opcional |
+| M03 | error | 1 | `file`: `path` que no pasa `resolve_in_project`, no empieza con `recursos/`, no existe o su extensión no es `.wav .mp3 .m4a .aac .flac .ogg .opus`; `src_in_f`, `fade_in_f` o `fade_out_f` negativos |
+| M04 | error | 5 | `file.path` fuera del manifiesto o sin `approved_by` (DS9) |
+| M05 | error | 1 | `windows`/`mute_drums` fuera de `0 <= start < end <= frames`, o `stop_drums_f`/`origin_f` fuera de `[0, frames]` |
+| M06 | warning | 0 | `file` sin `loop` más corto que el video: se rellena con silencio (lo emite `mix`, que es quien decodifica) |
+
 ### Archivos
 
-#### `src/kcut/audio/sfx_synth.py` — CREAR
+#### `src/kcut/audio/sfx_synth.py` — CREAR (S1.8a)
 Port de las 13 funciones de `piloto/audio.py` con firma `(n: int, sr: int, **params) -> NDArray[np.float32]`
 (`n` = muestras), mismas fórmulas y semillas (`whoosh` usa `seed`, `boom` semilla 7, `key` 100+seed,
 `hat` 300+seed, `typing` 55, `riser` 77). Sin aleatoriedad global.
+(001.15) Las semillas llegan como `params` (con los defaults de la tabla). Los tiempos internos del
+piloto en segundos (envolventes, el `dur − 0.05` de `typing`, el `(dur − t)/0.35` de `pad`) usan
+`dur = n / sr`. `powerup` llama `shimmer(26400, sr)`; `click` = `pop(2880, sr, freq=1900) · 0.8`;
+`typing` usa `default_rng(seed)` para el ritmo y `key(2400, sr, seed=k)` para la tecla `k`.
 
-#### `src/kcut/audio/sfx_library.py` — CREAR
-`SFX: Mapping[str, SfxDef]`, `SfxDef(id, fn, fixed_s: float | None, default_dur_s: float | None, requires_dur: bool, params: tuple[ParamSpec, ...], default_gain, name_es, purpose_es, avoid_es, cost)`.
+#### `src/kcut/audio/sfx_library.py` — CREAR (S1.8a)
+`SFX: Mapping[str, SfxDef]`, `SfxDef(id, fn, fixed_n: int | None, default_dur_ms: int | None, requires_dur: bool, params: tuple[ParamSpec, ...], default_gain, name_es, purpose_es, avoid_es, cost)`
+(001.15: `fixed_n` en muestras a 48 kHz y `default_dur_ms` en ms, de la tabla; `params` con
+`ParamSpec` de `src/kcut/params.py`, semillas incluidas).
 
-#### `src/kcut/audio/sfx_schema.py`, `music_schema.py` — CREAR
-`parse_sfx(data, ...)`, `parse_music(data, ...)` con las reglas de arriba → `(doc | None, list[Issue])`.
+#### `src/kcut/audio/sfx_schema.py` (S1.8a), `music_schema.py` (S1.8b) — CREAR
+`parse_sfx(data, ...)`, `parse_music(data, ...)` con las reglas de arriba → `(doc | None, list[Issue])`
+(001.15: códigos A01–A03 y M01–M05).
 
-#### `src/kcut/audio/gain.py` — CREAR (puro)
+#### `src/kcut/audio/gain.py` — CREAR (puro) (S1.8a)
 `apply_gain_windows(x, windows: list[tuple[int, int, float]], spf, sr, ramp_ms=10) -> NDArray` (dB → lineal,
 rampas lineales en ambos bordes, fuera de ventanas ganancia 1).
 
-#### `src/kcut/audio/sfx_bus.py` — CREAR (puro)
+#### `src/kcut/audio/sfx_events.py` — CREAR (puro) (S1.8a; 001.15)
+`@dataclass(frozen=True) class SfxEvent(type: str, at_f: int, align: Literal["start", "center", "end"], dur_f: int | None, gain: float, seed: int | None, freq: float | None, rate: float | None)`.
+`resolve_events(doc: SfxDoc, kept: Sequence[KeptWord], edl: Edl, fps: int) -> tuple[list[SfxEvent], list[Issue]]`:
+`at` con `kcut.anchors.resolve_time` (A04/A05/A06/A07). `dur_f`: `None` en los tipos fijos; el dado o
+`ms_to_f_round(default_dur_ms, fps)` en whoosh y shimmer; el dado en los requeridos. `gain`: el dado o
+el default del tipo. `seed`/`freq`/`rate`: el dado o el default de su `ParamSpec` en los tipos que los
+tienen; `None` en los demás.
+
+#### `src/kcut/audio/sfx_bus.py` — CREAR (puro) (S1.8a)
 `build_sfx_bus(events_resolved, total: int, spf, sr) -> NDArray[np.float32]`: suma en float32, sin normalizar.
+(001.15) `events_resolved: Sequence[SfxEvent]`. Por evento: `n = fixed_n` o `dur_f·spf`;
+`y = fn(n, sr, **params) · gain`; primera muestra `at_f·spf` (start), `at_f·spf − n // 2` (center) o
+`at_f·spf − (n − 1)` (end); lo que cae fuera de `[0, total)` se recorta (A08).
 
-#### `src/kcut/audio/chords.py` — CREAR (puro)
+#### `src/kcut/audio/chords.py` — CREAR (puro) (S1.8b)
 `parse_chord(sym) -> tuple[int, tuple[int, int, int]]`: bajo = raíz en MIDI dentro de `[40, 51]`;
-tríada mayor (0, 4, 7) o menor (0, 3, 7), cada nota movida por octavas a `[55, 66]`. (`Am` → bajo 45,
-notas (57, 60, 64)).
+tríada mayor (0, 4, 7) o menor (0, 3, 7), cada nota movida por octavas a `[53, 64]` y **ordenadas de
+menor a mayor** (001.15: con `[55, 66]` la F daba (65, 57, 60); el piloto usa (53, 57, 60)). Los 4 del
+piloto: `Am` → (45, (57, 60, 64)), `F` → (41, (53, 57, 60)), `C` → (48, (55, 60, 64)),
+`G` → (43, (55, 59, 62)).
 
-#### `src/kcut/audio/music_synth.py` — CREAR (port de `piloto/music.py`)
+#### `src/kcut/audio/music_synth.py` — CREAR (port de `piloto/music.py`) (S1.8b)
 `synth_music(cfg, total: int, fps, sr) -> NDArray`: `BEAT = 60/bpm`, `BAR = 4·BEAT`, origen en
 `origin_f`; pad (sierras desafinadas ±0.07 semitonos, ataque 0.18 s, pasa-bajos 1100 Hz), bajo
 (tiempos 1 y 3 + anticipación en el "y" del 4), arpegio de corcheas en triangular una octava arriba
 (pasa-bajos 3200 Hz), batería (bombo en 1 y 3, hi-hat a contratiempo) callada si
 `start_s − 0.05 <= t < end_s` de alguna `mute_drums` o `t >= stop_drums_f/fps`; fundido final 1.2 s,
 pasa-altos 35 Hz, pico a 0.9. Largo exacto `total`.
+(001.15) Port **exacto** de `piloto/music.py` (se lee como referencia, no se importa):
+- Los segundos del piloto a 120 bpm pasan a la rejilla: el compás `b` empieza en `origin_s + b·BAR`
+  (`origin_s = origin_f/fps`); antes de `origin_s`, silencio. `dur = (total − origin_f·spf) / sr`,
+  `n_bars = ceil(dur/BAR) + 1`. Búfer de `total + sr` muestras, recortado a `total` al final.
+- El acorde del compás `b` es `progression[b % len(progression)]`. `tones` = las 3 notas en orden
+  ascendente de `parse_chord`; el pad y el arpegio usan `tones + (tones[0] + 12,)`.
+- Pad: por compás, sierras de cada una de esas 4 notas con desafinación ±0.07 semitonos, de largo
+  `L = BAR + (1.6 si b·BAR + BAR >= dur, si no 0.25)` s, envolvente
+  `clip(t/0.18) · clip((L − t)/(1.4 en ese último compás, si no 0.25))`, × 0.06; todo el pad por
+  `butter(2, 1100 Hz, "low")` + `lfilter`.
+- Bajo: en `0`, `2·BEAT` y `3.5·BEAT` de cada compás, notas de 0.45 s, 0.45 s y 0.2 s con ganancia
+  1.0, 0.85 y 0.55; `sin(2πft) + 0.35·sin(4πft)`, envolvente `clip(t/0.008)·exp(−4.5t)`, × 0.22.
+- Arpegio: corcheas `k` en `k·BEAT/2` (`k < int(dur/(BEAT/2))`), nota
+  `(tones + (tones[0] + 12,))[k % 4] + 12` del compás de ese instante, triangular de 0.22 s,
+  `exp(−16t)·0.05`; todo por `butter(2, 3200 Hz, "low")`.
+- Batería con `rng = default_rng(9)`, en orden de `k` (mismo rango): si el instante de salida `t` de `k`
+  cae callado (`start_s − 0.05 <= t < end_s` de alguna `mute_drums`, o `t >= stop_drums_f/fps`) se salta
+  **sin** sacar números del `rng`; bombo si `k % 4 == 0` (0.25 s, `f = 48 + 90·exp(−35t)`, `exp(−9t)`,
+  × 0.30); hat si `k % 2 == 1` (`standard_normal(1920)` del `rng`, por `butter(2, 7500 Hz, "high")`,
+  `exp(−120t)`, × 0.05).
+- Colocación como el piloto: `int(t·sr)` en pad y arpegio, `int(round(t·sr))` en bajo y batería.
+- Cierre: fundido lineal de 1.2 s al final, `butter(2, 35 Hz, "high")`, pico a 0.9.
+- `synth_layers(cfg, total, fps, sr) -> MusicLayers(pad, bass, arp, drums)` (antes del cierre) se
+  exporta para los tests; `synth_music` = su suma + el cierre.
 
-#### `src/kcut/audio/music_file.py` — CREAR
+#### `src/kcut/audio/music_file.py` — CREAR (S1.8b)
 `load_music_file(project, cfg, total, spf) -> NDArray`: decodifica con ffmpeg a `-f f32le -ac 1 -ar 48000`
 (stdout), toma desde `src_in_f·spf`, `loop` repite, si no rellena con ceros (aviso), fundidos lineales.
+(001.15) Exactamente: `require_approved` (M04) y luego
+`[ffmpeg, -hide_banner, -nostdin, -loglevel, error, -ss, fnum(src_in_f/fps), -t, fnum(total/48000 + 1), -i, <ruta>, -map, 0:a:0, -vn, -ac, 1, -ar, 48000, -f, f32le, -]`
+(el `-t` acota lo que se decodifica y lo que llega a memoria), con `timeout_s = 10·(total/48000 + 1) + 60`.
+Al bloque decodificado `B` el `src_in` ya se lo aplicó ffmpeg. Con `loop` y `B` más corto que `total`,
+`B` se repite seguido hasta `total`; sin `loop`, `B` y ceros hasta `total` con aviso M06. `B` vacío →
+`CheckFailed` "el archivo de música no tiene audio desde src_in_f". Después: × `linspace(0, 1, fade_in_f·spf)`
+desde la muestra 0 y × `linspace(1, 0, fade_out_f·spf)` terminando en `total`.
 
-#### `src/kcut/audio/loudnorm.py` — CREAR
+#### `src/kcut/audio/loudnorm.py` — CREAR (S1.8b)
 `pass1_args(ffmpeg, src_f32, I, TP, LRA) -> list[str]` (`-f f32le -ar 48000 -ac 1 -i src -af loudnorm=I=..:TP=..:LRA=11:print_format=json -f null -`),
 `parse_pass1(stderr: str) -> LoudnormMeasure | None` (último bloque `{...}`; `input_i` = `"-inf"` o
 < −60 → `None` = silencio, no se normaliza y se avisa),
 `pass2_args(ffmpeg, src, dst, I, TP, LRA, m) -> list[str]` (`measured_I/TP/LRA/thresh`, `offset`,
 `linear=true`, `print_format=summary`, `,aresample=48000`, salida `-f f32le -ar 48000 -ac 1 dst`).
 `normalize(project, src, dst, I, TP) -> None`.
+(001.15 T3) `pass1_args` va **sin** `-loglevel error` y con `-hide_banner -nostdin -nostats` (el JSON
+sale a nivel info), y se corre con `capture_stderr=True`. `pass2_args` sigue con `-loglevel error`.
+Además, para `mix` (S1.8b) y `qa` (S1.9a), que lo importan de aquí:
+`ebur128_args(ffmpeg: Path, inputs: list[str]) -> list[str]` =
+`[ffmpeg, -hide_banner, -nostdin, -nostats, *inputs, -map, 0:a:0, -af, ebur128=peak=true:framelog=quiet, -f, null, -]`,
+y `parse_ebur128(stderr: str) -> EburMeasure(I: float | None, TP: float | None, LRA: float | None)`
+(último bloque `Summary:`; `I:` de "Integrated loudness", `Peak:` de "True peak", `LRA:`; `-inf` o
+`nan` → `None`; sin bloque `Summary:` → `ToolError` "ebur128 no dio resumen").
 
-#### `src/kcut/audio/mix_graph.py` — CREAR (puro; lección 11)
+#### `src/kcut/audio/mix_graph.py` — CREAR (puro; lección 11) (S1.8b)
 `build_graph(has_music: bool, duck: bool, duck_cfg) -> tuple[str, int]` (filter_complex, nº de entradas):
 - voz + música + duck: `[0:a]asplit=2[vm][vs];[1:a][vs]sidechaincompress=threshold=T:ratio=R:attack=A:release=Rl:makeup=M:knee=K[md];[vm][md][2:a]amix=inputs=3:normalize=0:duration=first:dropout_transition=0[mix]`
 - voz + música sin duck: `[0:a][1:a][2:a]amix=inputs=3:normalize=0:duration=first:dropout_transition=0[mix]`
@@ -2023,10 +2597,12 @@ pasa-altos 35 Hz, pico a 0.9. Largo exacto `total`.
 Regla verificada por test: toda salida de `asplit` se consume; si alguna sobrara, va a `anullsink`.
 `duck_only_graph(duck_cfg) -> str` (para el test de ducking: salida `[md]`).
 
-#### `src/kcut/audio/mixer.py` — CREAR
+#### `src/kcut/audio/mixer.py` — CREAR (S1.8b)
 `mix(project, edl, version, progress) -> Path`, en `.kcut/build/vN/`:
 1. `voice_raw.f32` (de `build_voice`; se recalcula siempre, es barato).
 2. Cadena de voz con ffmpeg: `highpass=f=HP,afftdn=nr=NR:nf=NF,acompressor=threshold=<lineal de comp_threshold_db>:ratio=R:attack=10:release=150:makeup=1`
+   (001.15) La arma `voice_chain(cfg: VoiceChain) -> str` (pura). Con `denoise_nr == 0` el
+   `afftdn=...,` no va; `afftdn` necesita `nr >= 0.01`.
    → `voice_chain.f32` → loudnorm 2 pasadas a `voice_lufs` con TP −2.0 → `voice.f32`.
 3. Música (`synth` o `file`) → `gain_db` + `windows` → `music.f32`.
 4. SFX → `bus_gain_db` + `windows` → `sfx.f32`.
@@ -2035,33 +2611,66 @@ Regla verificada por test: toda salida de `asplit` se consume; si alguna sobrara
    recortar); diferencia > `spf` → `InternalError`.
 7. `mix.wav` (s16le mono 48 kHz) desde `mix.f32`.
 
-#### `src/kcut/commands/mix.py` — CREAR
+#### `src/kcut/commands/mix.py` — CREAR (S1.8b)
 `kcut mix [--edl]` (lock `build-vN`; gate no requerido). `--json` →
 `{"ok": true, "mix": ".kcut/build/v1/mix.wav", "samples": 552000, "voice_lufs": -16.1, "mix_I": -14.0, "mix_TP": -1.6, "sfx_events": 9, "music": "synth"}`
 (`voice_lufs`, `mix_I`, `mix_TP` medidos con `ebur128=peak=true` sobre `voice.f32` y `mix.wav`).
+(001.15) Mide con `loudnorm.ebur128_args`/`parse_ebur128` (`null` si la medición da `None`). Antes de
+mezclar: `check_edl_file`, `kept_words`, `parse_sfx` + `resolve_events` y `parse_music`; exit =
+`exit_code` de todos los `Issue`; `--json` agrega `"errors"` y `"warnings"` (`issue_json`).
 
-#### `src/kcut/cli.py` — MODIFICAR (agregar `mix`)
+#### `src/kcut/config/load.py` — MODIFICAR (S1.8b; 001.15)
+`audio.voice.denoise_nr`: `0` o un valor en `[0.01, 40]`; entre 0 y 0.01 → `ProjectError` que nombra
+el campo.
 
-#### `tests/fixtures/synth_audio.py` — CREAR
+#### `src/kcut/cli.py` — MODIFICAR (agregar `mix`; S1.8b)
+
+#### `tests/fixtures/synth_audio.py` — CREAR (S1.8a; S1.8b la amplía)
 `write_audio_plans(root)`: `edit/sfx.json` = el ejemplo de arriba con `at` enteros + kick/hat
 alternos cada 8 frames entre 210 y 270; `edit/music.json` = el ejemplo de arriba.
+(001.15) S1.8a crea `write_sfx_plan(root)` (el `sfx.json`); S1.8b agrega `write_music_plan(root)`
+(el `music.json`) y `write_audio_plans(root)` = los dos.
 
-### Criterios de aceptación S1.8
+### Criterios de aceptación S1.8a (001.15)
 
 | # | Tiene que cumplirse | Se comprueba con | Estado |
 |---|---|---|---|
-| 1 | SFX deterministas (misma semilla = mismos bytes), largos exactos, finitos, pico ≤ 1 | `... -m pytest tests/unit/test_sfx_synth.py -q` → exit 0 | ❌ |
+| 1 | SFX deterministas (misma semilla = mismos bytes), largos exactos, finitos, pico ≤ 1 (001.15: los largos fijos de la tabla en muestras; `whoosh` y `shimmer` sin `dur_f` duran 14 y 33 frames a 30 fps) | `... -m pytest tests/unit/test_sfx_synth.py -q` → exit 0 | ❌ |
 | 2 | Bus: evento en el frame f empieza en la muestra `f·1600` (start/center/end); sin normalización global | `... -m pytest tests/unit/test_sfx_bus.py tests/unit/test_gain.py -q` → exit 0 | ❌ |
-| 3 | Acordes y música sintética: largo exacto, batería callada en `mute_drums` (energía < 5 % del resto en esa banda) | `... -m pytest tests/unit/test_chords.py tests/unit/test_music_synth.py -q` → exit 0 | ❌ |
-| 4 | Parser de loudnorm (normal, `-inf`), grafo sin salidas colgando, esquemas de sfx/music | `... -m pytest tests/unit/test_loudnorm_parse.py tests/unit/test_mix_graph.py tests/unit/test_audio_schemas.py -q` → exit 0 | ❌ |
-| 5 | Ducking: con voz a ráfagas, la música baja ≥ 10 dB RMS mientras hay voz | `... -m pytest tests/integration/test_ducking.py -q` → exit 0 | ❌ |
-| 6 | `kcut mix` sintético: `mix.wav` de 552000 muestras; ebur128 sobre el wav I ∈ [−14.5, −13.5] y TP ≤ −1.0 | `... -m pytest tests/integration/test_mix_synth.py -q` → exit 0 | ❌ |
-| 7 | Música de archivo sin aprobar → exit 5 | mismo archivo (caso `test_music_file_unapproved`) → passed | ❌ |
-| 8 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 3 | Esquema de `sfx.json` y cada código A01–A08 con un caso (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_sfx_schema.py -q` → exit 0 | ❌ |
+| 4 | `resolve_events` (001.15): ancla de palabra y de fuente, `align`, defaults de `dur_f`, `gain`, `seed`, `freq` y `rate`; `seed` en `pop` → A03 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_sfx_events.py -q` → exit 0 | ❌ |
+| 5 | Semillas como parámetros (001.15): `boom` sin `seed` da los mismos bytes que con `seed: 7`, y con `seed: 8` otros; lo mismo con `typing` (55) y `riser` (77) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_sfx_synth.py -q -k seed_default` → exit 0 | ❌ |
+| 6 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 7 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+
+Equivalencias: S1.8-1 → a-1 · S1.8-2 → a-2 · S1.8-4 → a-3 (esquema de sfx) y b-3 (loudnorm, grafo,
+música) · S1.8-8 → a-6 y b-10.
+
+### Criterios de aceptación S1.8b (001.15)
+
+| # | Tiene que cumplirse | Se comprueba con | Estado |
+|---|---|---|---|
+| 1 | Acordes y música sintética: largo exacto, batería callada en `mute_drums` (energía < 5 % del resto en esa banda) (001.15: los 4 acordes del piloto con sus notas exactas; regla `[53, 64]` en orden ascendente) | `... -m pytest tests/unit/test_chords.py tests/unit/test_music_synth.py -q` → exit 0 | ❌ |
+| 2 | Hi-hat del piloto (001.15): con `mute_drums` sobre el primer compás, la capa `drums` de `synth_layers` en el primer hat que suena es exactamente el **primer** `standard_normal(1920)` de `default_rng(9)`, por el pasa-altos y la envolvente de la regla | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_music_synth.py -q -k hat_rng` → exit 0 | ❌ |
+| 3 | Parser de loudnorm (normal, `-inf`), grafo sin salidas colgando y esquema de `music.json` con cada código M01–M05 (001.15: el de `sfx.json` es S1.8a-3) | `... -m pytest tests/unit/test_loudnorm_parse.py tests/unit/test_mix_graph.py tests/unit/test_music_schema.py -q` → exit 0 | ❌ |
+| 4 | Ducking: con voz a ráfagas, la música baja ≥ 10 dB RMS mientras hay voz | `... -m pytest tests/integration/test_ducking.py -q` → exit 0 | ❌ |
+| 5 | `kcut mix` sintético: `mix.wav` de 552000 muestras; ebur128 sobre el wav I ∈ [−14.5, −13.5] y TP ≤ −1.0 | `... -m pytest tests/integration/test_mix_synth.py -q` → exit 0 | ❌ |
+| 6 | Música de archivo sin aprobar → exit 5 (M04; 001.15) | mismo archivo (caso `test_music_file_unapproved`) → passed | ❌ |
+| 7 | Música de archivo, camino feliz (001.15): un `recursos/musica/tema.wav` de 2.0 s a 440 Hz hecho con `write_wav_s16_mono` y aprobado; con `loop: true`, `fade_in_f: 15`, `fade_out_f: 36` y 345 frames → 552000 muestras, la muestra `96000 + k` es igual a la `k` (±1e-3) fuera de los fundidos, y la primera y la última valen 0; sin `loop` → ceros desde la muestra 96000 y aviso M06; los args llevan `-ss` y `-t` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_music_file.py -q` → exit 0 | ❌ |
+| 8 | `denoise_nr` (001.15): con 0 la cadena de voz no lleva `afftdn`; con 10 lleva `afftdn=nr=10`; 0.005 en `kcut.toml` → exit 3 que nombra el campo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_mixer_chain.py tests/unit/test_config.py -q -k denoise` → exit 0 | ❌ |
+| 9 | Medición a nivel info (T3, 001.15): `pass1_args` y `ebur128_args` sin `-loglevel` y con `-nostats`, `pass2_args` con `-loglevel error`, y `framelog=quiet`; con ffmpeg real sobre `-f lavfi -i sine=d=3`, `parse_ebur128` lee `I` y `TP` del `Summary` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_loudnorm_args.py tests/integration/test_ebur128_live.py -q` → exit 0 | ❌ |
+| 10 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 11 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+
+Equivalencias: S1.8-3 → b-1 · S1.8-4 → b-3 (sin el esquema de sfx) · S1.8-5 → b-4 · S1.8-6 → b-5 ·
+S1.8-7 → b-6 · S1.8-8 → a-6 y b-10.
 
 ---
 
 ## S1.9 — `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
+
+(001.15) Se parte en **S1.9a** = `kcut qa` (con el oído en `.kcut/qa_ear/`) y `kcut catalog`; y
+**S1.9b** = `kcut build`, snapshot, e2e y cobertura ≥ 70 %. Criterios en dos tablas con su equivalencia.
 
 ### Formato `qa/vN/report.json`
 
@@ -2092,18 +2701,32 @@ Checks y umbrales (`[qa]` de `kcut.toml`):
 - `audio_stream`: aac, 48000, 2 canales.
 - `av_delta`: `|dur_audio − dur_video| ≤ max_av_delta_ms`.
 - `loudness`: `ebur128=peak=true` (último bloque `Summary`), `|I − target_lufs| ≤ lufs_tolerance`, `TP ≤ max_tp`.
+  (001.15 T3) Con `loudnorm.ebur128_args`/`parse_ebur128` (S1.8b). `I` en `None` → `fail` con motivo;
+  `TP` en `None` (silencio) cuenta como `≤ max_tp`.
 - `black`: `blackdetect=d=0.15:pix_th=0.06`; intervalo esperado si ≥ 80 % de sus frames cae en spans
   `color` con luma ≤ 0.12 (`0.2126R+0.7152G+0.0722B` normalizado) o en zonas de fade; algún
   intervalo no esperado → fail.
 - `freeze`: `freezedetect=n=0.002:d=0.6`; esperado si cae (≥ 80 %) en spans `color`, `screen` o
   `broll`; congelado dentro de un `cam` → fail.
+- (001.15 T3) `blackdetect` y `freezedetect` corren a nivel info según 0.8, un ffmpeg por filtro:
+  `-hide_banner -nostdin -nostats -i salida/vN.mp4 -map 0:v:0 -an -vf <filtro> -f null -`.
 - `transcript`: esperadas = **todas** las palabras conservadas del EDL (`map_words`, con correcciones,
   incluidas las tapadas por gráficos); oídas = Whisper sobre el audio del render (idioma = el más
   frecuente entre los clips de voz; caché por hash del wav); `norm_token` a ambos lados;
   `difflib.SequenceMatcher(autojunk=False)`; `match = ratio ≥ min_transcript_match`. Modelo ausente,
   sin palabras esperadas o render con I < −50 LUFS → `skipped`.
+  (001.15) Esperadas = `kept_words(...).words` (crudas). El diff se calcula sobre crudo, con
+  `norm_token`, quitando los tokens vacíos y guardando a qué palabra pertenece cada uno. El oído vive en
+  `qa/ear.py` y su caché en `.kcut/qa_ear/` (no en `transcripts/`, cuyos ids son de clips). T2: en
+  `diffs[]`, `expected` = los textos de `shown` de las palabras esperadas de ese tramo y `heard` = los de
+  `mask_pii` sobre la lista completa de palabras oídas, unidos con un espacio y sin los vacíos; con
+  `privacy.mask_pii = false`, crudos y aviso `pii_unmasked` en `"warnings"` del reporte.
 - Hoja de contacto `qa/vN/contact.jpg`: un frame cada 2 s, 216×384 (9:16) o 384×216 (16:9),
   13 columnas, rótulo Pillow con `mm:ss.s` y frame (sin `drawtext`).
+  (001.15) Se lee con `FrameReader(salida/vN.mp4, 0, n, fps, (W, H), pre_filters="fps=1/2:round=up")`,
+  `n = (frames + 2·fps − 1) // (2·fps)`: el frame `k` es el frame `2·k·fps` del video (medido con
+  ffmpeg 8.1.1: sin `round=up`, `fps=1/2` da los frames 29, 89, 149… y no siempre `n`). Se reduce con
+  Pillow; rótulo `fmt_tc(2·k·fps)` y `f<2·k·fps>`; JPEG calidad 85 con `write_bytes_atomic`.
 
 ### Formato `kcut catalog --json` (D8: única fuente de verdad)
 
@@ -2131,61 +2754,104 @@ graphic {`lower_third` F2, `matte_captions` F2}, music {`beat_cut` F4}.
 
 ### Archivos
 
-#### `src/kcut/qa/streams.py`, `loudness.py`, `detect.py`, `transcript_diff.py` — CREAR (parsers puros + llamadas)
-`parse_probe(data, edl, cfg) -> list[Check]`; `parse_ebur128(stderr) -> tuple[float, float, float]`
-(último `Summary:`; `I:`, `Peak:` del bloque true peak, `LRA:`); `parse_black(stderr, fps)`,
+#### `src/kcut/qa/streams.py`, `loudness.py`, `detect.py`, `transcript_diff.py` — CREAR (parsers puros + llamadas) (S1.9a)
+`parse_probe(data, edl, cfg) -> list[Check]`; `loudness.py` usa `audio/loudnorm.parse_ebur128`
+(001.15: vive en S1.8b porque `mix` la necesita antes); `parse_black(stderr, fps)`,
 `parse_freeze(stderr, fps)` → intervalos en frames (`round(t·fps)`), `classify_intervals(intervals, edl, kind)`;
 `diff_transcript(expected: list[KeptWord], heard: list[str]) -> TranscriptDiff`.
+(001.15) Firma: `diff_transcript(expected: Sequence[KeptWord], shown: Mapping[str, str], heard: Sequence[Word], heard_shown: Sequence[str]) -> TranscriptDiff`:
+compara crudo, y los textos de `diffs[]` salen de `shown`/`heard_shown` (T2).
 
-#### `src/kcut/qa/contact.py`, `report.py`, `run.py` — CREAR
+#### `src/kcut/qa/ear.py` — CREAR (S1.9a; 001.15)
+`hear(project, video: Path, language: str, *, log: Path | None) -> Heard | None`: extrae el audio de
+`salida/vN.mp4` con `wav_args(..., 16000)` a `.kcut/qa_ear/v<N>.partial.wav` → `os.replace` a
+`.kcut/qa_ear/v<N>.wav` (`_assert_in_cache`); `sha = file_sha256(wav)`; `params` =
+`build_params(cfg.transcribe, build_prompt(cfg), engine_label())` con `"language"` = `language`;
+`key = cache_key(sha, params)`. Caché `.kcut/qa_ear/<key>.json` con el formato `kcut.transcript/1`
+(`to_document`/`from_document` con el id falso `"qa"`, validado contra el largo del wav como en 001.12
+punto 4); si es inválida se trata como ausente (aviso `cache_rebuilt`) y se vuelve a oír. Sin modelo
+(`MissingDependency`) → `None`, y el check queda `skipped` con el motivo. `Heard(words: list[Word], language: str)`.
+
+#### `src/kcut/qa/contact.py`, `report.py`, `run.py` — CREAR (S1.9a)
 `run_qa(project, video_rel, edl_rel | None, progress) -> QaReport`; si no viene `--edl`, se infiere
 `vN` del nombre `salida/vN.mp4` y se usa `qa/vN/inputs/edl-vN.json` si existe, si no `edit/edl-vN.json`.
+(001.15) `video_rel` debe casar con `salida/v([1-9][0-9]{0,3})\.mp4` (T3: los filtros de medición solo
+corren sobre salidas de kcut); si no, `UsageError`; si no existe, `ProjectError`. `qa/vN/report.json`
+y `qa/vN/contact.jpg` pasan por `assert_writable`. `kcut qa --json` imprime el reporte.
 
-#### `src/kcut/pipeline/snapshot.py` — CREAR
+#### `src/kcut/pipeline/snapshot.py` — CREAR (S1.9b)
 `snapshot_inputs(project, version) -> Path`: copia a `qa/vN/inputs/` los que existan de
 `edit/edl-vN.json`, `edit/graphics.json`, `edit/sfx.json`, `edit/music.json`, `edit/correcciones.json`,
 `edit/estrategia.md`, `kcut.toml`, y escribe `inputs.json` con el sha256 de cada uno.
+(001.15) Cada copia y `inputs.json` pasan por `assert_writable`.
 
-#### `src/kcut/pipeline/build.py` — CREAR
+#### `src/kcut/pipeline/build.py` — CREAR (S1.9b)
 `run_build(project, edl_rel, *, skip_qa: bool, force: bool, progress) -> BuildResult`: lock `build-vN`
 → `salida/vN.mp4` existe y no hay `--force` → `ProjectError` → gate (5) → `edl check` (1) →
-`validate_manifest` (errores → 1) → gráficos (resolve + capture) → render de video con overlay (sin el
+`validate_manifest` (errores → 1) → gráficos (resolve + capture; sin `edit/graphics.json`, subtítulos por
+defecto, 001.15 punto 40) → render de video con overlay (sin el
 `render.mp4` de revisión) → `mix` → mux (`audio_f32=False`, desde `mix.wav`) a `salida/vN.partial.mp4` → `atomic_replace` → snapshot → qa (si no `--skip-qa`).
 Tiempos por paso en el reporte y en el log. El lock lo toman los comandos (`render`, `mix`,
 `build`, `graphics capture`); las funciones internas que `build` llama no lo vuelven a pedir.
+(001.15) El orden de errores es el de arriba: con `salida/vN.mp4` presente, sin `--force` **y** sin
+aprobación, sale con 3 (no con 5). `salida/vN.partial.mp4` y `salida/vN.mp4` pasan por
+`assert_writable`. Los errores de gráficos, sfx y música salen con `exit_code` (5 si hay G10 o M04).
 
-#### `src/kcut/catalog/model.py`, `static_items.py`, `planned.py`, `collect.py` — CREAR
+#### `src/kcut/catalog/model.py`, `static_items.py`, `planned.py`, `collect.py` — CREAR (S1.9a)
 `CatalogItem` (campos del JSON). `collect() -> list[CatalogItem]` arma: gráficos desde
 `gfx/components.py` (+ `captions`), looks desde `render/looks.py`, sfx desde `audio/sfx_library.py`,
 música (`static_items`), cámara y transición (`static_items`, cada uno con `edl_field` que debe
 existir en `edl/model.py`), workflow (`static_items`), planeados (`planned.py`). Ids únicos por categoría.
+(001.15) `edl_field: str | None` es opcional: `transition/cut` no tiene (cortar es no poner nada). El
+test del criterio S1.9a-3 solo revisa los que no son `None`.
 
-#### `src/kcut/commands/qa.py`, `build.py`, `catalog.py` — CREAR
+#### `src/kcut/commands/qa.py`, `catalog.py` (S1.9a), `build.py` (S1.9b) — CREAR
 `kcut catalog [--category C]`: no requiere proyecto; humano = tabla por categoría
 (`[disponible] graphic/title - Titulo grande - costo bajo - <para qué>`).
 
-#### `src/kcut/cli.py` — MODIFICAR (agregar `qa`, `build`, `catalog`)
+#### `src/kcut/paths.py` — MODIFICAR (S1.9a; 001.15)
+`Layout.qa_ear` = `.kcut/qa_ear/`, agregado a `all_paths()` (así `check_layout_inside` lo cubre). `qa/`
+ya está en `all_paths()` desde 001.6.
 
-#### `tests/fixtures/synth_project.py` — CREAR
+#### `src/kcut/cli.py` — MODIFICAR (agregar `qa` y `catalog` en S1.9a, `build` en S1.9b)
+
+#### `tests/fixtures/synth_project.py` — CREAR (S1.9b)
 `make_project(root) -> ProjectTruth`: `kcut new` + `make_media` + `kcut ingest` + `kcut transcribe`
 (si hay modelo) + `write_edl_v1` + `write_graphics_v1(with_showpieces=True)` + `write_audio_plans`;
 en el `kcut.toml` del sintético `min_transcript_match = 0.5`. Ejecutable para revisión humana:
 `.venv/Scripts/python.exe -X utf8 -m tests.fixtures.synth_project "<carpeta>"` (sin `-I`, para que `-m`
 encuentre `tests`).
 
-### Criterios de aceptación S1.9
+### Criterios de aceptación S1.9a (001.15)
 
 | # | Tiene que cumplirse | Se comprueba con | Estado |
 |---|---|---|---|
 | 1 | Parsers de QA (ffprobe, ebur128, blackdetect, freezedetect) y clasificación esperado/no esperado | `... -m pytest tests/unit/test_qa_streams.py tests/unit/test_qa_loudness.py tests/unit/test_qa_detect.py -q` → exit 0 | ❌ |
 | 2 | Diff de transcripción contra todas las palabras conservadas (una palabra tapada por un gráfico NO cuenta como diferencia si se oye) | `... -m pytest tests/unit/test_transcript_diff.py -q` → exit 0 | ❌ |
-| 3 | Catálogo: ids únicos, todo `available` tiene implementación (JS registrado, cadena de look, función de SFX, campo de EDL), todo lo implementado está en el catálogo | `... -m pytest tests/unit/test_catalog.py -q` → exit 0 | ❌ |
+| 3 | Catálogo: ids únicos, todo `available` tiene implementación (JS registrado, cadena de look, función de SFX, campo de EDL), todo lo implementado está en el catálogo (001.15: `edl_field` es opcional y solo se revisa cuando no es `None`) | `... -m pytest tests/unit/test_catalog.py -q` → exit 0 | ❌ |
 | 4 | `kcut catalog --json` fuera de un proyecto | `.venv/Scripts/python.exe -I -X utf8 -m kcut catalog --json` → exit 0, `"schema": "kcut.catalog/1"` | ❌ |
-| 5 | **E2E**: `kcut build` sintético crea `salida/v1.mp4`; reporte con `frames` 345, `av_delta` ≤ 25 ms, I ∈ [−15, −13], TP ≤ −1.0, `black` y `freeze` pass, `transcript` pass (≥ 0.5) o skipped sin modelo; `verdict` ∈ {pass, incomplete} | `... -m pytest tests/e2e/test_build_synth.py -q` → exit 0 | ❌ |
-| 6 | Build se niega a pisar `salida/v1.mp4` sin `--force` (exit 3) y sin aprobación (exit 5) | mismo archivo (casos `test_build_no_overwrite`, `test_build_gate`) → passed | ❌ |
-| 7 | Snapshot de entradas con sha256 en `qa/v1/inputs/inputs.json` | mismo archivo (caso `test_snapshot`) → passed | ❌ |
-| 8 | Suite completa con cobertura ≥ 70 % | `.venv/Scripts/python.exe -I -X utf8 -m pytest --cov=kcut --cov-report=term-missing --cov-fail-under=70` → exit 0 | ❌ |
+| 5 | `kcut qa salida/v1.mp4` sobre un video armado en el test (`kcut render` + `kcut mix` + `mux_args`): reporte con `frames` 345, `av_delta` ≤ 25 ms, y `loudness`, `black` y `freeze` en pass; la hoja de contacto usa los frames 0, 60, 120, 180, 240 y 300 (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_qa_synth.py -q -k report` → exit 0 | ❌ |
+| 6 | T2 en el reporte: con un teléfono en las palabras esperadas y en las oídas (oído reemplazado por un doble), `diffs[].expected` y `diffs[].heard` salen enmascarados y `match` se calcula sobre crudo (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_transcript_diff.py tests/integration/test_qa_synth.py -q -k pii` → exit 0 | ❌ |
+| 7 | Oído en `.kcut/qa_ear/` (001.15): la segunda corrida no vuelve a transcribir (doble del motor que cuenta llamadas); un `<key>.json` corrupto → aviso `cache_rebuilt` y se vuelve a oír; nada se escribe en `.kcut/transcripts/`; `Layout.all_paths()` incluye `.kcut/qa_ear` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_qa_ear.py -q` → exit 0 | ❌ |
+| 8 | `kcut qa crudo/x.mp4` o `kcut qa edit/x.mp4` → exit 2 sin correr ffmpeg (T3); `qa/v1/report.json` plantado como symlink → exit 3 (T4) (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_qa_synth.py -q -ra -k "only_salida or writable"` → exit 0 (skip con motivo si no se puede crear el enlace) | ❌ |
 | 9 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 10 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+
+Equivalencias: S1.9-1 → a-1 · S1.9-2 → a-2 · S1.9-3 → a-3 · S1.9-4 → a-4 · S1.9-9 → a-9 y b-6.
+
+### Criterios de aceptación S1.9b (001.15)
+
+| # | Tiene que cumplirse | Se comprueba con | Estado |
+|---|---|---|---|
+| 1 | **E2E**: `kcut build` sintético crea `salida/v1.mp4`; reporte con `frames` 345, `av_delta` ≤ 25 ms, I ∈ [−15, −13], TP ≤ −1.0, `black` y `freeze` pass, `transcript` pass (≥ 0.5) o skipped sin modelo; `verdict` ∈ {pass, incomplete} | `... -m pytest tests/e2e/test_build_synth.py -q` → exit 0 | ❌ |
+| 2 | Build se niega a pisar `salida/v1.mp4` sin `--force` (exit 3) y sin aprobación (exit 5); con las dos cosas a la vez sale 3 (001.15: orden documentado) | mismo archivo (casos `test_build_no_overwrite`, `test_build_gate`, `test_build_error_order`) → passed | ❌ |
+| 3 | Snapshot de entradas con sha256 en `qa/v1/inputs/inputs.json` | mismo archivo (caso `test_snapshot`) → passed | ❌ |
+| 4 | Suite completa con cobertura ≥ 70 % | `.venv/Scripts/python.exe -I -X utf8 -m pytest --cov=kcut --cov-report=term-missing --cov-fail-under=70` → exit 0 | ❌ |
+| 5 | `salida/v1.mp4` plantado como symlink a un archivo de `crudo/`, con `--force` → exit 3 y ese archivo de `crudo/` queda igual (T4) (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/e2e/test_build_synth.py -q -ra -k writable` → exit 0 (skip con motivo si no se puede crear el enlace) | ❌ |
+| 6 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
+| 7 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+
+Equivalencias: S1.9-5 → b-1 · S1.9-6 → b-2 · S1.9-7 → b-3 · S1.9-8 → b-4 · S1.9-9 → a-9 y b-6.
 
 ---
 
@@ -2225,6 +2891,20 @@ aprobar. No usa mezzanines ni renderiza el video.
   hasta 6 líneas, ajuste por ancho); margen 16 px; franja de cabecera de 60 px; máximo 12 paneles
   por página: `qa/storyboard.png`, `qa/storyboard-p2.png`, ...
 - Barato: sin mezzanines, sin render; meta < 60 s para un video de ~60 s en la laptop de referencia.
+- (001.15) Trabaja en `layout.storyboard_cache` (`.kcut/storyboard/v<N>/`: `page.html` y stills, con
+  `_assert_in_cache`), nunca en `.kcut/build/vN/`, y no toma el lock `build-vN`.
+- (001.15) La imagen del panel es `render.preview.base_frame` (proxy + `frame_fx.span_frame`) con el
+  still encima; la página de los stills usa `data_json(resolved, masked=True)`.
+- (001.15) Un `graphics.json`, `sfx.json` o `music.json` presente pero inválido → sale con `exit_code`
+  de sus `Issue` (1, o 5 con G10/M04), con los motivos en `errors` del `--json`; si falta `sfx.json` o
+  `music.json`, el panel lo dice ("sin sfx", "sin música"). Sin `graphics.json` vale el documento
+  implícito (001.15 punto 40): con captions encendidos, los paneles llevan los subtítulos por defecto
+  (enmascarados, T2) y la nota "subtítulos por defecto"; con captions apagados, "sin gráficos". El
+  `--json` agrega `"errors"` y `"warnings"`.
+- (001.15 T2) `say` (en el JSON, el HTML y el bloque de texto del PNG) sale de `kept_words(...).shown`
+  unido con un espacio, sin vacíos; los subtítulos de los stills son los de `shown_chunks`. Con
+  `privacy.mask_pii = false`, crudos y aviso `pii_unmasked` en `warnings`.
+- (001.15 T4) `edit/storyboard.html` y cada `qa/storyboard*.png` pasan por `assert_writable`.
 
 `kcut storyboard --json`:
 ```json
@@ -2263,6 +2943,10 @@ ver el render final").
 | 7 | Catálogo incluye `workflow/storyboard` disponible | `.venv/Scripts/python.exe -I -X utf8 -m kcut catalog --json --category workflow` → exit 0 y contiene `"id": "storyboard"` | ❌ |
 | 8 | `kcut render` sigue negándose sin `aprobado: si` aunque exista storyboard | caso `test_render_still_gated` en el mismo archivo → passed | ❌ |
 | 9 | Lint, formato, tipos y suite completa | `ruff check`, `ruff format --check`, `mypy`, `pytest` completo → exit 0 | ❌ |
+| 10 | `graphics.json` con un componente desconocido → exit 1 con `G02` en `errors`; `music.json` con `file` sin aprobar → exit 5 con `M04`; sin `sfx.json`, los paneles dicen "sin sfx" (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/e2e/test_storyboard_synth.py -q -k invalid_plans` → exit 0 | ❌ |
+| 11 | Texto enmascarado (T2): con un teléfono dicho en las palabras (transcripción plantada), `panels[].say`, el HTML y el JSON de la página de stills no traen sus dígitos crudos salvo los 2 últimos (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/e2e/test_storyboard_synth.py -q -k pii` → exit 0 | ❌ |
+| 12 | Trabaja en `.kcut/storyboard/v1/`: después de correrlo no hay archivos nuevos bajo `.kcut/build/`; con `edit/storyboard.html` plantado como symlink → exit 3 (T4) (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/e2e/test_storyboard_synth.py -q -ra -k "storyboard_cache or writable"` → exit 0 (skip con motivo si no se puede crear el enlace) | ❌ |
+| 13 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
 
 ---
 
@@ -2318,6 +3002,9 @@ validación de rutas, constructores de argumentos de ffmpeg, correcciones, manif
 
 Ninguna. Las decisiones que tomé para cerrar huecos están en la tabla DS1–DS15 (0.13); si el dueño
 cambia alguna en el gate, se ajusta el spec antes de arrancar S1.1.
+
+(001.15) Las dos preguntas que dejó 001.15 quedaron respondidas el 25/10/2026: el reloj de fuente
+(punto 5, opción A, coordinador) y los subtítulos por defecto (punto 40, Yedin).
 
 ## Cambios
 
@@ -2956,3 +3643,144 @@ Ronda 3 de 3, la última. Va junto con 001.13 (PII). S1.3 suma los criterios 35�
     - Un solo código `transcript_invalid` para todo fallo de una transcripción.
     - Las palabras que empiezan en el fin del audio o después se descartan al guardar.
     - El tope de 1000 caracteres del prompt incluye `prompt_extra`, que siempre se conserva.
+
+### 001.15 — 25/10/2026 — pre-flight de S1.4–S1.10 (auditoría; decisiones del coordinador y de Yedin)
+
+Antes de arrancar S1.4–S1.10, una auditoría de solo lectura encontró huecos y contradicciones. Las
+decisiones son del coordinador, salvo T2, que es de Yedin. Este parche las vuelve contrato, con los
+cambios marcados "(001.15)" en cada slice. No se tocan la sección S1.3 ni 001.10–001.14. Antes de
+escribir se midieron con ffmpeg 8.1.1 tres cosas: el reloj del wav y del video (T5), `ebur128` con
+`framelog=quiet` y la hoja de contacto con `fps` (S1.9a). Las dos preguntas que quedaron abiertas se
+respondieron el mismo día: puntos 5 y 40.
+
+**Transversales**
+
+1. **T1 — cargador común y módulos neutros.**
+   - `src/kcut/transcribe/loaded.py::load_corrected` (S1.4) hace lo que hoy hace `commands/pack.py::_load` hasta tener las palabras corregidas, sin votar. `pack` lo usa sin cambiar nada (S1.4-13).
+   - `src/kcut/edl/kept.py::kept_words` (S1.5a) da las palabras conservadas crudas (`words`) y su texto para Claude (`shown`).
+   - `Issue` pasa a `src/kcut/issues.py` (S1.5a), con `exit_code`. `ParamSpec` y `check_params` pasan a `src/kcut/params.py` (S1.6a). La resolución de anclas pasa de `gfx/anchors.py` (sale del árbol) a `src/kcut/anchors.py` (S1.6a). Así ni `audio` importa `gfx` ni `edl` importa `gfx` o `audio` (S1.5a-12).
+2. **T2 — PII enmascarada en todo lo que ve Claude** (decisión de Yedin del 25/10/2026: "Enmascarados en todo lo que ve Claude").
+   - Se aplica `pack.pii.mask_pii` en: las palabras del PNG de `kcut view` (S1.4), los cues y chunks de `graphics check --json` (S1.6a; los textos sueltos con `mask_text`), los subtítulos de `graphics still` (S1.6b), `diffs[].expected/heard` de `qa/vN/report.json` (S1.9a) y el `say` del storyboard en JSON y HTML, más los subtítulos de `storyboard.png` (S1.10).
+   - Siempre sobre la lista **completa** de palabras de un clip, como en `pack`. Los tiempos, chunks y diffs se calculan sobre crudo; solo el texto mostrado cambia.
+   - `[privacy] mask_pii = false` apaga todo esto con el aviso `pii_unmasked` (001.13 punto 4). El campo de `ProjectConfig` es el que deje S1.3 para esa clave.
+   - El MP4 final lleva los subtítulos crudos (001.13 punto 6).
+3. **T3 — filtros de medición a nivel info** (§0.8): `loudnorm` con `print_format=json`, `ebur128`, `blackdetect` y `freezedetect` van sin `-loglevel error`, con `-hide_banner -nostdin -nostats`.
+   - El stderr crudo solo lo lee el parser. El log lo recibe ya limpio.
+   - Solo corren sobre `.kcut/` o `salida/vN.mp4`; por eso `kcut qa` solo acepta `salida/vN.mp4`.
+   - `ebur128` va con `framelog=quiet`. Medido: sin eso imprime una línea cada 100 ms, y con eso el `Summary` sale igual.
+   - `ebur128_args` y `parse_ebur128` viven en `audio/loudnorm.py` (S1.8b), porque `mix` los necesita antes que `qa`.
+4. **T4 — `project.assert_writable(project, rel)`** (§0.9, S1.4). Recibe la ruta relativa al proyecto y la rechaza si:
+   - queda fuera de la raíz o bajo `crudo/`;
+   - pasa por un symlink o junction;
+   - el destino es una carpeta o un hard link.
+
+   Se llama antes de toda escritura fuera de `.kcut/` (lista en §0.9), y también antes de las dos escrituras de `pack`. `qa/` ya estaba en `Layout.all_paths()`; se agrega `.kcut/qa_ear/` (S1.9a).
+5. **T5 — un solo reloj de fuente, el de §0.6** (opción A, decisión del coordinador del 25/10/2026).
+   - La decisión original decía sumar `audio.start_ms` y `video.start_ms` en `shift_f`/`build_voice`. La medición con ffmpeg 8.1.1 dice otra cosa:
+     - el wav ya sale alineado al contenedor por `first_pts=0` (con el audio 0.3 s tarde, el sonido empieza en 0.2994 s), así que correr la voz duplicaría el desfase;
+     - lo que se corre es el **video**: el proxy arranca en el primer frame de video (con el video 0.5 s tarde, el instante 1.5 s cae en su índice 30, no en el 45), y un mezzanine también si su `-ss` cae antes de ese frame (con `-ss 1.0` cae exacto).
+   - La regla, que solo corrige el lado del video:
+     - `vs_f = ms_to_f_round(video.start_ms, fps)`;
+     - `shift_f` y `build_voice` no cambian;
+     - `plan_mezz` no deja empezar un rango antes de `vs_f`: acota el margen a `[vs_f, frames)` (S1.5b-1);
+     - `ff/reader.proxy_index` resta `vs_f` (S1.4-14);
+     - E12 exige video en `[vs_f, frames)` (S1.5a).
+   - La prueba es S1.5b-14: A/V exacto con el video 0.5 s tarde.
+6. **T6 — E06 con el largo real.**
+   - `audio_f[src] = min(frames, ms_to_f_floor(wav16_length_ms(wav16), fps))`, calculado en `edl/check.audio_frames` (S1.5a-10).
+   - `build_voice` lanza `CheckFailed` con un wav corto, nunca `InternalError` (S1.5b-12).
+7. **T7 — `audio/wavio.read_wav_range(path, start, count)`** con `wave.setpos` y la comprobación de cabecera de 001.14 punto 4. Lo usan `view` y `build_voice` (S1.4-10, S1.5b-13).
+8. **T8 — prohibido `cv2.imread`/`cv2.imwrite` con rutas** (§0.10.13): fallan con `proyecto ñandú`. Se usa `imdecode`/`imencode` + `np.fromfile`/`tofile`, o Pillow. El overlay usa `imdecode`; test en S1.4-11.
+9. **T9 — `proc.popen(..., log: Path | None)`** (S1.4-12).
+
+**S1.4**
+
+10. `parse_time` con `fractions.Fraction` hasta ms enteros y luego `ms_to_f_round`, con casos fijos. Por ejemplo, `"0.15s"` da 5, donde con `float` daba 4.
+11. `view`:
+    - muestra palabras corregidas y enmascaradas;
+    - pinta amarillo `(240, 200, 40)` con `p ≥ low_prob` y naranja `(255, 120, 30)` con `p < low_prob` o marca `?`/`H` de `pack/markers`;
+    - un clip sin transcripción dibuja la onda con el aviso "sin transcripcion";
+    - sin wav16 o sin proxy, `ProjectError` "corre kcut ingest";
+    - un clip sin audio da `UsageError`;
+    - `--filmstrip` va de 0 a 12, con 0 por defecto;
+    - `render_timeline` queda pura y `window_words` es testeable.
+12. `reader_args` recibe `inputs: list[str]` y `pre_filters`, y lleva `-map 0:v:0 -an`. `jsonio.write_bytes_atomic` es nuevo, para los PNG y JPG.
+
+**S1.5**
+
+13. Se parte en **S1.5a** (EDL, gate, geometría, `edl check`, `edl sources`) y **S1.5b** (render), con las tablas de criterios repartidas y sus equivalencias. `render/geometry.py` pasa a S1.5a porque W01 lo usa, y `upscale_factor` recibe números.
+14. `edl/validate.py` queda como entrada; las reglas van a `edl/refs.py` y `edl/ranges.py`. `edl/check.py` (lectura) da `check_edl_file` y `audio_frames` a todos los comandos.
+15. `kcut edl sources [IDS]`: el bloque `sources` listo para pegar, más `frames`, `w`, `h`, `vs_f` y `audio_f` por clip, aparte (S1.5a-8). El esquema de `sources` en el EDL no cambia.
+16. E10 y E16 quedan reservados, y el criterio pasa a "cada código de la tabla". Hay dos códigos nuevos:
+    - **E18**: `screen` con `remap` y `src_f` ≠ `remap[0].src_f`. Manda `remap`.
+    - **W05**: `look` en un `color`, que se ignora.
+
+    El `remap` con `speed` se calcula con `Fraction`.
+17. `render/frame_fx.py` es la única función por frame (`span_frame`, más `look_for`). La usan `render/compose` y, por `render/preview.py`, `graphics still` y el storyboard. El `look` de un `screen` va a la fuente de la tarjeta, nunca al fondo (S1.5b-10).
+18. Los mezzanines llevan sidecar `{qhash, params}` y se reusan solo si el estado es `fresh` (S1.5b-11). El check `looks` del doctor corre `reader_args` sobre `-f lavfi` (S1.5b-15).
+
+**S1.6**
+
+19. Se parte en **S1.6a** (esquema, anclas, parámetros, chunks, runtime, componentes base, página, `graphics check`) y **S1.6b** (captura, overlay, `capture`/`still`, render, endurecimiento). `gfx/components.py` se parte en `src/kcut/params.py`, `gfx/components_base.py` y (S1.7) `gfx/components_showpiece.py`.
+20. Hay tabla de códigos **G01–G12**, con su exit (G10 da 5; G11 y G12 son avisos del punto 40). Las de **A01–A08** y **M01–M06** están en S1.8. `exit_code` decide la salida de todos.
+21. Fixture `write_graphics_v1`:
+    - lleva parámetros exactos que caben en la franja ±0.1·H; el `kinetic` de 270 px del ejemplo no cabía;
+    - `endcard` centra su bloque en `y`;
+    - la fila de la franja (S1.6b-3) captura cada componente solo.
+22. El `index.json` de la captura se valida (frames ordenados `< edl.frames`, cada PNG existe) y, si falla, se recaptura. Un PNG dañado da exit 3, no 10.
+23. `graphics still` compone sobre el frame del proxy por defecto, y `--alpha` da el PNG con alfa crudo. El check `chromium` del doctor lanza con `chromium_sandbox=True` (S1.6b-9).
+
+**S1.7**
+
+24. `ComponentDef.js_files` es una tupla (S1.7-7). `tests/fixtures/showpiece_stills.py` guarda los stills de los 4 componentes en `qa/showpieces/` para que Yedin los apruebe a ojo; esa aprobación **no** es criterio (S1.7-6). Además, el color `accent` del `holo` se busca en `start + type_at_f + 2`: en el frame central todavía no cayó la última letra.
+
+**S1.8**
+
+25. Se parte en **S1.8a** (SFX: síntesis, biblioteca, esquema, `sfx_events.py`, bus, ganancia) y **S1.8b** (música, loudnorm, grafo, mezclador, `kcut mix`).
+26. Con `denoise_nr == 0` no va `afftdn`; si no, `afftdn` pide `nr` ≥ 0.01 y `kcut.toml` rechaza (0, 0.01).
+27. Las duraciones por defecto son frames enteros: `ms_to_f_round(450, fps)` y `ms_to_f_round(1100, fps)`.
+28. Modelo resuelto `SfxEvent(type, at_f, align, dur_f, gain, seed, freq, rate)` con `resolve_events` sobre `kcut/anchors.py`. Los 13 SFX del piloto pasan a muestras, y las semillas y largos van a la definición (`SfxDef.fixed_n`, `default_dur_ms` y los `ParamSpec` de `params`, con defaults del piloto: whoosh 1, boom 7, key 0, hat 0, typing 55, riser 77). `seed` vale solo en esos tipos.
+29. La música es port exacto de `piloto/music.py`:
+    - la regla del acorde pasa a `[53, 64]` en orden ascendente, así que F da `(53, 57, 60)`;
+    - el hi-hat sale de `default_rng(9)`, y un golpe callado no consume números;
+    - `synth_layers` queda para los tests.
+30. `music_file` tiene camino feliz:
+    - decodifica acotado con `-ss`/`-t`;
+    - el loop repite el bloque y los fundidos usan `linspace`;
+    - el asset del test se hace con `write_wav_s16_mono` (S1.8b-7).
+
+**S1.9**
+
+31. Se parte en **S1.9a** (`qa` + `catalog`) y **S1.9b** (`build` + snapshot + e2e + 70 %).
+32. El oído del QA va en `.kcut/qa_ear/` (`qa/ear.py`, `Layout.qa_ear` en `all_paths()`), no en `transcripts/`.
+33. La hoja de contacto usa `reader_args` con `pre_filters="fps=1/2:round=up"`. Medido: sin `round=up` da los frames 29, 89… en vez de 0, 60…
+34. El orden de errores de `build` queda documentado: con `salida/vN.mp4` presente y sin aprobación, sale 3 antes que 5 (S1.9b-2).
+35. En el catálogo, `edl_field` es opcional (`cut` no tiene).
+
+**S1.10**
+
+36. `storyboard` trabaja en `layout.storyboard_cache`, no en `.kcut/build/vN/`, y no toma el lock.
+37. Un `sfx.json`, `music.json` o `graphics.json` presente pero inválido da exit 1 (5 con G10/M04) y el motivo.
+38. El texto sale enmascarado (T2). Criterios S1.10-10 a S1.10-13.
+
+**Árbol y layout**
+
+39. §0.2 tiene todos los módulos nuevos de arriba y ya no tiene `gfx/anchors.py`. §0.3 suma `.kcut/qa_ear/` y `qa/showpieces/`. §0.4 suma `kcut edl sources` y `graphics still --alpha`, y pone la mitad de cada comando.
+
+**Subtítulos por defecto** (decisión de Yedin del 25/10/2026: "Sí, subtítulos por defecto (Recomendado)")
+
+40. Si `kcut.toml` tiene los captions encendidos y **no existe** `edit/graphics.json`, kcut arma la capa de subtítulos solo desde la transcripción (S1.6a/S1.6b).
+    - `resolve` usa `schema.default_doc()`: sin cues, sin `captions.hide` y con `captions.enabled` de `kcut.toml`. Salen las palabras corregidas de `kept_words`, con el componente interno `captions` y el estilo de `kcut.toml [captions]`, y el aviso G11.
+    - Con captions apagados no hay capa de gráficos: `resolved.empty` y aviso G12. `render`/`build` siguen como con `--no-graphics`, y `capture` no lanza Chromium.
+    - La falta del archivo nunca da exit 3: ni en `graphics check`, ni en `capture`, ni en `still`, ni en `render`/`build`. `graphics check --json` dice `"graphics_json": null`. Con captions encendidos, un clip `voice` sin transcripción sigue siendo G08 (exit 1).
+    - El MP4 lleva el texto crudo (`data_json(..., masked=False)`; 001.13 punto 6). `graphics check --json`, `still` y el storyboard llevan el texto enmascarado (T2).
+    - Si `edit/graphics.json` existe, manda él, como siempre.
+    - Los tests de S1.5b corren `kcut render --no-graphics`, para que S1.6b no les cambie el resultado.
+    - Criterios: S1.6a-4 (ahora G01–G12), S1.6a-11 y S1.6b-12.
+
+**Fuera de este parche**: `kcut new` (S1.2) no pasa por `assert_writable`. Tampoco se tocan S1.3 ni 001.10–001.14.
+
+#### Preguntas que bloquean (001.15)
+
+Ninguna. Las dos que había quedaron respondidas el 25/10/2026: el reloj de fuente (punto 5, opción A,
+decisión del coordinador) y los subtítulos sin `edit/graphics.json` (punto 40, decisión de Yedin).
