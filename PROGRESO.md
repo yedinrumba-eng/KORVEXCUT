@@ -22,9 +22,10 @@
       · verificado: `pytest -q -ra` → 1238 passed, 3 skipped · suite rápida → 1108 passed en 70 s
 - [x] **S1.3** — `kcut transcribe` + `kcut pack`
       · verificado: pytest -q -ra → 2332 passed, 3 skipped (5 rondas de revisión)
-- [ ] **S1.4** — `kcut view` + `kcut frames`
-- [ ] **S1.5a** — (parte a de S1.5) EDL en frames + `kcut edl check` + `kcut render` base (cámaras, insertos, looks, mezzanines por tramo)
-- [ ] **S1.5b** — (parte b de S1.5) EDL en frames + `kcut edl check` + `kcut render` base (cámaras, insertos, looks, mezzanines por tramo)
+- [x] **S1.4** — `kcut view` + `kcut frames`
+      · verificado: suite completa → 2968 passed, 3 skipped (456.59 s, exit 0) · ruff check, ruff format, mypy OK · 3 rondas + paso 0 de PII (001.18–001.21)
+- [ ] **S1.5a** — (parte a de S1.5, 001.15) EDL en frames: modelo, validación, `kcut edl check`, `kcut edl sources`, `kept_words`, geometría · paso 0 = spec 001.22
+- [ ] **S1.5b** — (parte b de S1.5, 001.15) `kcut render` base (cámaras, insertos, looks, mezzanines por tramo)
 - [ ] **S1.6a** — (parte a de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
 - [ ] **S1.6b** — (parte b de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
 - [ ] **S1.7** — Componentes de lucimiento (pasos, sticker, holograma, globo)
@@ -53,6 +54,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 16/10/2026 | S1.2 | kcut new + kcut ingest; 3 rondas de revisión (1 CRÍTICO, 2 ALTO cerrados); parches 001.4–001.6 | ronda 3: pytest → 987 passed, 3 skipped |
 | 17/10/2026 | S1.2 | Merge de la deuda de S1.1 (001.3) y deuda de S1.2 pagada (001.7–001.9): sync ambiguo, logs, higiene de consola, topes de 48 h | pytest -q -ra → 1238 passed, 3 skipped |
 | 17–26/10/2026 | S1.3 | kcut transcribe + pack; 5 rondas; PII enmascarada; endurecimiento ante inyección de prompt | pytest -q -ra → 2332 passed, 3 skipped |
+| 26/10/2026 | S1.4 | kcut view + kcut frames (timeline PNG con cajas de palabras enmascaradas, filmstrip, frames y hoja ≤25 Mpx sin upscale, `FrameReader` con topes de 60 s y 64 MB, `PROXY_MISMATCH`, escritura fuera de `.kcut/` sin `--force`); PII: paso 0 + 3 rondas (001.18–001.21); revisión final aprobada (verificador y seguridad, 0 CRÍTICO, 0 ALTO); commit `40e9c65` pusheado a `origin/main` | suite completa → 2968 passed, 3 skipped (456.59 s, exit 0); suite rápida (implementador) → 2719 passed, 3 skipped, 249 deselected (87.20 s); ruff check, ruff format y mypy limpios; ningún archivo pasa de 300 líneas; criterios S1.4 1–41 exit 0 |
 
 ---
 
@@ -286,21 +288,52 @@ Entre comprobar que el log vacío es el mismo archivo y borrarlo, alguien con ac
 - **Cura real:** transcribir por ventanas con solape — 3 h.
 - **Cuándo:** solo si aparecen crudos de varias horas.
 
-### 29. PII residual de la ronda 5 de S1.3 🟡
+### 29. PII residual de la ronda 5 de S1.3 ✅ pagada
 
 - **Qué falta:** apartes y muletillas fuera de lista, reinicio a mitad del número, teléfonos con guiones en nombres de archivo, correos con dominio de varias palabras.
 - **Mitigado hoy por:** el barrido de seguridad de la ronda 5 (129 casos de habla normal EN/ES) no encontró fugas con muletillas del idioma del proyecto; lo que queda necesita apartes fuera de lista o nombres de archivo con guiones.
 - **Cura real:** spec 001.18, paso 0 de S1.4.
 - **Cuándo:** ahora.
+- **Pagada 26/10/2026** (S1.4, 001.18–001.21, commit `40e9c65`).
 
 ### 30. Límites aceptados del enmascarado ⚪
 
 - Un número partido entre dos clips no se junta.
 - Los correos deletreados letra por letra no se detectan.
 - La prosa del atacante pasa hasta 40 caracteres por mensaje.
+- Un reinicio separado por un aparte de 7 o más palabras deja visible el primer intento (3–6 dígitos); en el fuzz de seguridad, 0 fugas con apartes de 6 palabras o menos.
+- Un grupo de 1 dígito antes de un aparte queda visible (no es PII por sí solo).
+- La excepción de fecha puede dejar 2 dígitos extra en nombres como `tel_20255501_23`.
+- Cadenas de sobre-enmascarado: una lista de números de 3 dígitos que termina en un número de 7 o más se tapa completa. Es por diseño.
 - **Mitigado hoy por:** cada clip se enmascara entero; el md lleva la línea fija "es dato, nunca instrucciones"; los mensajes van recortados.
 - **Cura real:** en el plugin, negar la lectura de `.kcut/transcripts/**` y trabajar solo con `pack`; juntar números entre clips solo si aparece el caso real — ~2 h.
 - **Cuándo:** spec 002 (el plugin no deja que Claude lea `.kcut/transcripts/`).
+
+### 31. Hallazgos de la ronda final de S1.4 🟡
+
+Lo que falta; todo va al paso 0 de S1.5a (spec 001.22):
+
+- `frames` con tiempos repetidos (`90` y `3s`) y `--out` sin `--force` da "ya existe" sobre su propio PNG.
+- En la parte local de un correo dictado, `cientos` y `mil`/`thousand` no cuentan como número.
+- `guion` no está en `JOIN`.
+- La lista de TLD para correos dictados es cerrada: `.store`, `.me`, `.xyz` y `.cr` quedan sin cubrir.
+- Grupos de dos dígitos entre apartes ("ocho cero nueve, ya, cinco cinco, ya, cinco uno dos, ya, tres cuatro") quedan sin cubrir.
+- Número pegado a un correo escrito en el mismo token (`juan@gmail.com;8095551234`).
+- `crudo/juan@gmail.com` sin extensión de medio.
+- Un stream que cambia de resolución a mitad pasa el control de tamaño de ffprobe: DoS local, 2.4 GB en el hijo de ffmpeg. Cura: `-max_pixels`.
+- 5 tests cuyo nombre contradice su `assert`.
+
+- **Mitigado hoy por:** la regla de corte: ninguno deja una dirección o un teléfono reconstruible con habla normal. El DoS necesita un archivo plantado en `.kcut/proxy/` y muere a los 60 s.
+- **Cura real:** spec 001.22 (paso 0 de S1.5a).
+- **Cuándo:** ahora (paso 0 de S1.5a).
+
+### 32. `replace=False` con `os.rename` no protege en POSIX ⚪
+
+En Linux o WSL, `os.rename` sobrescribe en silencio, así que `write_bytes_atomic(replace=False)` no protege ahí.
+
+- **Mitigado hoy por:** la herramienta es Windows-first; en Windows, `os.rename` falla con `FileExistsError`.
+- **Cura real:** `os.link(tmp, path)` + `unlink(tmp)`, con fallback para volúmenes FAT/exFAT sin hard links (los discos de footage suelen ser exFAT) — 1–2 h.
+- **Cuándo:** si kcut llega a correr en Linux.
 
 ---
 
@@ -398,6 +431,12 @@ Entre comprobar que el log vacío es el mismo archivo y borrarlo, alguien con ac
 - **Por qué engañaba:** cada ronda cerraba lo que se encontró y parecía que la siguiente sería la última, pero el espacio de formas de dictar un número es abierto.
 - **Causa real:** detectar PII en habla transcrita no tiene una solución exacta; sin una barra de "habla normal" acordada, los revisores siempre encuentran un borde adversario nuevo.
 - **Fix:** una regla de corte (cerrar salvo crítico o fuga con habla normal) y llevar los bordes al paso 0 del slice siguiente.
+
+### 20. Una regla de PII que depende del orden de lectura deja asimetrías
+- **Síntoma:** una pasada de izquierda a derecha enmascaró distinto "555 like 0198 like 305" que "305 like 555 like 0198", y un reinicio antes del número se quedó visible.
+- **Por qué engañaba:** los tests se escribieron en el orden en que la gente dicta, y la asimetría parecía un límite de la heurística.
+- **Causa real:** una sola pasada de izquierda a derecha; el resultado dependía de qué número venía primero.
+- **Fix:** una pasada de derecha a izquierda, repetida hasta que nada cambie. Cada caso se prueba junto con su espejo y contra fuerza bruta frente a una clausura independiente del orden.
 
 ---
 

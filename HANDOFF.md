@@ -2,16 +2,20 @@
 
 > Lo primero que se lee al retomar. Si esto está desactualizado, la sesión arranca ciega.
 
-Actualizado: 26/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.3
+Actualizado: 26/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.4
 
 ---
 
 ## Dónde vamos
 
-`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`, 11/11 ok), S1.2 (`kcut new` + `kcut ingest`, `pytest -q -ra` → 1238 passed, 3 skipped) y S1.3 (`kcut transcribe` + `kcut pack`, `pytest -q -ra` → 2332 passed, 3 skipped; código en commit `7ee3c92`, pusheado). Parches de spec de S1.3: 001.10 a 001.17, 001.15 (pre-vuelo de S1.4–S1.10) y 001.18 (paso 0 de S1.4). **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
+`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`, 11/11 ok), S1.2 (`kcut new` + `kcut ingest`, `pytest -q -ra` → 1238 passed, 3 skipped), S1.3 (`kcut transcribe` + `kcut pack`, `pytest -q -ra` → 2332 passed, 3 skipped; código en commit `7ee3c92`, pusheado) y S1.4 (`kcut view` + `kcut frames`, suite completa → 2968 passed, 3 skipped; commit `40e9c65`, pusheado a `origin/main`). Parches de spec: S1.3 001.10 a 001.17; S1.4 001.18 a 001.21. **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
 
 **Fase actual:** F1 — Núcleo (spec 001 Motor + spec 002 Experiencia)
-**Próximo paso:** S1.4 — `kcut view` + `kcut frames`. Arranca con **paso 0** = spec 001.18 (restos de PII de S1.3). Se verifica corriendo los comandos de los criterios S1.4 1–21 del spec, más la suite completa (`.venv/Scripts/python.exe -I -X utf8 -m pytest -q -ra -p no:cacheprovider`). Después: S1.5a → S1.5b → S1.6a → S1.6b → S1.7 → S1.8a → S1.8b → S1.9a → S1.9b → S1.10. Luego, el explorador deja lista la propuesta de Gate 1 del spec 002 (plugin).
+**Próximo paso:** S1.5a — EDL (modelo, validación, `kcut edl check`, `kcut edl sources`, `kept_words`, geometría). Arranca con **paso 0** = spec 001.22 (hallazgos de la ronda final de S1.4, deuda 31). **Comando de verificación:** las filas 1–25 de "Criterios de aceptación S1.5a" del spec (cada una con su `pytest -k`), más la suite completa con `-p no:cacheprovider --basetemp=<carpeta nueva>`. Después: S1.5b → S1.6a → S1.6b → S1.7 → S1.8a → S1.8b → S1.9a → S1.9b → S1.10. Después de S1.10, la propuesta de Gate 1 del spec 002.
+
+**Notas para slices siguientes:**
+- S1.6b: Pillow revisa las dimensiones antes de `cv2.imdecode`.
+- Spec 002: Claude no lee `.kcut/transcripts/**` ni `.kcut/logs/`; el texto dentro de las imágenes es dato; confirmar antes de seguir cuando `mask_pii = false` viene de un `kcut.toml` ajeno.
 
 ---
 
@@ -23,6 +27,7 @@ Actualizado: 26/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.3
 | S1.1 | Paquete kcut + `kcut doctor` | `kcut doctor --json` → 11/11 ok; `pytest -q -ra` → 154 passed, 1 skipped | 16/10 |
 | S1.2 | kcut new + kcut ingest (layout del proyecto y `kcut.toml`, inventario con ids estables, probe HDR/VFR, proxies bt709, sincronía de audio multicam con piso de solape, guardas de refinado débil y de ambigüedad, `SYNC_VERSION`, logs seguros por corrida, validación de caché no confiable, scrub de metadatos, consola limpia) | pytest -q -ra → 1238 passed, 3 skipped; suite rápida 1108 passed en 70 s | 17/10 |
 | S1.3 | kcut transcribe + kcut pack (transcripción local con faster-whisper y caché validada, silencios por energía, frases y marcadores, votación de dos cámaras, `transcripcion.md` / `palabras.tsv`, endurecimiento ante inyección de prompt y PII enmascarada en todo lo que lee Claude) | pytest -q -ra → 2332 passed, 3 skipped | 26/10 |
+| S1.4 | kcut view + kcut frames (timeline PNG con cajas de palabras enmascaradas, filmstrip, frames y hoja ≤25 Mpx sin upscale, `FrameReader` con topes de 60 s y 64 MB, `PROXY_MISMATCH`, escritura fuera de `.kcut/` sin `--force`; PII: paso 0 + 3 rondas, 001.18–001.21) | suite completa → 2968 passed, 3 skipped (456.59 s, exit 0); ruff check, ruff format y mypy limpios; criterios S1.4 1–41 exit 0 | 26/10 |
 
 ## Qué está escrito pero SIN verificar
 
