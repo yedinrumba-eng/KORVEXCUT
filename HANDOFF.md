@@ -2,16 +2,16 @@
 
 > Lo primero que se lee al retomar. Si esto está desactualizado, la sesión arranca ciega.
 
-Actualizado: 17/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.2
+Actualizado: 26/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.3
 
 ---
 
 ## Dónde vamos
 
-`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`, 11/11 ok) y S1.2 (`kcut new` + `kcut ingest`, `pytest -q -ra` → 1238 passed, 3 skipped). **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
+`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`, 11/11 ok), S1.2 (`kcut new` + `kcut ingest`, `pytest -q -ra` → 1238 passed, 3 skipped) y S1.3 (`kcut transcribe` + `kcut pack`, `pytest -q -ra` → 2332 passed, 3 skipped; código en commit `7ee3c92`, pusheado). Parches de spec de S1.3: 001.10 a 001.17, 001.15 (pre-vuelo de S1.4–S1.10) y 001.18 (paso 0 de S1.4). **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
 
 **Fase actual:** F1 — Núcleo (spec 001 Motor + spec 002 Experiencia)
-**Próximo paso:** S1.3 — `kcut transcribe` + `kcut pack`. Arranca con **paso 0** = spec 001.10 (4 ítems de endurecimiento de seguridad de la revisión de 001.8/001.9). Después: transcripción con faster-whisper `medium` local, silencios por energía, frases y marcadores → verificación según los criterios S1.3 1–15 del spec.
+**Próximo paso:** S1.4 — `kcut view` + `kcut frames`. Arranca con **paso 0** = spec 001.18 (restos de PII de S1.3). Se verifica corriendo los comandos de los criterios S1.4 1–21 del spec, más la suite completa (`.venv/Scripts/python.exe -I -X utf8 -m pytest -q -ra -p no:cacheprovider`). Después: S1.5a → S1.5b → S1.6a → S1.6b → S1.7 → S1.8a → S1.8b → S1.9a → S1.9b → S1.10. Luego, el explorador deja lista la propuesta de Gate 1 del spec 002 (plugin).
 
 ---
 
@@ -22,6 +22,7 @@ Actualizado: 17/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.2
 | Piloto 01 v4 | Reel 9:16 de 49 s: multicam, cortes, subtítulos, gráficos, música, SFX | `qa.py` → 1469/1469 frames, A/V 0 ms, −14.4 LUFS, pico −1.4 dBFS | 15/10 |
 | S1.1 | Paquete kcut + `kcut doctor` | `kcut doctor --json` → 11/11 ok; `pytest -q -ra` → 154 passed, 1 skipped | 16/10 |
 | S1.2 | kcut new + kcut ingest (layout del proyecto y `kcut.toml`, inventario con ids estables, probe HDR/VFR, proxies bt709, sincronía de audio multicam con piso de solape, guardas de refinado débil y de ambigüedad, `SYNC_VERSION`, logs seguros por corrida, validación de caché no confiable, scrub de metadatos, consola limpia) | pytest -q -ra → 1238 passed, 3 skipped; suite rápida 1108 passed en 70 s | 17/10 |
+| S1.3 | kcut transcribe + kcut pack (transcripción local con faster-whisper y caché validada, silencios por energía, frases y marcadores, votación de dos cámaras, `transcripcion.md` / `palabras.tsv`, endurecimiento ante inyección de prompt y PII enmascarada en todo lo que lee Claude) | pytest -q -ra → 2332 passed, 3 skipped | 26/10 |
 
 ## Qué está escrito pero SIN verificar
 
@@ -52,6 +53,11 @@ Actualizado: 17/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.2
 - **D16** — Umbral de correlación fina `min_refine_corr` 0.1, configurable; y el EDL guardará el `qhash` de cada fuente para negarse a cortar un archivo que cambió (Yedin, 16/10/2026, spec 001.6).
 - **D17** — Clips cortos con dos desfases posibles se rechazan como `sync_ambiguous` en vez de aceptarse callados (Yedin, 17/10/2026, spec 001.7).
 - **D18** — Toda salida de kcut a consola o `--json` pasa por `safe_text`, y el `--json` no repite texto libre del proyecto. Esa salida la lee Claude, así que es una vía de inyección de prompt (coordinador, 17/10/2026, spec 001.8).
+- **D19** — PII enmascarada en todo lo que lee Claude (transcripción, tsv, `--json`, imágenes de view/stills/storyboard, diffs de QA); el MP4 final conserva el texto real (Yedin, 25/10/2026, specs 001.13 y 001.15).
+- **D20** — Subtítulos por defecto desde la transcripción cuando no hay `edit/graphics.json` (Yedin, 25/10/2026, spec 001.15).
+- **D21** — Reglas de autonomía de la sesión larga: Puerta 3 delegada si los revisores aprueban sin críticos ni altos; push al cerrar cada slice; ronda 4 corta ante ALTO chico; regla de corte tras la ronda 5 (Yedin, 25–26/10/2026).
+- **D22** — Rastreo de manos y detección de caras descartados: quien sale en cámara es parte del video (Yedin, 26/10/2026).
+- **D23** — Un solo reloj de fuente: el wav ya viene alineado al contenedor; solo se corrige el video con `vs_f` (coordinador, 25/10/2026, spec 001.15).
 
 ---
 
