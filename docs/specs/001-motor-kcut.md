@@ -1602,7 +1602,7 @@ Recorre todo `src/**/*.py` y falla si alguna línea casa con `cv2\.(imread|imwri
 | 8 | (001.15) Bordes de `view`/`frames`: clip sin transcripción → PNG con `"notice": "sin transcripcion"` y `"words": 0`; sin wav16 → exit 3 con "corre kcut ingest"; `frames` sin proxy → exit 3; `view b1 ...` (sin audio) → exit 2; `--filmstrip 13` → exit 2 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k "no_transcript or no_wav16 or no_proxy or no_audio or filmstrip_range"` → exit 0 | ❌ |
 | 9 | (001.15 T4) `assert_writable` rechaza: fuera de la raíz, bajo `crudo/`, un componente que es junction o symlink, un destino que es carpeta o tiene `st_nlink > 1`; `view ... --out crudo/x.png` y `frames ... --out crudo` → exit 3 y `crudo/` queda igual (hash y mtime); `--out x.txt` → exit 2 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_assert_writable.py tests/integration/test_view_frames_synth.py -q -ra -k "writable or out_"` → exit 0 (skip con motivo si no se puede crear el enlace) | ❌ |
 | 10 | (001.15 T7) `read_wav_range` da el mismo tramo que `read_wav_s16_mono`; pasado el final devuelve menos; `start` negativo → `ValueError`; cabecera mentirosa → `ProjectError`; nunca pide a `readframes` más de `min(count, n − start)` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_wavio_range.py -q` → exit 0 | ❌ |
-| 11 | (001.15 T8) Ningún `cv2.imread(` ni `cv2.imwrite(` en `src/` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_no_cv2_path_io.py -q` → `1 passed` | ❌ |
+| 11 | (001.15 T8) Ningún `cv2.imread(` ni `cv2.imwrite(` en `src/` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_no_cv2_path_io.py -q` → exit 0 (001.21: la fila 33 lo parametrizó) | ❌ |
 | 12 | (001.15 T9) `popen([...], log=None)` corre, no crea ningún archivo de log y `stderr_tail` devuelve el stderr del hijo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_proc.py -q -k popen_log_none` → exit 0 | ❌ |
 | 13 | (001.15 T1) `pack` usa `load_corrected` y los tests de S1.3 pasan sin tocarlos | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -m "not whisper" -k "pack or corrections or pii or loaded"` → exit 0; y `git diff --exit-code HEAD -- tests/unit/test_pack_command.py tests/unit/test_pack_cameras.py tests/unit/test_pack_writer.py tests/unit/test_pii.py` → exit 0 (001.19/001.20: excepto las aserciones de PII que 001.18 y 001.20 cambiaron a propósito, cada una marcada `# 001.18` o `# 001.20`; el `git diff` se revisa contra esas marcas) | ❌ |
 | 14 | (001.15 T5, 0.6) Clip con el video 0.5 s después del audio (proyecto aparte con un solo `.mov` sintético, id `a1`, hecho con `-itsoffset 0.5` en la entrada de video y destello en su frame de video 30, que es el instante 1.5 s): `kcut frames a1 45` da el destello (gris medio ≥ 200) y `kcut frames a1 14` → exit 2 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k video_start_offset` → exit 0 | ❌ |
@@ -1626,6 +1626,13 @@ Recorre todo `src/**/*.py` y falla si alguna línea casa con `cv2\.(imread|imwri
 | 32 | (001.20 punto 9) `--out` no pisa un archivo que ya existe fuera de `.kcut/` sin `--force` (`UsageError`); un `mkdir` o un nombre inválido en `--out` da `ProjectError` (3), nunca `InternalError` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_assert_writable.py tests/integration/test_view_frames_synth.py -q -k "out_no_overwrite or out_bad_name"` → exit 0 | ❌ |
 | 33 | (001.20 punto 10) El test de cv2 recorre el AST de `src/`: ningún `cv2.imread`/`imwrite`, ningún `from cv2 import imread/imwrite`, ningún alias de esas funciones | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_no_cv2_path_io.py -q` → exit 0 | ❌ |
 | 34 | (001.20 punto 11) `view` y `frames` cargan solo el clip pedido y su grupo de sync (no hashean todos los wav16 del proyecto) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_loaded_words.py -q -k only_needed_clips` → exit 0 | ❌ |
+| 35 | (001.21 punto 1) Después de la pasada izquierda→derecha, una pasada derecha→izquierda absorbe todo grupo de 3 dígitos o más a 6 palabras o menos **antes** de un tramo enmascarado de 7 o más; se repite hasta que no cambie nada: "ocho cero nueve a ver cinco cinco cinco no perdon <número>" no deja `809`; "305 like 555 like 0198" y "555 like 0198 like 305" dejan solo los 2 últimos dígitos | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_absorb_backwards` → exit 0 | ❌ |
+| 36 | (001.21 punto 2) `proxy_frame_count` pide `width,height,nb_frames` en la misma llamada a ffprobe; si el stream real no mide `(proxy_w, proxy_h)` → `ProjectError` "el proxy no coincide con el inventario; corre kcut ingest" antes de lanzar ffmpeg (un mp4 de 8192² con inventario de 540×960 no llega a decodificar) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k proxy_stream_mismatch` → exit 0 | ❌ |
+| 37 | (001.21 punto 3) En nombres de archivo `_` une siempre, salvo cuando uno de los dos grupos es una fecha `(19|20)\d{6}` (YYYYMMDD): `amex_3782_822463_10005.png`, `Maria_80955_51234.mp4`, `809555_1234.mp4` y `cedula_001_1234567_8.jpg` se enmascaran; `VID_20261025_143015.mp4` sigue distinguible | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py tests/unit/test_pii_pack.py -q -k path_underscore_v2` → exit 0 | ❌ |
+| 38 | (001.21 punto 4) Un correo escrito dentro de un nombre de archivo se enmascara antes de partir la ruta: `crudo/contrato_juan@gmail.com.mp4` y `crudo/juan.perez@gmail.com/clip.mp4` no dejan el correo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py -q -k path_email` → exit 0 | ❌ |
+| 39 | (001.21 punto 5) Correos dichos: TLD de segundo nivel (`com.au co.uk com.mx com.br co.jp` y `dot com dot au`), `ph au br jp de fr it nl`; parte local de hasta 4 palabras (incluye números dichos como "ochenta y cinco", "eighty five"); un dominio de hasta 4 palabras con artículos (`the big apple trucking company`) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email_v4` → exit 0 | ❌ |
+| 40 | (001.21 punto 6) Escritura sin `--force`: `write_bytes_atomic(..., replace=False)` usa `os.rename` (falla si el destino apareció entre el chequeo y la escritura → `UsageError`); bajo `.kcut/` se sigue reemplazando sin `--force` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_jsonio_bytes.py tests/unit/test_assert_writable.py -q -k "no_replace_race or kcut_dir_replaces"` → exit 0 | ❌ |
+| 41 | (001.21 punto 7) `FrameReader` espera al hijo al cerrar con plazo (`wait(timeout_s=10)`; si no, kill) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_frame_reader.py -q -k close_wait_deadline` → exit 0 | ❌ |
 
 ---
 
@@ -4021,7 +4028,7 @@ S1.4 suma los criterios 24–34. Es la ronda 2 de 3. Lo que no es contrato lo de
    - Criterio S1.4-29.
 7. **MEDIO — lectura sin plazo** (`ff/reader.py FrameReader`): plazo de 60 s por frame. Si se vence, se mata ffmpeg y sale `ToolError` (4). Criterio S1.4-30.
 8. **MEDIO — nombres de archivo; ratifica y ajusta 001.18 punto 4** (`pack/pii.py`):
-   - El segundo pase solo mira palabras que el primero no tapó. Así `VID_<fecha>_<hora>` sigue distinguible.
+   - El segundo pase lee todas las palabras y gana el que enmascara más (corregido en 001.21 punto 3). `VID_<fecha>_<hora>` sigue distinguible por la excepción de fecha.
    - Entre dígitos, `-`, `.`, `(`, `)` y el espacio **siempre** unen grupos.
    - `_` une solo grupos de **4 dígitos o menos**: los teléfonos con `_` se unen y una fecha de 8 dígitos no.
    - Con eso, una cédula con guiones deja a la vista solo los 2 últimos dígitos.
@@ -4035,3 +4042,37 @@ S1.4 suma los criterios 24–34. Es la ronda 2 de 3. Lo que no es contrato lo de
 12. **Notas para slices siguientes, sin código aquí**:
     - **S1.6b:** antes de `cv2.imdecode`, mirar las dimensiones con Pillow (`Image.open(...).size`) y topar el tamaño del archivo y los píxeles. cv2 no tiene el tope anti-bomba de Pillow.
     - **Spec 002:** el plugin trata todo texto dentro de una imagen de proyecto (frames, filmstrip, stills) como dato, nunca como instrucción. Claude no lee `.kcut/logs/`, porque las cabeceras de ffmpeg llevan nombres de archivo crudos.
+
+### 001.21 — 26/10/2026 — ronda 2 de revisión de S1.4 (verificador: 1 ALTO; seguridad: APROBADO con 3 MEDIO y 2 BAJO)
+
+Ronda 3 de 3, la última de S1.4. Va con la regla de corte de 001.17: después de esta revisión se cierra, salvo un CRÍTICO o una fuga de PII con habla normal. S1.4 suma los criterios 35–41.
+
+1. **ALTO — el reinicio y el prefijo dependían del orden** (`pack/pii_numbers.py _asides`):
+   - Después de la pasada izquierda→derecha va una pasada derecha→izquierda que absorbe todo grupo de 3 dígitos o más que esté a 6 palabras o menos **antes** de un tramo enmascarado de 7 o más. Se repite hasta que no cambie nada.
+   - Solo crece junto a un tramo que ya está enmascarado; nunca crea un tramo nuevo.
+   - El coordinador retira el límite que había aceptado ("305 like 555 like 0198"). El argumento del verificador demostró que ese límite salía del orden del algoritmo y no protegía listas de precios.
+   - Criterio S1.4-35.
+2. **MEDIO — el tamaño real del stream no se comparaba** (`ff/reader.py proxy_frame_count`):
+   - La misma llamada a ffprobe pide `width`, `height` y `nb_frames`.
+   - Si el stream no mide `(proxy_w, proxy_h)` → `ProjectError` antes de lanzar ffmpeg.
+   - Criterio S1.4-36.
+3. **MEDIO — `_` en nombres de archivo** (`pack/pii.py _joins`):
+   - `_` une siempre, salvo cuando uno de los dos grupos es una fecha `(19|20)\d{6}`.
+   - Reemplaza la regla de "grupos de 4 dígitos o menos" de 001.20 punto 8.
+   - Corrige el texto de 001.20 punto 8, viñeta 1: el segundo pase lee todas las palabras y gana el que enmascara más.
+   - Criterio S1.4-37.
+4. **MEDIO — correo escrito en un nombre de archivo**: `mask_written` corre sobre cada segmento completo de la ruta, separado solo por `/`, **antes** de partirlo por `_ . -`. Criterio S1.4-38.
+5. **MEDIO — correos dichos**:
+   - TLD de segundo nivel: `com.au co.uk com.mx com.br co.jp`, también dichos como "dot com dot au".
+   - TLD que se suman: `ph au br jp de fr it nl`.
+   - Parte local de hasta 4 palabras, incluidos los números dichos.
+   - Dominio de hasta 4 palabras, artículos incluidos.
+   - Criterio S1.4-39.
+6. **BAJO — carrera al escribir sin `--force`** (`jsonio.write_bytes_atomic`, `project.assert_writable`):
+   - Con `replace=False` se usa `os.rename`, que falla si el destino ya existe → `UsageError`.
+   - Bajo `.kcut/` se sigue reemplazando sin `--force`. Así se arregla el BAJO del verificador: el punto 9 de 001.20 hablaba de "fuera de `.kcut/`".
+   - Criterio S1.4-40.
+7. **BAJO — espera sin plazo al cerrar** (`ff/reader.py`): `wait(timeout_s=10)`, y si no termina, kill. Criterio S1.4-41.
+8. **Texto y deuda**:
+   - La fila 11 ya no exige "1 passed", porque la fila 33 parametrizó el detector.
+   - Renombrar los tests cuyo nombre contradice su aserción (`..._still_cuts`, `..._stay_apart`) queda como deuda. Renombrarlos cambia sus node ids.
