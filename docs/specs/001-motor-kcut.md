@@ -1992,6 +1992,17 @@ con la marca por defecto de la plantilla (`accent = #E5FF1F`), exit 0 y 12 288 b
 | 12 | Capas sin ciclos (T1): importar `kcut.edl.check` y `kcut.edl.kept` no carga `kcut.gfx`, `kcut.storyboard`, ningún `kcut.audio.*` salvo `wavio`, ni ningún `kcut.render.*` salvo `geometry` (001.15) | `.venv/Scripts/python.exe -I -X utf8 -c "import sys, kcut.edl.check, kcut.edl.kept; ok={'kcut.audio','kcut.audio.wavio','kcut.render','kcut.render.geometry'}; bad=sorted(m for m in sys.modules if m.startswith(('kcut.gfx','kcut.audio','kcut.render','kcut.storyboard')) and m not in ok); print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
 | 13 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
 | 14 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 15 | Paso 0 (001.22 punto 1): en `frames`, los tiempos que caen en el mismo frame se juntan en uno (queda el orden de la primera aparición); `kcut frames a1 90 3s --out <carpeta vacía>` sobre el sintético (30 fps) sale con 0, deja un solo `a1_f90.png`, no arma hoja y el `--json` lista un solo frame | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k frames_duplicate_times` → exit 0 | ❌ |
+| 16 | Paso 0 (001.22 punto 2): en la parte local de un correo dicho, las centenas (`hundred`, `cien`/`ciento`, `doscientos`…`novecientos`) y `mil`/`thousand` cuentan como número dicho: "juan mil novecientos ochenta y cinco arroba gmail punto com" → `j***@***.com`; "maria novecientos arroba gmail punto com" → `m***@***.com` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email_v5_numbers` → exit 0 | ❌ |
+| 17 | Paso 0 (001.22 punto 3): `guion` y `guión` entran a `JOIN`: "maria guion gonzalez arroba hotmail punto com" → `m***@***.com`; "juan guion bajo perez arroba gmail punto com" sigue saliendo `j***@***.com` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email_v5_guion` → exit 0 | ❌ |
+| 18 | Paso 0 (001.22 punto 4): en un correo **dicho**, la última etiqueta después de `dot`/`punto` puede ser cualquier palabra de 2 a 24 letras (`[a-z]{2,24}` después de plegar), aunque no esté en `TLDS`: "maria arroba empresa punto store" → `m***@***.store`, "john at gmail dot me" → `j***@***.me`, "ops at fleet dot xyz" → `o***@***.xyz`, "info arroba miweb punto cr" → `i***@***.cr`, "ana arroba tienda punto com punto ar" → `a***@***.com.ar`; los correos **escritos** siguen con la lista (`logo@2x.png` no cambia) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email_v5_open_tld` → exit 0 | ❌ |
+| 19 | Paso 0 (001.22 punto 5): `MIN_SIDE` baja a 2: "ocho cero nueve, ya, cinco cinco, ya, cinco uno dos, ya, tres cuatro" y "809 ya 55 ya 512 ya 34" no dejan a la vista ningún dígito salvo los 2 últimos; la absorción hacia atrás usa el mismo mínimo; un grupo de 1 dígito sigue sin entrar ("seis, los otros son, cero nueve ocho…" deja `seis`) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_aside_v3` → exit 0 | ❌ |
+| 20 | Paso 0 (001.22 punto 6): un número pegado a un correo escrito en el mismo token pasa por el pase de números: en habla, `juan@gmail.com;8095551234` y `juan@gmail.com/8095551234` no dejan a la vista más que los 2 últimos dígitos del teléfono, y la dirección sale `j***@***.com` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py tests/unit/test_pii_pack.py -q -k email_glued_number` → exit 0 | ❌ |
+| 21 | Paso 0 (001.22 punto 7): en rutas, si una parte trae `@` y `mask_written` no encontró correo sin la extensión, se prueba con la extensión pegada: `crudo/juan@gmail.com` → `crudo/j***@***.com`; `crudo/contrato_juan@gmail.com.mp4` sigue como en S1.4-38 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py -q -k path_email_no_ext` → exit 0 | ❌ |
+| 22 | Paso 0 (001.22 punto 8): `seek_input` pide el tamaño esperado y pone `-max_pixels <2·w·h>` antes de `-i`; un proxy MPEG-TS que empieza en 540×960 y sigue en 1080×1920 (inventario 540×960) da exit 0 en un frame del primer tramo y, en un frame del segundo, sale con `ToolError` (4) en menos de 60 s, sin traceback y sin escribir PNG | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_reader_args.py tests/integration/test_view_frames_synth.py -q -k max_pixels` → exit 0 | ❌ |
+| 23 | Paso 0 (001.22 punto 9): el docstring de `write_bytes_atomic` y el comentario de `_replace_through_tmp` dicen que `os.rename` solo falla si el destino existe en Windows y que en POSIX lo pisa (deuda 32) | `.venv/Scripts/python.exe -I -X utf8 -c "import sys, kcut.jsonio as j; sys.exit(0 if 'POSIX' in (j.write_bytes_atomic.__doc__ or '') else 1)"` → exit 0 | ❌ |
+| 24 | Paso 0 (001.22 punto 10): ningún test conserva un nombre que contradiga su aserción: los 5 nombres viejos de 001.22 punto 10 no aparecen en `tests/` | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib, re, sys; old = re.compile(r'a_word_that_is_not_a_bridge_still_cuts|two_numbers_apart_stay_apart|a_word_that_is_no_filler_still_cuts|four_words_in_a_label_are_not_a_domain|does_not_join_a_long_group'); bad = [str(p) for p in pathlib.Path('tests').rglob('*.py') if old.search(p.read_text(encoding='utf-8'))]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 25 | Paso 0 (001.22): toda aserción vieja que cambie en este paso lleva `# 001.22` en la misma línea o en el comentario justo encima; `git diff --exit-code` de `tests/unit/test_pack_cameras.py` y `tests/unit/test_pack_writer.py` contra el commit `40e9c65` da exit 0 | revisión del diff + `git diff --exit-code 40e9c65 -- tests/unit/test_pack_cameras.py tests/unit/test_pack_writer.py` → exit 0 | ❌ |
 
 Equivalencias: S1.5-1 → a-1 (cambia: tabla nueva) · S1.5-2 → a-2 · S1.5-3 → a-3 · S1.5-4 → a-4 ·
 S1.5-12 → a-5 (con archivo de test propio) · S1.5-14 → a-6 · S1.5-16 → a-7 (su parte de `render` es b-9) ·
@@ -4076,3 +4087,55 @@ Ronda 3 de 3, la última de S1.4. Va con la regla de corte de 001.17: después d
 8. **Texto y deuda**:
    - La fila 11 ya no exige "1 passed", porque la fila 33 parametrizó el detector.
    - Renombrar los tests cuyo nombre contradice su aserción (`..._still_cuts`, `..._stay_apart`) queda como deuda. Renombrarlos cambia sus node ids.
+
+### 001.22 — 26/10/2026 — paso 0 de S1.5a: lo que dejó la ronda final de S1.4 (regla de corte)
+
+S1.4 cerró en `40e9c65` bajo la regla de corte de 001.17. El verificador y seguridad aprobaron con 0 CRÍTICO y 0 ALTO. Lo MEDIO y lo BAJO va aquí, **antes** del EDL, en el mismo slice S1.5a y con los mismos revisores. S1.5a suma los criterios 15–25. Lo que no es contrato lo decidió el coordinador.
+
+1. **MEDIO — tiempos repetidos en `frames`** (`commands/frames.py`):
+   - Después de `parse_time`, los tiempos que caen en el mismo frame se juntan en uno, conservando el orden de la primera aparición.
+   - Con un solo frame no hay hoja, como hoy.
+   - Así `90 3s` sin `--force` no choca con el PNG que la misma corrida acaba de escribir.
+   - Criterio S1.5a-15.
+2. **MEDIO — números dichos en la parte local** (`pack/pii_email.py _digit`): las centenas y `mil`/`thousand` del vocabulario numérico cuentan como número dicho, igual que los dígitos y las decenas. Criterio S1.5a-16.
+3. **MEDIO — `guion`** (`pack/pii_email.py JOIN`):
+   - `guion` y `guión` (el `-` dicho en español) unen las palabras de la parte local.
+   - `guion bajo` sigue funcionando: la unión de dos palabras se mira primero.
+   - Criterio S1.5a-17.
+4. **MEDIO — TLD abierto en correos dichos** (`pack/pii_email.py`):
+   - Cuando ya hay `at`/`arroba`, una parte local válida, un dominio y `dot`/`punto`, la última etiqueta puede ser cualquier palabra de 2 a 24 letras ASCII después de plegar, aunque no esté en `TLDS`.
+   - Si la penúltima etiqueta es `com`, `net`, `org`, `co`, `gob` o `edu` y la última tiene 2 letras, el TLD que se muestra son las dos (`com.ar`).
+   - Los correos **escritos** siguen con la lista cerrada. Abrirla taparía nombres como `logo@2x.png`, que Claude necesita para referirse al archivo.
+   - Tapa de más cuando "arroba … punto <palabra>" no es un correo. Está aceptado: mejor tapar de más.
+   - Criterio S1.5a-18.
+5. **MEDIO — grupos de 2 dígitos entre apartes** (`pack/pii_numbers.py`):
+   - `MIN_SIDE` baja de 3 a **2**, en la pasada izquierda→derecha y en la absorción hacia atrás.
+   - Sigue haciendo falta llegar a 7 dígitos en total.
+   - Tapa de más una edad o una cantidad de 2 dígitos que quede a 6 palabras o menos de un número de 7 o más. Está aceptado.
+   - Un grupo de 1 dígito sigue sin entrar: solo, no es PII.
+   - Criterio S1.5a-19.
+6. **BAJO — número pegado a un correo escrito** (`pack/pii.py mask_pii_spans`): cuando `mask_written` tapa la dirección de un token, lo que queda del token después de la dirección pasa por el pase de números. Criterio S1.5a-20.
+7. **BAJO — un correo sin extensión de medio en una ruta** (`pack/pii.py mask_text`): si el cuerpo de una parte trae `@` y `mask_written` no encontró nada, se prueba otra vez con la extensión pegada. Criterio S1.5a-21.
+8. **MEDIO — cambio de resolución a mitad del stream** (`ff/reader.py seek_input`):
+   - `seek_input(path, start_f, fps, size)` gana el parámetro obligatorio `size` (el `(w, h)` ya validado) y pone `-max_pixels <2·w·h>` antes de `-i`.
+   - El factor 2 deja pasar el tamaño codificado (576×960 para un proxy de 540×960) y corta un tramo de 4× o más.
+   - Todo el que llama pasa el tamaño que ya validó.
+   - Si algún llamador lee un archivo que no tiene tamaño validado, el implementador para con BLOQUEADO.
+   - ffmpeg deja de entregar frames y `FrameReader` sale con el `ToolError` que ya tiene ("ffmpeg entregó N de M frames").
+   - Criterio S1.5a-22.
+9. **BAJO — la salvedad de POSIX** (`jsonio.py`):
+   - Se escribe en el docstring y en el comentario que `os.rename` solo falla si el destino existe en Windows, y que en POSIX lo pisa.
+   - La cura real (`os.link` + `unlink`, con respaldo para volúmenes FAT/exFAT sin enlaces duros) queda como deuda 32: la herramienta es Windows-first.
+   - Criterio S1.5a-23.
+10. **Nombres de tests que contradicen su aserción** (deuda de 001.21 punto 8 y del verificador). Se renombran:
+    - `test_pii_bridge_a_word_that_is_not_a_bridge_still_cuts` → `test_pii_bridge_a_word_that_is_not_a_bridge_is_an_aside`
+    - `test_pii_bridge_two_numbers_apart_stay_apart` → `test_pii_bridge_two_numbers_an_aside_apart_are_one`
+    - `test_pii_bridge_v2_a_word_that_is_no_filler_still_cuts` → `test_pii_bridge_v2_a_word_that_is_no_filler_is_an_aside`
+    - `test_pii_email_v3_four_words_in_a_label_are_not_a_domain` → `test_pii_email_v3_five_words_in_a_label_are_not_a_domain`
+    - `test_path_joiners_the_underscore_does_not_join_a_long_group` → `test_path_joiners_the_underscore_joins_a_long_group_too`
+
+    Cambian sus node ids a propósito. Los selectores `-k` de las filas viejas (`pii_bridge`, `pii_email_v3`, `path_joiners`) los siguen encontrando. Criterio S1.5a-24.
+11. **Aceptados, sin código** (van a la deuda 30):
+    - Un reinicio separado por un aparte de 7 palabras o más deja a la vista el primer intento (3 a 6 dígitos). En el fuzz de seguridad hubo 0 fugas con apartes de 6 o menos.
+    - La excepción de fecha `(19|20)\d{6}` puede dejar 2 dígitos más a la vista en nombres como `tel_20255501_23`.
+    - Una lista de números de 3 dígitos que termina en uno de 7 o más se tapa entera, por diseño.
