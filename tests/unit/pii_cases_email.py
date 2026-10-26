@@ -80,8 +80,7 @@ class TestPiiEmailSpoken:
     @pytest.mark.parametrize(
         "said",
         [
-            "john at gmail dot xyz",
-            "john at gmail.xyz",
+            "john at gmail.xyz",  # 001.22: "john at gmail dot xyz" is an address now (open TLD)
             "at gmail.com",
             "john at localhost",
             "john at gmail",
@@ -155,7 +154,7 @@ class TestPiiEmailV3:
         assert _spoken(said) == ["escribe", "a", "i***@***.com", "gracias"]
         assert "apple" not in " ".join(_spoken(said))
 
-    def test_pii_email_v3_four_words_in_a_label_are_not_a_domain(self) -> None:
+    def test_pii_email_v3_five_words_in_a_label_are_not_a_domain(self) -> None:
         said = "info at big red apple trucking company dot com"  # 001.21: four words are a domain
         assert _spoken(said) == said.split(" ")
 
@@ -196,9 +195,10 @@ class TestPiiEmailV3:
         said = "mi correo es juan uno dos arroba gmail punto com ok"
         assert _spoken(said) == ["mi", "correo", "es", "j***@***.com", "ok"]
 
-    def test_pii_email_v3_spoken_digits_alone_are_not_an_address(self) -> None:
+    def test_pii_email_v3_spoken_digits_before_an_open_tld_are_an_address(self) -> None:
         said = "llamame al cinco cinco cinco at the office dot xyz"
-        assert _spoken(said) == said.split(" ")
+        # 001.22: any word is a TLD after `dot`; it hides more than it should, and that is accepted
+        assert _spoken(said) == ["llamame", "a***@***.xyz"]  # `al cinco cinco cinco` is the name
 
     def test_pii_email_v3_ids_are_all_the_words_of_the_address(self) -> None:
         words = _words("mail", "info", "at", "big", "apple", "dot", "com", "ok")

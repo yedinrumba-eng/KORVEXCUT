@@ -10,6 +10,7 @@ from kcut.pack.pii import mask_text
 __all__ = [
     "TestPiiPathContiguous",
     "TestPiiPathEmail",
+    "TestPiiPathEmailNoExt",
     "TestPiiPathJoiners",
     "TestPiiPathUnderscoreV2",
 ]
@@ -96,7 +97,7 @@ class TestPiiPathJoiners:
             ("IMG_8095551234_7.mov", "IMG_*********4_7.mov"),  # 001.21: and the 7 after it
         ],
     )
-    def test_path_joiners_the_underscore_does_not_join_a_long_group(
+    def test_path_joiners_the_underscore_joins_a_long_group_too(
         self, name: str, masked: str
     ) -> None:
         assert mask_text(name) == masked
@@ -181,3 +182,42 @@ class TestPiiPathEmail:
 
     def test_path_email_a_name_with_an_at_and_no_domain_is_left_as_it_is(self) -> None:
         assert mask_text("crudo/lunes@10am.mp4") == "crudo/lunes@10am.mp4"
+
+
+class TestPiiPathEmailNoExt:
+    """001.22 point 7: an address that is the whole name has no file extension: `.com` is its
+    TLD, not an extension the path cuts off before looking for the address."""
+
+    @pytest.mark.parametrize(
+        ("name", "masked"),
+        [
+            ("crudo/juan@gmail.com", "crudo/j***@***.com"),
+            ("juan@gmail.com", "j***@***.com"),
+            ("crudo/juan.perez@gmail.com", "crudo/j***@***.com"),
+            ("crudo/cam a/maria_lopez@correo.org", "crudo/cam a/m***@***.org"),
+            ("crudo/juan@gmail.COM", "crudo/j***@***.com"),
+            ("crudo/juan@claro.com.do", "crudo/j***@***.com.do"),
+        ],
+    )
+    def test_path_email_no_ext_the_tld_is_not_taken_for_an_extension(
+        self, name: str, masked: str
+    ) -> None:
+        assert mask_text(name) == masked
+
+    def test_path_email_no_ext_the_address_with_an_extension_is_as_it_was(self) -> None:
+        assert mask_text("crudo/contrato_juan@gmail.com.mp4") == "crudo/c***@***.com.mp4"
+        assert mask_text("crudo/juan.perez@gmail.com/clip.mp4") == "crudo/j***@***.com/clip.mp4"
+
+    def test_path_email_no_ext_a_file_with_an_at_and_a_media_extension_is_not_an_address(
+        self,
+    ) -> None:
+        assert mask_text("crudo/lunes@10am.mp4") == "crudo/lunes@10am.mp4"
+        assert mask_text("assets/logo@2x.png") == "assets/logo@2x.png"
+        assert mask_text("crudo/escena@2.mov") == "crudo/escena@2.mov"
+
+    def test_path_email_no_ext_only_the_last_part_gets_its_extension_back(self) -> None:
+        assert mask_text("juan@gmail.com/clip.mp4") == "j***@***.com/clip.mp4"
+        assert mask_text("crudo/juan@gmail/clip.com") == "crudo/juan@gmail/clip.com"
+
+    def test_path_email_no_ext_a_name_read_whole_is_not_read_by_parts(self) -> None:
+        assert mask_text("juan@gmail.com", parts=False) == "j***@***.com"

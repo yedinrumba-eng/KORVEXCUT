@@ -103,6 +103,11 @@ def write_bytes_atomic(path: Path, data: bytes, *, replace: bool = True) -> None
     With `replace=False` the move is `os.rename`, which fails if `path` is there: a file that
     appeared after `assert_writable` looked is not overwritten but a UsageError that names it
     (001.21, point 6). Callers pass `--force` (or "it is under `.kcut/`") as `replace`.
+
+    Only on Windows: there `os.rename` fails if the target exists. On POSIX it replaces the
+    target silently, so with `replace=False` the guard is Windows-only (001.22, point 9; debt 32).
+    The cure, `os.link` plus `unlink` with a fallback for FAT/exFAT volumes that have no hard
+    links, is left for later: kcut is a Windows-first tool.
     """
 
     def write(tmp: Path) -> None:
@@ -117,7 +122,8 @@ def _replace_through_tmp(
 ) -> None:
     """The shared flow: refuse a folder at `path`, make its parent, write `<path>.tmp` with
     `write`, `os.replace` it over `path` (`os.rename` if `replace` is False, which refuses a file
-    that is there). Failures are a ProjectError (spec 0.10, point 5)."""
+    that is there, on Windows only: POSIX replaces it). Failures are a ProjectError (spec 0.10,
+    point 5)."""
     refuse_directory(path)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -130,7 +136,9 @@ def _replace_through_tmp(
         if replace:
             os.replace(tmp, path)
         else:
-            os.rename(tmp, path)  # fails if `path` is there: nothing is overwritten
+            # fails if `path` is there, but only on Windows: on POSIX `os.rename` replaces it
+            # (001.22, point 9; debt 32). Windows-first, so this is the guard we have
+            os.rename(tmp, path)
     except FileExistsError:
         _discard(tmp)
         raise UsageError(f"{path.name} ya existe; usa --force para pisarlo") from None

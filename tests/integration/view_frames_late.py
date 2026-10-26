@@ -169,7 +169,8 @@ class TestFramesPastVideoEnd:
     ) -> None:
         reads: list[int] = []
         monkeypatch.setattr(frames_cmd, "grab", _fake_grab(reads))
-        code, doc, err = kcut_json("frames", "a1", *(["30"] * 64), *project_args(short))
+        times = [str(f) for f in range(64)]  # 001.22: equal times are one frame, so 64 different
+        code, doc, err = kcut_json("frames", "a1", *times, *project_args(short))
         assert code == 0, err
         assert len(reads) == 64 and len(doc["frames"]) == 64 and doc["sheet"] is not None
 

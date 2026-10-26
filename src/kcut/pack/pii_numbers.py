@@ -1,5 +1,5 @@
-"""Numbers in what people say (spec 001.13, 001.16, 001.17, 001.18): where they are and how they
-are masked.
+"""Numbers in what people say (spec 001.13, 001.16, 001.17, 001.18, 001.22): where they are and
+how they are masked.
 
 A number is a run of tokens that take digits (`Tok.slots`): digits, digits said in words, tens,
 hundreds, thousands, multipliers. Up to `MAX_BRIDGE` bridge tokens (a filler, `dash`, `y`...) may
@@ -8,7 +8,9 @@ sit between two groups of digits, and one or two lone `o` between them are zeros
 (001.18 points 2 and 3, read by the letter in 001.20): two groups of `MIN_SIDE` digits or more
 that together reach `MIN_DIGITS`, with up to `MAX_ASIDE` words between them, whatever size each
 one has. That covers a number said again after "no, perdón," (a restart): the first try is a group
-of 3 or more next to a number of 7 or more.
+of `MIN_SIDE` or more next to a number of 7 or more. `MIN_SIDE` is 2 since 001.22 point 5: a group
+of 2 digits next to a number of 7 or more is part of it (a cost accepted: an age or a quantity of
+2 digits that close to a number is hidden too).
 """
 
 from collections.abc import Sequence
@@ -21,7 +23,7 @@ MIN_DIGITS = 7  # a run this long is a phone, an ID number, a card or an account
 KEEP_DIGITS = 2  # the last digits of a run that stay readable
 MAX_BRIDGE = 4  # bridge tokens that may sit between two groups of digits (001.17, point 3)
 MAX_ASIDE = 6  # words of an aside between two groups of digits (001.18 point 2, 001.20)
-MIN_SIDE = 3  # digits each group needs to take part in an aside: "five five like..." is no number
+MIN_SIDE = 2  # digits each group needs to take part in an aside; 1 digit alone is no number
 
 
 @dataclass(slots=True)

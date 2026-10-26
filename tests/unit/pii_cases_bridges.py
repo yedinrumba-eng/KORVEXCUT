@@ -71,7 +71,7 @@ class TestPiiBridgeV2:
         assert _shown_v2("809 eh eh eh eh uh-huh 5551")[0] == "***"  # 001.20: five, an aside
         assert _shown_v2("809 " + "eh " * 6 + "uh-huh 5551")[0] == "809"  # 001.20: seven words
 
-    def test_pii_bridge_v2_a_word_that_is_no_filler_still_cuts(self) -> None:
+    def test_pii_bridge_v2_a_word_that_is_no_filler_is_an_aside(self) -> None:
         assert _shown_v2("809 555 hola 1234") == ["***", "***", "hola", "**34"]  # 001.18
         assert _shown_v2("809 555 you 1234")[0] == "***"  # 001.18: an aside of one word
 
@@ -218,9 +218,10 @@ class TestPiiAside:
         assert shown[:3] == ["*", "*", "*"] and shown[-2:] == ["9", "8"]
         assert all(word in shown for word in aside.split() if word != "four")
 
-    def test_pii_aside_needs_three_digits_on_each_side(self) -> None:
+    def test_pii_aside_needs_two_digits_on_each_side(self) -> None:
         assert _shown_v2("five five like zero one nine eight", ())[0] == "five"  # 2 + 4
-        assert _shown_v2("five five five five five like one two", ())[0] == "five"  # 5 + 2
+        # 001.22: two digits are enough on a side now (MIN_SIDE = 2), so 5 + 2 reach seven
+        assert _shown_v2("five five five five five like one two", ())[0] == "*"
 
     def test_pii_aside_the_two_groups_must_reach_seven(self) -> None:
         said = "five five five like one two three"  # 3 + 3
@@ -280,8 +281,8 @@ class TestPiiRestart:
         )
         assert _shown_v2(seven, ())[0] == "809555"
 
-    def test_pii_restart_a_first_try_of_two_digits_is_left_alone(self) -> None:
-        assert _shown_v2("55 no perdon 8095551234", ())[0] == "55"
+    def test_pii_restart_a_first_try_of_two_digits_is_masked_too(self) -> None:
+        assert _shown_v2("55 no perdon 8095551234", ())[0] == "**"  # 001.22: MIN_SIDE = 2
 
     def test_pii_restart_three_tries_in_a_row(self) -> None:
         shown = _shown_v2("809555 no 809555 no perdon 8095551234", ())

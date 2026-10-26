@@ -211,7 +211,7 @@ class TestPiiEmail:
 
     @pytest.mark.parametrize(
         "text",
-        ["john at gmail dot xyz", "john at gmail com", "at gmail dot com", "john at gmail dot"],
+        ["john at gmail com", "at gmail dot com", "john at gmail dot"],  # 001.22: not `dot xyz`
     )
     def test_pii_email_spoken_needs_the_whole_shape(self, text: str) -> None:
         assert "@" not in "".join(_shown(text))

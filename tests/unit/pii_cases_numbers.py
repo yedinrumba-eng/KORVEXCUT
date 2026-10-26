@@ -17,12 +17,26 @@ from tests.unit.pii_cases_asides import (
     TestPiiAsideV2Transcript,
     TestPiiRestartV2,
 )
+from tests.unit.pii_cases_glued import TestPiiEmailGluedV2
+from tests.unit.pii_cases_v5 import (  # 001.22: collected here, test_pii.py is at 300 lines
+    TestPiiAsideV3,
+    TestPiiEmailGluedNumber,
+    TestPiiEmailV5Guion,
+    TestPiiEmailV5Numbers,
+    TestPiiEmailV5OpenTld,
+)
 
 __all__ = [
     "TestPiiAbsorbBackwards",
     "TestPiiAsideV2",
     "TestPiiAsideV2Transcript",
+    "TestPiiAsideV3",
     "TestPiiBridge",
+    "TestPiiEmailGluedNumber",
+    "TestPiiEmailGluedV2",
+    "TestPiiEmailV5Guion",
+    "TestPiiEmailV5Numbers",
+    "TestPiiEmailV5OpenTld",
     "TestPiiRestartV2",
     "TestPiiTens",
 ]
@@ -91,7 +105,7 @@ class TestPiiBridge:
     def test_pii_bridge_a_leading_or_trailing_bridge_is_not_part_of_the_number(self) -> None:
         assert _shown("y 5551234 y") == ["y", "*****34", "y"]
 
-    def test_pii_bridge_a_word_that_is_not_a_bridge_still_cuts(self) -> None:
+    def test_pii_bridge_a_word_that_is_not_a_bridge_is_an_aside(self) -> None:
         assert _shown("809 hola 5551234") == ["***", "hola", "*****34"]  # 001.20
         assert _shown("809 uh 555 1234") == ["***", "uh", "***", "**34"]  # 001.18: fixed bridge
 
@@ -99,7 +113,7 @@ class TestPiiBridge:
         assert _shown("809 uh 555 1234", fillers=("uh",)) == ["***", "uh", "***", "**34"]
         assert _shown("809 eh 555 1234", fillers=()) == ["***", "eh", "***", "**34"]  # 001.18
 
-    def test_pii_bridge_two_numbers_apart_stay_apart(self) -> None:
+    def test_pii_bridge_two_numbers_an_aside_apart_are_one(self) -> None:
         assert _shown("123 hola 4567 y 890") == ["***", "hola", "****", "y", "*90"]  # 001.20
 
     def test_pii_bridge_two_years_joined_by_y_are_masked_the_price_of_the_rule(self) -> None:

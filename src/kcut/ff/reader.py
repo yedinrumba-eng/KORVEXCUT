@@ -67,11 +67,27 @@ def reader_args(
     ]
 
 
-def seek_input(path: Path, start_f: int, fps: int) -> list[str]:
-    """`-ss <time> -i <path>`, where the time falls a quarter of a frame before frame `start_f`
-    so that the frame asked for is the first one out (technique of the pilot). `start_f` is the
-    index inside that file, not the frame of the source clock."""
-    return ["-ss", fnum(max(0, (start_f - 0.25) / fps)), "-i", str(path)]
+def seek_input(path: Path, start_f: int, fps: int, size: tuple[int, int]) -> list[str]:
+    """`-ss <time> -max_pixels <2*w*h> -i <path>`, where the time falls a quarter of a frame
+    before frame `start_f` so that the frame asked for is the first one out (technique of the
+    pilot). `start_f` is the index inside that file, not the frame of the source clock.
+
+    `size` is the `(w, h)` the caller has already checked the file has. The decoder refuses a
+    picture of more than twice its pixels (001.22, point 8): twice lets the coded size through
+    (576x960 for a proxy of 540x960) and cuts a stream that grows to 4x or more half way, which
+    ffmpeg would otherwise follow, handing back frames of another size than the reader expects.
+    """
+    width, height = size
+    if width < 1 or height < 1:
+        raise ValueError(f"el tamaño tiene que ser positivo (vino {width}x{height})")
+    return [
+        "-ss",
+        fnum(max(0, (start_f - 0.25) / fps)),
+        "-max_pixels",
+        str(2 * width * height),
+        "-i",
+        str(path),
+    ]
 
 
 def proxy_index(clip: Clip, f: int, fps: int) -> int:
@@ -148,7 +164,7 @@ class FrameReader:
         self._expired = False
         args = reader_args(
             proc.tool_path("ffmpeg"),
-            seek_input(path, start_f, fps),
+            seek_input(path, start_f, fps, size),
             count,
             pre_filters=pre_filters,
             rgb_filters=rgb_filters,

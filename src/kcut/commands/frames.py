@@ -3,8 +3,10 @@
 Claude looks at them before it throws a long pause away (lesson 8: there may be a gesture in it).
 Times are of the source clock (spec 0.6): frame `f` of the clip is index `f - vs_f` of its proxy
 (`ff.reader.proxy_index`), and a frame before the first one of the video, or after the last one
-the proxy really has, is a UsageError. A frame is never made wider than the proxy; the sheet has
-at most 25 Mpx (its cells get narrower), and each frame is let go as soon as it is pasted.
+the proxy really has, is a UsageError. Times that fall on the same frame (`90 3s` at 30 fps) are
+one frame, so the run does not meet the PNG it has just written (001.22). A frame is never made
+wider than the proxy; the sheet has at most 25 Mpx (its cells get narrower), and each frame is
+let go as soon as it is pasted.
 """
 
 from __future__ import annotations
@@ -83,7 +85,8 @@ def run(args: argparse.Namespace) -> int:
         raise UsageError(
             f"se pidieron {len(args.times)} tiempos; el máximo por corrida es {MAX_TIMES}"
         )
-    times = [parse_time(t, fps) for t in args.times]
+    # times that fall on the same frame are one: the first appearance keeps its place (001.22)
+    times = list(dict.fromkeys(parse_time(t, fps) for t in args.times))
     if not MIN_WIDTH <= args.width <= MAX_WIDTH:
         raise UsageError(f"--width va de {MIN_WIDTH} a {MAX_WIDTH} (vino {args.width})")
     if not 1 <= args.grid <= 99:

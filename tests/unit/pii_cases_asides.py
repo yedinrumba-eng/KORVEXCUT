@@ -75,9 +75,10 @@ class TestPiiAsideV2:
         seven = "809 555 a b c d e f g 1234"
         assert _shown(seven) == seven.split(" ")
 
-    def test_pii_aside_v2_each_side_needs_three_digits(self) -> None:
-        assert _shown("80 a ver 55512345")[0] == "80"
-        assert _shown("5551234 a ver 56")[-1] == "56"
+    def test_pii_aside_v2_each_side_needs_two_digits(self) -> None:
+        assert _shown("80 a ver 55512345")[0] == "**"  # 001.22: two digits take part now
+        assert _shown("5551234 a ver 56")[-1] == "56"  # the last two digits stay readable
+        assert _shown("8 a ver 55512345")[0] == "8"  # one digit alone does not
 
     def test_pii_aside_v2_numbers_that_are_too_short_together_stay_as_they_are(self) -> None:
         said = "555 a ver 123"  # 3 + 3
@@ -111,8 +112,9 @@ class TestPiiRestartV2:
         shown = _shown(f"{digits} no perdon 8095551234")
         assert shown[0] == "*" * len(digits)
 
-    def test_pii_restart_v2_two_digits_are_not_enough(self) -> None:
-        assert _shown("80 no perdon 8095551234")[0] == "80"
+    def test_pii_restart_v2_two_digits_are_enough(self) -> None:
+        assert _shown("80 no perdon 8095551234")[0] == "**"  # 001.22: MIN_SIDE = 2
+        assert _shown("8 no perdon 8095551234")[0] == "8"  # one digit is not
 
     def test_pii_restart_v2_six_words_between_and_not_seven(self) -> None:
         assert _shown("809 no no no no no no 8095551234")[0] == "***"
@@ -182,8 +184,9 @@ class TestPiiAbsorbBackwards:
         said = "305 like 555 like 019"  # 3 + 3 + 3: no pair reaches 7, nothing is masked
         assert _shown(said) == said.split(" ")
 
-    def test_pii_absorb_backwards_a_group_of_two_digits_stays_as_it_is(self) -> None:
-        assert _shown("80 like 555 like 0198")[0] == "80"
+    def test_pii_absorb_backwards_a_group_of_two_digits_is_absorbed_too(self) -> None:
+        assert _shown("80 like 555 like 0198")[0] == "**"  # 001.22: the same minimum as going right
+        assert _shown("8 like 555 like 0198")[0] == "8"  # one digit alone is not a group
 
     def test_pii_absorb_backwards_a_time_or_a_code_still_cuts(self) -> None:
         assert _shown("305 5:31 5551234") == ["305", "5:31", "*****34"]

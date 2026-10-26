@@ -1,16 +1,20 @@
 """The argument lists of the frame reader and the proxy index (spec S1.4, 001.15). Nothing runs."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from kcut.errors import ProjectError
-from kcut.ff.reader import proxy_index, reader_args, seek_input
+from kcut.ff import reader as reader_module
+from kcut.ff.reader import FrameReader, proxy_index, reader_args, seek_input
 from kcut.ingest.inventory import Clip
 from tests.unit.media_fakes import make_video
 
 FFMPEG = Path("C:/tools/ffmpeg.exe")
 RGB = "scale=in_color_matrix=bt709:in_range=tv,format=rgb24"
+SIZE = (540, 960)  # 001.22: the size the caller has checked, which seek_input asks for
+MAX_PIXELS = "1036800"  # 2 * 540 * 960
 
 
 def _clip(start_ms: int | None) -> Clip:
@@ -21,19 +25,51 @@ def _clip(start_ms: int | None) -> Clip:
 class TestSeekInput:
     def test_seek_input_lands_a_quarter_of_a_frame_before_the_frame(self) -> None:
         path = Path("C:/p/a b.mp4")
-        assert seek_input(path, 90, 30) == ["-ss", "2.991667", "-i", str(path)]
+        # 001.22: the size is asked for and `-max_pixels` sits between the seek and `-i`
+        assert seek_input(path, 90, 30, SIZE) == [
+            *("-ss", "2.991667", "-max_pixels", MAX_PIXELS, "-i", str(path)),
+        ]
 
     def test_seek_input_the_first_frame_is_time_zero_not_negative(self) -> None:
-        assert seek_input(Path("x.mp4"), 0, 30)[:2] == ["-ss", "0"]
+        assert seek_input(Path("x.mp4"), 0, 30, SIZE)[:2] == ["-ss", "0"]  # 001.22: size
 
     @pytest.mark.parametrize(("start_f", "fps", "text"), [(1, 30, "0.025"), (60, 24, "2.489583")])
     def test_seek_input_other_frames(self, start_f: int, fps: int, text: str) -> None:
-        assert seek_input(Path("x.mp4"), start_f, fps)[1] == text
+        assert seek_input(Path("x.mp4"), start_f, fps, SIZE)[1] == text  # 001.22: size
+
+    @pytest.mark.parametrize(
+        ("size", "pixels"),
+        [
+            ((540, 960), "1036800"),
+            ((1080, 1920), "4147200"),
+            ((1, 1), "2"),
+            ((4096, 4096), "33554432"),
+        ],
+    )
+    def test_seek_input_max_pixels_is_twice_the_pixels_of_the_size(
+        self, size: tuple[int, int], pixels: str
+    ) -> None:
+        args = seek_input(Path("x.mp4"), 3, 30, size)
+        assert args[args.index("-max_pixels") + 1] == pixels
+
+    def test_seek_input_max_pixels_goes_before_the_input_it_limits(self) -> None:
+        args = seek_input(Path("x.mp4"), 3, 30, SIZE)
+        assert args.index("-max_pixels") < args.index("-i") == len(args) - 2
+
+    def test_seek_input_max_pixels_lets_the_coded_size_of_the_proxy_through(self) -> None:
+        coded = 576 * 960  # a proxy of 540x960 is coded in macroblocks of 16: 576 wide
+        assert coded <= int(MAX_PIXELS)
+        assert int(MAX_PIXELS) < 4 * 540 * 960  # a stream that grows to 4x is cut
+
+    @pytest.mark.parametrize("size", [(0, 960), (540, 0), (-1, 5), (0, 0)])
+    def test_seek_input_max_pixels_needs_a_size_that_exists(self, size: tuple[int, int]) -> None:
+        with pytest.raises(ValueError):
+            seek_input(Path("x.mp4"), 3, 30, size)
 
 
 class TestReaderArgs:
     def test_reader_args_a_file_with_the_explicit_bt709_matrix(self) -> None:
-        inputs = seek_input(Path("clip.mp4"), 90, 30)
+        inputs = seek_input(Path("clip.mp4"), 90, 30, SIZE)  # 001.22: size
         args = reader_args(FFMPEG, inputs, 5)
         assert args == [
             str(FFMPEG),
@@ -72,8 +108,29 @@ class TestReaderArgs:
             reader_args(FFMPEG, ["-i", "x.mp4"], count)
 
     def test_reader_args_is_all_strings_and_never_the_shell(self) -> None:
-        args = reader_args(FFMPEG, seek_input(Path("x y.mp4"), 3, 30), 4)
+        args = reader_args(FFMPEG, seek_input(Path("x y.mp4"), 3, 30, SIZE), 4)  # 001.22: size
         assert all(isinstance(a, str) for a in args) and isinstance(args, list)
+
+
+class TestFrameReaderMaxPixels:
+    """001.22 point 8: the reader hands its size to `seek_input`, so ffmpeg starts with the cap."""
+
+    def test_frame_reader_max_pixels_is_in_the_command_ffmpeg_is_started_with(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        started: list[list[str]] = []
+
+        def popen(args: list[str], **kwargs: Any) -> None:
+            started.append(args)
+            raise RuntimeError("stop here: only the command was wanted")
+
+        monkeypatch.setattr(reader_module.proc, "tool_path", lambda name: FFMPEG)
+        monkeypatch.setattr(reader_module.proc, "popen", popen)
+        with pytest.raises(RuntimeError, match="stop here"):
+            FrameReader(Path("x.mp4"), 3, 1, 30, (300, 400), log=None)
+        args = started[0]
+        assert args[args.index("-max_pixels") + 1] == str(2 * 300 * 400)
+        assert args.index("-max_pixels") < args.index("-i")
 
 
 class TestProxyIndex:

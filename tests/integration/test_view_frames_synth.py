@@ -22,6 +22,7 @@ from tests.integration.ingest_helpers import snapshot
 from tests.integration.view_frames_caps import *  # noqa: F403
 from tests.integration.view_frames_helpers import Run, gray, project_args, remove, size
 from tests.integration.view_frames_late import *  # noqa: F403
+from tests.integration.view_frames_step0 import *  # noqa: F403
 from tests.integration.view_frames_stream import *  # noqa: F403
 from tests.unit.transcribe_fakes import params_for
 
@@ -56,7 +57,7 @@ class TestFrames:
             "frames", "a1", "3s", "0:03", "90", "--project", str(view_shared)
         )
         assert code == 0, err
-        assert [item["f"] for item in doc["frames"]] == [90, 90, 90]
+        assert [item["f"] for item in doc["frames"]] == [90]  # 001.22: the same frame, once
         assert all(gray(view_shared / item["png"]) >= 200 for item in doc["frames"])
 
     def test_frames_several_times_make_a_sheet_named_by_the_first_and_the_last(

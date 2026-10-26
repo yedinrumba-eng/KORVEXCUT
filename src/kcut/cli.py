@@ -25,6 +25,7 @@ COMMAND_MODULES: tuple[str, ...] = (
     "kcut.commands.pack",
     "kcut.commands.view",
     "kcut.commands.frames",
+    "kcut.commands.edl",
 )
 
 _EXIT_INTERRUPTED = 130

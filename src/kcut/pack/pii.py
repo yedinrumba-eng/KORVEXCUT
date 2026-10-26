@@ -23,7 +23,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import replace
 
-from kcut.pack.pii_email import mask_written, masked_address, spoken_groups
+from kcut.pack.pii_email import TLDS, mask_written, masked_address, split_written, spoken_groups
 from kcut.pack.pii_numbers import compose, mask_lettered, mask_run, number_runs
 from kcut.pack.pii_tokens import Tok, classify, tokenize
 from kcut.pack.pii_vocab import bridge_tokens
@@ -62,13 +62,28 @@ def mask_pii_spans(
         changed[group[0].at] = masked_address(group[0].text, tld)
         changed.update({tok.at: "" for tok in group[1:]})
         taken.update(tok.at for tok in group)
+    heads: dict[int, tuple[str, str]] = {}  # word -> (masked address, what follows it), 001.22
+    tails: dict[int, list[Tok]] = {}  # word -> the tokens of what follows the address
+    next_uid = len(toks)
     for tok in toks:
         if tok.at not in taken and tok.piece == 0 and "@" in tok.text:
-            masked = mask_written(tok.text)
-            if masked is not None:
-                changed[tok.at] = masked
-                taken.add(tok.at)
-    rest = [tok for tok in toks if tok.at not in taken]
+            split = split_written(tok.text)
+            if split is None:
+                continue
+            taken.add(tok.at)
+            if split[1]:  # `juan@gmail.com;8095551234`: the number goes through the numbers pass
+                heads[tok.at] = split
+                tails[tok.at] = _tail_tokens(words[tok.at], tok.at, split[1], next_uid)
+                next_uid += len(tails[tok.at])
+            else:
+                changed[tok.at] = split[0]
+    rest: list[Tok] = []
+    for tok in toks:
+        if tok.at in tails:
+            if tok.piece == 0:
+                rest.extend(tails[tok.at])
+        elif tok.at not in taken:
+            rest.append(tok)
     classify(rest, bridge_tokens(fillers))
     inside: set[int] = set()
     cores: dict[int, str] = {}
@@ -84,10 +99,21 @@ def mask_pii_spans(
             changed[tok.at] = lettered
     for at in {tok.at for tok in rest if tok.uid in cores}:
         changed[at] = compose(by_word[at], cores)
+    for at, (head, tail) in heads.items():  # the masked address, then what follows it as it ended
+        changed[at] = head + changed.get(at, tail)
     for at, text in changed.items():
         shown[at] = replace(words[at], text=text)
     ids = {words[at].id for at in changed} | {words[at].id for at in taken}
     return shown, ids, ids | {words[at].id for at in inside}
+
+
+def _tail_tokens(word: Word, at: int, tail: str, first_uid: int) -> list[Tok]:
+    """The tokens of `tail`, the text that follows the address in `word` (001.22, point 6), as
+    tokens of the word at `at`. Their uids start at `first_uid`, past those of the words."""
+    toks = tokenize([replace(word, text=tail)], [0])
+    for n, tok in enumerate(toks):
+        tok.at, tok.uid = at, first_uid + n
+    return toks
 
 
 def mask_text(text: str, fillers: Sequence[str] = (), *, parts: bool = True) -> str:
@@ -106,7 +132,24 @@ def mask_text(text: str, fillers: Sequence[str] = (), *, parts: bool = True) -> 
         return _mask_phrase(text, fillers)
     ext = _EXTENSION.search(text)
     body, tail = (text[: ext.start()], ext.group()) if ext else (text, "")
-    return "/".join(_mask_segment(segment, fillers) for segment in body.split("/")) + tail
+    segments = body.split("/")
+    if _address_cut_as_extension(segments[-1], tail):
+        segments[-1] += tail  # `juan@gmail` + `.com`: the TLD is not a file extension (001.22)
+        tail = ""
+    return "/".join(_mask_segment(segment, fillers) for segment in segments) + tail
+
+
+def _address_cut_as_extension(name: str, ext: str) -> bool:
+    """Is `name` + `ext` an address that cutting the extension off left without a domain? Only
+    when the name has an `@`, no address without the extension, and `ext` is a TLD of the closed
+    list: `lunes@10am.mp4` and `logo@2x.png` are files, not addresses (001.22, point 7)."""
+    return (
+        "@" in name
+        and bool(ext)
+        and ext[1:].lower() in TLDS
+        and mask_written(name) is None
+        and mask_written(name + ext) is not None
+    )
 
 
 def _mask_segment(segment: str, fillers: Sequence[str]) -> str:

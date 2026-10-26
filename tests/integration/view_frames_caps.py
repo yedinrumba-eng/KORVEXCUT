@@ -44,7 +44,9 @@ class TestSheetCapped:
         code, doc, err = kcut_json("frames", "a1", "30", "60", "90", *project_args(view_shared))
         assert code == 0, err
         assert doc["width"] == 540 and doc["cell_width"] == 540  # three frames fit as they are
-        code, doc, err = kcut_json("frames", "a1", *(["30"] * 64), *project_args(view_shared))
+        # 001.22: 64 times in one frame are one frame now, so the 64 are different frames
+        times = [str(f) for f in range(64)]
+        code, doc, err = kcut_json("frames", "a1", *times, *project_args(view_shared))
         assert code == 0, err
         assert doc["width"] == 540 and 100 < doc["cell_width"] < 540
         width, height = size(view_shared / doc["sheet"])
@@ -53,6 +55,7 @@ class TestSheetCapped:
     def test_sheet_capped_64_times_with_width_1920_fit_25_mpx_and_600_mb(
         self, view_shared: Path
     ) -> None:
+        # 001.22: equal times are one frame now: the 64 are 64 different frames, 0 to 63
         code = (
             "from pathlib import Path\n"
             "import numpy as np\n"
@@ -62,9 +65,9 @@ class TestSheetCapped:
             "frames.grab = lambda *a, **k: np.full((960, 540, 3), 90, dtype=np.uint8)\n"
             "mark()\n"
             f"root = {str(view_shared)!r}\n"
-            "argv = ['frames', 'a1', *(['30'] * 64), '--width', '1920', '--project', root]\n"
+            "argv = ['frames', 'a1', *map(str, range(64)), '--width', '1920', '--project', root]\n"
             "print('exit', cli.main(argv))\n"
-            "sheet = Path(root) / '.kcut' / 'frames' / 'a1_sheet_30-30.png'\n"
+            "sheet = Path(root) / '.kcut' / 'frames' / 'a1_sheet_0-63.png'\n"
             "print('sheet', Image.open(sheet).size)\n"
         )
         done = measure(code)
