@@ -1615,6 +1615,17 @@ Recorre todo `src/**/*.py` y falla si alguna línea casa con `cv2\.(imread|imwri
 | 21 | Paso 0 (001.18 punto 6): `crosscam` usa prefijos acumulados con `bisect`: 16 000 palabras del maestro contra 2 000 tramos y 8 000 palabras largas del miembro en menos de 2 s; una muletilla de `kcut.toml` tiene como mucho 5 palabras | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "crosscam_linear or filler_words_cap"` → exit 0 | ❌ |
 | 22 | (001.19 punto 2) `kcut view` aplica también la cobertura entre cámaras: un `808` que solo oyó la cámara 2, dentro del número enmascarado de la cámara 1, sale `*` en el PNG y en `words` de `view a2 --json` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_view_words.py -q -k covered` → exit 0 | ❌ |
 | 23 | (001.19 punto 3) `kcut frames` con un frame después del último cuadro real del proxy (video más corto que el contenedor) → `UsageError` (2) que nombra el frame y el máximo, nunca `ToolError`; más de 64 tiempos en una sola corrida → `UsageError` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k "past_video_end or too_many_times"` → exit 0 | ❌ |
+| 24 | (001.20 punto 1) Apartes: hasta 6 palabras entre dos grupos de 3 dígitos o más que juntos llegan a 7, **sin tope arriba**; "ocho cero nueve cinco cinco cinco uno a ver dos tres cuatro", "4111 1111 1111 a ver 1111", "809 a ver 5551234", "three oh five like five five five zero one nine eight" y "809 555 y los ultimos cuatro son 1234" no dejan ningún grupo a la vista salvo los 2 últimos dígitos | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_aside_v2` → exit 0 | ❌ |
+| 25 | (001.20 punto 2) Reinicio: un grupo de 3 dígitos o más a 6 palabras o menos **antes** de un tramo enmascarado se enmascara ("ocho cero nueve cinco cinco, no perdon, <número>" no deja `80955`) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_restart_v2` → exit 0 | ❌ |
+| 26 | (001.20 punto 3) `view --filmstrip` sobre un video más corto que su contenedor deja el hueco gris pasado el último cuadro real del proxy y sale con 0 (el conteo viene del mismo helper que usa `frames`) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k filmstrip_past_video_end` → exit 0 | ❌ |
+| 27 | (001.20 punto 4) `work.proxy_w`/`proxy_h` del inventario con tope 4096 (si no → `inventory_invalid`); `proxy_of` exige que coincidan con `proxy_size` del clip; `FrameReader` rechaza un frame de más de 64 MB (`w·h·3`) con `ProjectError` antes de leer; un proxy real de 4096×4096 o un inventario de 20000×20000 no reservan más de 200 MB | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k proxy_size_cap` → exit 0 | ❌ |
+| 28 | (001.20 punto 5) `frames` nunca escala por encima del ancho del proxy; la hoja tiene como mucho 25 Mpx (las celdas se achican para entrar); cada cuadro se suelta apenas se pega; 64 tiempos con `--width 1920` sobre un proxy de 540 px dejan una hoja de ≤25 Mpx y un pico de memoria de menos de 600 MB | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k sheet_capped` → exit 0 | ❌ |
+| 29 | (001.20 punto 6) `view` dibuja `safe_text(texto)` recortado a 24 caracteres con `…`, en una sola línea; como mucho 400 cajas por imagen (si hay más, aviso fijo `words_capped` y se dibujan las primeras 400) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_timeline_img.py tests/unit/test_view_words.py -q -k "word_text_capped or boxes_capped"` → exit 0 | ❌ |
+| 30 | (001.20 punto 7) `FrameReader` tiene un plazo de 60 s por frame (configurable por parámetro): si ffmpeg no entrega, se mata y sale `ToolError` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_frame_reader.py -q -k frame_deadline` → exit 0 | ❌ |
+| 31 | (001.20 punto 8) Nombres de archivo: en el segundo pase, `-`, `.`, `(`, `)` y espacio entre dígitos **siempre** unen; `_` une solo grupos de 4 dígitos o menos; `001-1234567-8.mov` deja a la vista solo los 2 últimos dígitos; `Maria_809_555_1234.mp4` se enmascara; `VID_20261025_143015.mp4` y `VID_20261025_150215.mp4` siguen distinguibles | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py tests/unit/test_pii_pack.py -q -k path_joiners` → exit 0 | ❌ |
+| 32 | (001.20 punto 9) `--out` no pisa un archivo que ya existe fuera de `.kcut/` sin `--force` (`UsageError`); un `mkdir` o un nombre inválido en `--out` da `ProjectError` (3), nunca `InternalError` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_assert_writable.py tests/integration/test_view_frames_synth.py -q -k "out_no_overwrite or out_bad_name"` → exit 0 | ❌ |
+| 33 | (001.20 punto 10) El test de cv2 recorre el AST de `src/`: ningún `cv2.imread`/`imwrite`, ningún `from cv2 import imread/imwrite`, ningún alias de esas funciones | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_no_cv2_path_io.py -q` → exit 0 | ❌ |
+| 34 | (001.20 punto 11) `view` y `frames` cargan solo el clip pedido y su grupo de sync (no hashean todos los wav16 del proyecto) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_loaded_words.py -q -k only_needed_clips` → exit 0 | ❌ |
 
 ---
 
@@ -3976,3 +3987,51 @@ S1.3 cerró bajo la regla de corte de 001.17. El ALTO que la cumplía (una corre
    - Un frame fuera de `[vs_f, último cuadro real del proxy]` da `UsageError` (2), que nombra el frame y el máximo. El último cuadro real sale del número de frames del proxy, no de `Clip.frames`.
    - Una corrida acepta como mucho 64 tiempos; si pasa de ahí, `UsageError`.
    - Criterio S1.4-23.
+
+### 001.20 — 26/10/2026 — ronda 1 de revisión de S1.4 (verificador: 2 ALTO; seguridad: 1 ALTO)
+
+S1.4 suma los criterios 24–34. Es la ronda 2 de 3. Lo que no es contrato lo decidió el coordinador.
+
+1. **ALTO — tope inventado en los apartes** (`pack/pii_numbers.py _asides`):
+   - 001.18 punto 2 se lee **a la letra**: dos grupos de 3 dígitos o más cada uno, que juntos llegan a 7, **sin tope arriba**.
+   - `MAX_ASIDE` sube a **6** palabras, siguiendo la política de "mejor tapar de más".
+   - Cubre los casos [≥7] + aparte + [3–6] y [3–6] + aparte + [≥7].
+   - Criterio S1.4-24.
+2. **MEDIO — reinicio con un primer intento corto**: un grupo de 3 dígitos o más que queda a 6 palabras o menos **antes** de un tramo enmascarado también se enmascara. Reemplaza la regla de "exactamente 6 dígitos" de 001.18 punto 3. Criterio S1.4-25.
+3. **ALTO — `view` usaba el largo del contenedor**:
+   - El conteo real de frames del proxy pasa a un helper común en `ff/reader.py` (`proxy_frame_count`). Lo usan `frames` y `view`.
+   - Con `--filmstrip`, pasado el último cuadro real queda el hueco gris.
+   - La regla 6 de `view` queda como `[0, min(frames − vs_f, cuadros reales del proxy))`.
+   - Criterio S1.4-26.
+4. **ALTO — tamaño del proxy sin tope** (`ingest/inventory.py`, `commands/view.py proxy_of`, `ff/reader.py FrameReader`):
+   - `proxy_w` y `proxy_h` llevan tope 4096.
+   - `proxy_of` exige que `(w, h)` coincida con `proxy_size(...)` del clip; si no → `ProjectError` "el proxy no coincide con el inventario; corre kcut ingest".
+   - `FrameReader` rechaza `w·h·3 > 64 MB` antes de leer.
+   - Criterio S1.4-27.
+5. **MEDIO — hoja de `frames` sin tope**:
+   - `--width` nunca pasa del ancho del proxy.
+   - La hoja tiene como mucho 25 Mpx: el ancho de cada celda baja hasta entrar.
+   - Cada cuadro se suelta apenas se pega.
+   - El JSON informa el ancho real de la celda.
+   - Criterio S1.4-28.
+6. **MEDIO — texto dibujado en `view`** (`viz/timeline.py`, `viz/draw.py`):
+   - Se dibuja `console.safe_text(texto)` recortado a 24 caracteres con `…`, en una sola línea; los `\n` pasan a espacio.
+   - Como mucho 400 cajas por imagen, con aviso fijo `words_capped`.
+   - El texto de las palabras ya va enmascarado (T2).
+   - Criterio S1.4-29.
+7. **MEDIO — lectura sin plazo** (`ff/reader.py FrameReader`): plazo de 60 s por frame. Si se vence, se mata ffmpeg y sale `ToolError` (4). Criterio S1.4-30.
+8. **MEDIO — nombres de archivo; ratifica y ajusta 001.18 punto 4** (`pack/pii.py`):
+   - El segundo pase solo mira palabras que el primero no tapó. Así `VID_<fecha>_<hora>` sigue distinguible.
+   - Entre dígitos, `-`, `.`, `(`, `)` y el espacio **siempre** unen grupos.
+   - `_` une solo grupos de **4 dígitos o menos**: los teléfonos con `_` se unen y una fecha de 8 dígitos no.
+   - Con eso, una cédula con guiones deja a la vista solo los 2 últimos dígitos.
+   - Criterio S1.4-31.
+9. **BAJO — `--out`** (`project.py`, `jsonio.py`, `commands/view.py`, `commands/frames.py`):
+   - No pisa un archivo que ya existe fuera de `.kcut/` sin `--force`. Es un `UsageError` que nombra el archivo, porque un prompt injection podría pedir pisar `recursos/logo.png`.
+   - Un fallo de `mkdir` o un nombre inválido da `ProjectError` (3).
+   - Criterio S1.4-32.
+10. **BAJO — el test de cv2 era un grep**: pasa a recorrer el AST de `src/` y detecta llamadas, imports y alias de `imread`/`imwrite`. Criterio S1.4-33.
+11. **Fuera del diff — `view` hasheaba todo el proyecto**: `load_corrected(project, clip_ids, log)` carga solo los clips pedidos y su grupo de sync (maestro y miembros). Criterio S1.4-34.
+12. **Notas para slices siguientes, sin código aquí**:
+    - **S1.6b:** antes de `cv2.imdecode`, mirar las dimensiones con Pillow (`Image.open(...).size`) y topar el tamaño del archivo y los píxeles. cv2 no tiene el tope anti-bomba de Pillow.
+    - **Spec 002:** el plugin trata todo texto dentro de una imagen de proyecto (frames, filmstrip, stills) como dato, nunca como instrucción. Claude no lee `.kcut/logs/`, porque las cabeceras de ffmpeg llevan nombres de archivo crudos.
