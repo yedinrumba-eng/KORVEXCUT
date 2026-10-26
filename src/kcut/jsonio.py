@@ -7,14 +7,52 @@ from typing import Any
 
 from kcut.errors import ProjectError
 
+_MIB = 1024 * 1024
+# What each JSON file kcut reads may weigh (spec 001.14, point 11): one hostile file cannot cost
+# the whole 64 MiB. The transcript, the biggest honest file, keeps the default.
+MAX_INDEX_BYTES = 1 * _MIB
+MAX_CORRECTIONS_BYTES = 8 * _MIB
+MAX_INVENTORY_BYTES = 16 * _MIB
+MAX_JSON_BYTES = 64 * _MIB
+MAX_TOML_BYTES = 1 * _MIB  # `kcut.toml` (spec 001.16, point 9)
+MAX_SIDECAR_BYTES = 1 * _MIB  # `<work file>.json` next to a proxy or a wav16
+MAX_MANIFEST_BYTES = 4 * _MIB  # `recursos/manifest.json`
 
-def read_json(path: Path) -> Any:
-    """Read a JSON file; a malformed file raises ProjectError with file, line and column."""
+
+def read_capped(path: Path, max_bytes: int) -> bytes:
+    """The bytes of a file of at most `max_bytes`; a bigger one is a ProjectError.
+
+    The size is looked at before reading, and the read asks for no more than the file has (plus one
+    byte, to notice a file that grew): a small file costs its own size, not the cap's, and a
+    big one is never read. Errors of the file system (`OSError`) are the caller's.
+    """
+    with path.open("rb") as handle:
+        size = os.fstat(handle.fileno()).st_size
+        raw = handle.read(size + 1) if size <= max_bytes else b""
+    if size > max_bytes or len(raw) > max_bytes:
+        cap = f"{max_bytes // _MIB} MB" if max_bytes >= _MIB else f"{max_bytes} bytes"
+        raise ProjectError(f"{path}: el archivo pesa más de {cap}; kcut no lo lee")
+    if len(raw) > size:  # it grew between the `stat` and the read (spec 001.17, point 9)
+        raise ProjectError(f"{path}: el archivo cambió mientras se leía; repite el comando")
+    return raw
+
+
+def read_json(path: Path, max_bytes: int = MAX_JSON_BYTES) -> Any:
+    """Read a JSON file; a malformed file raises ProjectError with file, line and column.
+
+    A file over `max_bytes` (64 MiB by default; each kind of file has its own cap) is not parsed:
+    it takes the same road as a corrupt one, a ProjectError. At most `max_bytes + 1` bytes are
+    ever read, whatever the file grows to.
+    """
     try:
-        text = path.read_text(encoding="utf-8")
+        raw = read_capped(path, max_bytes)
     except FileNotFoundError:
         raise ProjectError(f"no existe el archivo {path}") from None
-    except (OSError, UnicodeDecodeError) as exc:
+    except OSError as exc:
+        raise ProjectError(f"no pude leer {path}: {exc}") from None
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
         raise ProjectError(f"no pude leer {path}: {exc}") from None
     try:
         return json.loads(text)

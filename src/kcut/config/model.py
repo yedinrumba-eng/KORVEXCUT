@@ -108,6 +108,14 @@ class IngestSection:
 
 
 @dataclass(frozen=True)
+class PrivacySection:
+    """What Claude is not allowed to read: with `mask_pii`, phone, ID and card numbers and e-mail
+    addresses are masked in `transcripcion.md` and `palabras.tsv` (spec 001.13)."""
+
+    mask_pii: bool
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     project: ProjectSection
     output: OutputSection
@@ -121,6 +129,7 @@ class ProjectConfig:
     storyboard: StoryboardSection
     glossary: tuple[str, ...]
     ingest: IngestSection
+    privacy: PrivacySection
 
 
 PRESET_SIZES: Mapping[str, tuple[int, int]] = {"9:16": (1080, 1920), "16:9": (1920, 1080)}
@@ -138,6 +147,7 @@ SECTIONS = {
     "qa",
     "storyboard",
     "ingest",
+    "privacy",
 }
 DEFAULT_FILLERS = ("eh", "ehh", "em", "emm", "mmm", "este", "o sea", "pues", "bueno", "entonces")
 WHISPER_MODELS = ("tiny", "base", "small", "medium", "large-v3")

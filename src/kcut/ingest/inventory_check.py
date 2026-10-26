@@ -11,7 +11,7 @@ from pathlib import Path
 
 from kcut.errors import ProjectError
 from kcut.ingest.classify import ID_HIGH_MAX, ID_PREFIX
-from kcut.ingest.inventory_model import Clip
+from kcut.ingest.inventory_model import Clip, SyncInfo
 from kcut.paths import is_inside, resolve_in_project, to_rel
 from kcut.schema_util import SchemaError
 
@@ -20,9 +20,25 @@ _SLUG = re.compile(r"[a-z0-9-]{1,40}")
 PREFIXES = frozenset(ID_PREFIX.values())
 
 
-def check_clip(clip: Clip, root: Path) -> None:
-    """Raise SchemaError if the clip's id, slug or any of its paths cannot be trusted."""
-    here = f"clips[{clip.id}]"
+def check_clip_id(value: str, where: str) -> None:
+    """SchemaError at `where` unless `value` is a clip id (a letter and 1-6 digits).
+
+    The sync block names clips by id, and an id ends up in `transcripcion.md` and in the console:
+    one that is not a clip id (a line break, an escape sequence...) is refused here.
+    """
+    if _ID.fullmatch(value) is None:
+        raise SchemaError(where, "debe ser un id de clip (una letra y 1-6 dígitos)")
+
+
+def check_clip(clip: Clip, root: Path, index: int) -> None:
+    """Raise SchemaError if the clip's id, slug or any of its paths cannot be trusted.
+
+    The field is named by the clip's position (`clips[0].id`), never by its id: a bad id is the
+    attacker's text and must not travel inside the path of the error (spec 001.12, point 2). The
+    messages quote the value whole because they only reach the log (`project` and `ingest` print
+    the field, not the message) and `cli` cuts any message to 300 characters.
+    """
+    here = f"clips[{index}]"
     if _ID.fullmatch(clip.id) is None:
         raise SchemaError(f"{here}.id", f"debe ser una letra y 1-6 dígitos (vino {clip.id!r})")
     if clip.id[0] != ID_PREFIX[clip.clip_class]:
@@ -37,6 +53,29 @@ def check_clip(clip: Clip, root: Path) -> None:
             _under(root, clip.work.wav16, ".kcut/wav16", f"{here}.work.wav16")
 
 
+def check_sync_refs(sync: SyncInfo, clips: tuple[Clip, ...]) -> None:
+    """The sync block can only name clips the inventory has (spec 001.14, point 9).
+
+    The master exists; each member and each rejected exists, appears once, and is not the master
+    nor in the other list. The field is by position, never by id.
+    """
+    ids = {clip.id for clip in clips}
+    if sync.master is not None and sync.master not in ids:
+        raise SchemaError("sync.master", "no es un clip del inventario")
+    seen: set[str] = set()
+    named = [("members", [m.id for m in sync.members]), ("rejected", [r.id for r in sync.rejected])]
+    for key, entry_ids in named:
+        for index, entry_id in enumerate(entry_ids):
+            where = f"sync.{key}[{index}].id"
+            if entry_id not in ids:
+                raise SchemaError(where, "no es un clip del inventario")
+            if entry_id == sync.master:
+                raise SchemaError(where, "es el maestro")
+            if entry_id in seen:
+                raise SchemaError(where, "está repetido")
+            seen.add(entry_id)
+
+
 def check_ids(clips: tuple[Clip, ...], id_high: Mapping[str, int] | None) -> dict[str, int]:
     """No duplicate ids; `id_high` has valid prefixes and covers every id present.
 
@@ -44,16 +83,16 @@ def check_ids(clips: tuple[Clip, ...], id_high: Mapping[str, int] | None) -> dic
     """
     seen: set[str] = set()
     top: dict[str, int] = {}
-    for clip in clips:
+    for index, clip in enumerate(clips):
         if clip.id in seen:
-            raise SchemaError(f"clips[{clip.id}].id", "está repetido")
+            raise SchemaError(f"clips[{index}].id", "está repetido")
         seen.add(clip.id)
         top[clip.id[0]] = max(top.get(clip.id[0], 0), int(clip.id[1:]))
     if id_high is None:
         return top
     for prefix, number in id_high.items():
         if prefix not in PREFIXES:
-            raise SchemaError(f"id_high.{prefix}", "prefijo de id desconocido")
+            raise SchemaError("id_high", f"prefijo de id desconocido: {prefix!r}")
         if not 0 <= number <= ID_HIGH_MAX:
             raise SchemaError(f"id_high.{prefix}", f"debe estar entre 0 y {ID_HIGH_MAX}")
     for prefix, number in top.items():

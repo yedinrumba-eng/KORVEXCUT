@@ -20,7 +20,7 @@ RANGE_CASES = [
     ("[transcribe]\nbeam_size = true\n", "transcribe.beam_size"),
     ("[transcribe]\nbeam_size = 5.0\n", "transcribe.beam_size"),
     ('[transcribe]\nprompt_extra = "' + "p" * 401 + '"\n', "transcribe.prompt_extra"),
-    ("[transcribe]\nfillers = " + str(["f"] * 51) + "\n", "transcribe.fillers"),
+    ("[transcribe]\nfillers = " + str(["f"] * 201) + "\n", "transcribe.fillers"),
     ("[analysis]\nsilence_db = -10.0\n", "analysis.silence_db"),
     ("[analysis]\nmin_silence_ms = 49\n", "analysis.min_silence_ms"),
     ("[analysis]\nphrase_pause_ms = 99\n", "analysis.phrase_pause_ms"),
@@ -34,7 +34,7 @@ RANGE_CASES = [
     ("[sync]\nmin_refine_corr = 1.5\n", "sync.min_refine_corr"),
     ("[sync]\nmin_refine_corr = -0.1\n", "sync.min_refine_corr"),
     ("[sync]\nmin_refine_corr = true\n", "sync.min_refine_corr"),
-    ("[sync.manual]\nA2 = 5\n", "sync.manual.A2"),
+    ("[sync.manual]\nA2 = 5\n", "sync.manual.<clave desconocida>"),
     ('[sync.manual]\na2 = "5"\n', "sync.manual.a2"),
     ("[sync.manual]\na2 = 5.5\n", "sync.manual.a2"),
     ("[captions]\nmax_words = 7\n", "captions.max_words"),
@@ -62,3 +62,28 @@ RANGE_CASES = [
     ('[glossary]\nterms = [""]\n', "glossary.terms[0]"),
     ("[glossary]\nterms = [3]\n", "glossary.terms[0]"),
 ]
+
+# 001.6 point 8: user text that reaches Whisper's prompt or Claude's context. `§` stands for the
+# forbidden character (a TOML escape such as ` `) and sits at position 2 of its value.
+PROMPT_FIELDS = [
+    ('[glossary]\nterms = ["a§b"]\n', "glossary.terms[0]"),
+    ('[glossary]\nterms = ["Higgsfield", "a§b"]\n', "glossary.terms[1]"),
+    ('[transcribe]\nfillers = ["eh", "a§b"]\n', "transcribe.fillers[1]"),
+    ('[transcribe]\nprompt_extra = "a§b"\n', "transcribe.prompt_extra"),
+]
+
+# 001.10 point 3: an integer of 5000 digits makes `int()` raise ValueError (limit of 4300 digits).
+_BIG = "9" * 5000
+_BIG_HEX = "0x" + "f" * 5000  # no limit when parsed, but `repr()` of the value raises it
+HUGE_INT_CASES = {
+    "fps": f"[output]\nfps = {_BIG}\n",
+    "negative_safe_top": f"[output]\nsafe_top_px = -{_BIG}\n",
+    "sync_manual": f"[sync.manual]\na2 = {_BIG}\n",
+    "float_key": f"[analysis]\nsilence_db = {_BIG}\n",
+    "fillers_item": f"[transcribe]\nfillers = [{_BIG}]\n",
+    "unknown_section": f"[unknown]\nx = {_BIG}\n",
+    "hex_fps": f"[output]\nfps = {_BIG_HEX}\n",
+    "hex_sync_manual": f"[sync.manual]\na2 = {_BIG_HEX}\n",
+    "hex_fillers_item": f"[transcribe]\nfillers = [{_BIG_HEX}]\n",
+    "hex_glossary_item": f"[glossary]\nterms = [{_BIG_HEX}]\n",
+}

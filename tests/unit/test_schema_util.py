@@ -105,9 +105,13 @@ class TestObjectsAndKeys:
         assert obj({"a": 1}, "x") == {"a": 1}
         assert "x: debe ser un objeto" in _msg(lambda: obj([], "x"))
 
-    def test_unknown_key_is_named_with_its_path(self) -> None:
-        message = _msg(lambda: only_keys({"in_f": 1, "zoom": 2}, {"in_f"}, "spans[3]"))
-        assert message == "spans[3].zoom: clave desconocida"
+    def test_unknown_key_is_hidden_in_the_path_and_whole_in_full_es(self) -> None:
+        """Spec 001.14 point 2: the key is the data of someone else, so the message keeps the
+        path up to the table and the key only reaches the log (`full_es`)."""
+        with pytest.raises(SchemaError) as info:
+            only_keys({"in_f": 1, "zoom": 2}, {"in_f"}, "spans[3]")
+        assert info.value.message_es == "spans[3].<clave desconocida>: clave desconocida"
+        assert info.value.full_es == "spans[3].zoom: clave desconocida"
 
     def test_known_keys_pass(self) -> None:
         only_keys({"a": 1}, {"a", "b"}, "")

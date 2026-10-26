@@ -2,16 +2,37 @@
 
 import io
 import json
+import re
 import sys
 import time
-import unicodedata
 from collections.abc import Mapping
 
 _TAGS = frozenset({"OK", "FALTA", "AVISO", "ERROR", "INFO"})
 _PROGRESS_INTERVAL_S = 2.0
-# Control, format, line separator, paragraph separator and surrogate characters: on a terminal
-# they change the title, clear the screen, flip the text direction or forge a line.
-_ESCAPED_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp", "Cs"})
+# What `safe_text` escapes, as inclusive code point ranges (newline, U+000A, excluded):
+#   - the Unicode categories Cc, Cf, Zl, Zp, Cs and Co: on a terminal they change the title, clear
+#     the screen, flip the text direction or forge a line, and private-use ones show whatever the
+#     viewer's font maps them to;
+#   - the variation selectors U+FE00-U+FE0F and U+E0100-U+E01EF (category Mn): they ride on any
+#     character and hide text from whoever reviews what Claude reads (spec 001.10, point 4);
+#   - the invisible fillers U+115F, U+1160, U+3164, U+FFA0 and U+2800 (001.12, point 14): blank
+#     "letters" that can pose as an empty name. NBSP is ordinary text and stays;
+#   - more invisibles (001.14, point 10): U+034F, U+17B4-U+17B5, U+180B-U+180D, U+180F, U+2065,
+#     U+FFF0-U+FFF8 and the whole tag block U+E0000-U+E0FFF.
+# The table is what the character-by-character definition gives on Python 3.12's Unicode data;
+# `tests/unit/test_console_hygiene.py` compares the two on every code point.
+_ESCAPED_RANGES = (
+    (0x0, 0x9), (0xB, 0x1F), (0x7F, 0x9F), (0xAD, 0xAD), (0x34F, 0x34F), (0x600, 0x605),
+    (0x61C, 0x61C), (0x6DD, 0x6DD), (0x70F, 0x70F), (0x890, 0x891), (0x8E2, 0x8E2),
+    (0x115F, 0x1160), (0x17B4, 0x17B5), (0x180B, 0x180F), (0x200B, 0x200F), (0x2028, 0x202E),
+    (0x2060, 0x206F), (0x2800, 0x2800), (0x3164, 0x3164), (0xD800, 0xF8FF), (0xFE00, 0xFE0F),
+    (0xFEFF, 0xFEFF), (0xFFA0, 0xFFA0), (0xFFF0, 0xFFFB), (0x110BD, 0x110BD), (0x110CD, 0x110CD),
+    (0x13430, 0x1343F), (0x1BCA0, 0x1BCA3), (0x1D173, 0x1D17A), (0xE0000, 0xE0FFF),
+    (0xF0000, 0xFFFFD), (0x100000, 0x10FFFD),
+)  # fmt: skip
+_ESCAPE = re.compile(
+    "[" + "".join(f"\\U{low:08x}-\\U{high:08x}" for low, high in _ESCAPED_RANGES) + "]"
+)
 _LAST_LATIN1 = 0xFF
 _LAST_BMP = 0xFFFF
 
@@ -24,20 +45,20 @@ def setup_streams() -> None:
 
 
 def safe_text(text: str) -> str:
-    r"""`text` with every Cc, Cf, Zl, Zp or Cs character swapped for its visible escape: `\xNN`
-    up to U+00FF, `\uNNNN` up to U+FFFF, `\UNNNNNNNN` above. The newline stays. Text without such
+    r"""`text` with every Cc, Cf, Zl, Zp, Cs or Co character, every variation selector
+    (U+FE00-U+FE0F, U+E0100-U+E01EF), the invisible fillers (U+115F, U+1160, U+3164, U+FFA0,
+    U+2800) and the other invisibles of the table above swapped for its visible escape: `\xNN` up
+    to U+00FF, `\uNNNN` up to U+FFFF, `\UNNNNNNNN` above. The newline stays. Text without such
     characters comes back identical.
 
     Every line kcut prints goes through here: file names, ids and keys of `inventory.json` are not
     trusted and must not reach the terminal as escape sequences (spec 001.8, point 1).
     """
-    return "".join(_visible(ch) for ch in text)
+    return _ESCAPE.sub(_visible, text)
 
 
-def _visible(ch: str) -> str:
-    if ch == "\n" or unicodedata.category(ch) not in _ESCAPED_CATEGORIES:
-        return ch
-    code = ord(ch)
+def _visible(match: re.Match[str]) -> str:
+    code = ord(match.group())
     if code <= _LAST_LATIN1:
         return f"\\x{code:02x}"
     if code <= _LAST_BMP:
@@ -74,7 +95,7 @@ class Out:
         keys included, goes through `safe_text` first; `ensure_ascii` stays off, so accents do
         not change."""
         if self.json_mode:
-            print(json.dumps(_clean(obj), ensure_ascii=False, indent=1))
+            print(json.dumps(_clean(obj), ensure_ascii=False, indent=1, allow_nan=False))
 
     def warn(self, text: str) -> None:
         """Print a warning to stderr, in both modes."""

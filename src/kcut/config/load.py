@@ -4,10 +4,9 @@ import re
 import tomllib
 from datetime import date
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any
 
-from kcut.config.fields import hex_or_empty, string_list, valid_date
+from kcut.config.fields import check_clean, hex_or_empty, string_list, valid_date
 from kcut.config.model import (
     COMPUTE_TYPES,
     DEFAULT_FILLERS,
@@ -21,18 +20,21 @@ from kcut.config.model import (
     CaptionsSection,
     IngestSection,
     OutputSection,
+    PrivacySection,
     ProjectConfig,
     ProjectSection,
     QaSection,
     StoryboardSection,
-    SyncSection,
     TranscribeSection,
     VoiceChain,
 )
 from kcut.config.names import NAME_MAX, clean_default_name, has_forbidden_chars
+from kcut.config.sync_section import build_sync
 from kcut.errors import ProjectError
+from kcut.jsonio import MAX_TOML_BYTES, read_capped
 from kcut.schema_util import (
     SchemaError,
+    describe_value,
     hex_color,
     join_path,
     obj,
@@ -42,18 +44,18 @@ from kcut.schema_util import (
     opt_float,
     opt_int,
     opt_str,
+    project_error,
 )
 from kcut.timebase import ALLOWED_FPS, MAX_TIME_MS
 
 _LANG = re.compile(r"[a-z]{2}")
-_CLIP_ID = re.compile(r"[a-z][0-9]+")
 _MAX_HOURS = MAX_TIME_MS / 3_600_000  # 48.0: the same cap the inventory puts on stored times
 
 
 def load_config(path: Path) -> ProjectConfig:
     """Load and validate `kcut.toml`; every failure is a ProjectError (exit 3)."""
     try:
-        text = path.read_text(encoding="utf-8")
+        text = read_capped(path, MAX_TOML_BYTES).decode("utf-8")
     except FileNotFoundError:
         raise ProjectError(f"no existe {path}") from None
     except (OSError, UnicodeDecodeError) as exc:
@@ -64,13 +66,15 @@ def load_config(path: Path) -> ProjectConfig:
 def parse_config(text: str, *, default_name: str, source: str = "kcut.toml") -> ProjectConfig:
     """Validate the text of a `kcut.toml`. `default_name` fills `project.name` when absent."""
     try:
-        data = tomllib.loads(text)
+        return _build(tomllib.loads(text), default_name)
     except tomllib.TOMLDecodeError as exc:
         raise ProjectError(f"{source}: TOML mal formado: {exc}") from None
-    try:
-        return _build(data, default_name)
     except SchemaError as exc:
-        raise ProjectError(f"{source}: {exc.message_es}") from None
+        raise project_error(source, exc) from None
+    except ValueError as exc:  # an integer of thousands of digits: Python caps `int()` at 4300
+        raise ProjectError(
+            f"{source}: número con demasiados dígitos o valor no válido ({exc})"
+        ) from None
 
 
 def _build(data: dict[str, Any], default_name: str) -> ProjectConfig:
@@ -82,7 +86,7 @@ def _build(data: dict[str, Any], default_name: str) -> ProjectConfig:
         brand=_brand(_section(data, "brand")),
         transcribe=_transcribe(_section(data, "transcribe")),
         analysis=_analysis(_section(data, "analysis")),
-        sync=_sync(_section(data, "sync")),
+        sync=build_sync(_section(data, "sync")),
         captions=_captions(_section(data, "captions")),
         audio=_audio(_section(data, "audio")),
         qa=_qa(_section(data, "qa")),
@@ -91,6 +95,7 @@ def _build(data: dict[str, Any], default_name: str) -> ProjectConfig:
         ),
         glossary=_glossary(_section(data, "glossary")),
         ingest=_ingest(_section(data, "ingest")),
+        privacy=_privacy(_section(data, "privacy")),
     )
 
 
@@ -108,10 +113,14 @@ def _project(d: dict[str, Any], default_name: str) -> ProjectSection:
         )
     language = opt_str(d, "language", "project", "es")
     if _LANG.fullmatch(language) is None:
-        raise SchemaError("project.language", f"debe ser un código de 2 letras (vino {language!r})")
+        raise SchemaError(
+            "project.language", f"debe ser un código de 2 letras (vino {describe_value(language)})"
+        )
     created = opt_str(d, "created", "project", date.today().isoformat())
     if not valid_date(created):
-        raise SchemaError("project.created", f"debe ser una fecha AAAA-MM-DD (vino {created!r})")
+        raise SchemaError(
+            "project.created", f"debe ser una fecha AAAA-MM-DD (vino {describe_value(created)})"
+        )
     return ProjectSection(name=name, language=language, created=created)
 
 
@@ -143,12 +152,14 @@ def _brand(d: dict[str, Any]) -> BrandSection:
 
 def _glossary(d: dict[str, Any]) -> tuple[str, ...]:
     only_keys(d, {"terms"}, "glossary")
-    return string_list(d, "terms", "glossary", max_items=200, max_len=40)
+    return string_list(d, "terms", "glossary", max_items=200, max_len=40, clean=True)
 
 
 def _transcribe(d: dict[str, Any]) -> TranscribeSection:
     keys = {"model", "compute_type", "beam_size", "cpu_threads", "fillers", "prompt_extra"}
     only_keys(d, keys, "transcribe")
+    prompt_extra = opt_str(d, "prompt_extra", "transcribe", "", max_len=400)
+    check_clean(prompt_extra, "transcribe.prompt_extra")
     return TranscribeSection(
         model=one_of(
             opt_str(d, "model", "transcribe", "medium"), WHISPER_MODELS, "transcribe.model"
@@ -160,8 +171,16 @@ def _transcribe(d: dict[str, Any]) -> TranscribeSection:
         ),
         beam_size=opt_int(d, "beam_size", "transcribe", 5, 1, 10),
         cpu_threads=opt_int(d, "cpu_threads", "transcribe", 0, 0, 64),
-        fillers=string_list(d, "fillers", "transcribe", max_items=50, default=DEFAULT_FILLERS),
-        prompt_extra=opt_str(d, "prompt_extra", "transcribe", "", max_len=400),
+        fillers=string_list(  # the same bounds as glossary.terms (001.12, point 11)
+            d,
+            "fillers",
+            "transcribe",
+            max_items=200,
+            max_len=40,
+            default=DEFAULT_FILLERS,
+            clean=True,
+        ),
+        prompt_extra=prompt_extra,
     )
 
 
@@ -181,31 +200,6 @@ def _analysis(d: dict[str, Any]) -> AnalysisSection:
         phrase_pause_ms=phrase,
         long_pause_ms=long_pause,
         low_prob=opt_float(d, "low_prob", "analysis", 0.5, 0.0, 1.0),
-    )
-
-
-def _sync(d: dict[str, Any]) -> SyncSection:
-    only_keys(
-        d, {"master", "min_score", "min_ratio", "max_drift_ms", "min_refine_corr", "manual"}, "sync"
-    )
-    master = opt_str(d, "master", "sync", "")
-    if master != "" and _CLIP_ID.fullmatch(master) is None:
-        raise SchemaError("sync.master", f'debe ser "" o un id de clip como a1 (vino {master!r})')
-    manual: dict[str, int] = {}
-    for key, value in obj(d.get("manual", {}), "sync.manual").items():
-        where = join_path("sync.manual", key)
-        if _CLIP_ID.fullmatch(key) is None:
-            raise SchemaError(where, "la clave debe ser un id de clip como a2")
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise SchemaError(where, f"debe ser un entero en ms (vino {value!r})")
-        manual[key] = value
-    return SyncSection(
-        master=master,
-        min_score=opt_float(d, "min_score", "sync", 0.35, 0.0, 1.0),
-        min_ratio=opt_float(d, "min_ratio", "sync", 1.5, 1.0),
-        max_drift_ms=opt_int(d, "max_drift_ms", "sync", 20, 1, 1000),
-        min_refine_corr=opt_float(d, "min_refine_corr", "sync", 0.1, 0.0, 1.0),
-        manual=MappingProxyType(manual),
     )
 
 
@@ -257,6 +251,11 @@ def _qa(d: dict[str, Any]) -> QaSection:
         max_tp=opt_float(d, "max_tp", "qa", -1.0, -6.0, 0.0),
         max_av_delta_ms=opt_int(d, "max_av_delta_ms", "qa", 25, 0, 200),
     )
+
+
+def _privacy(d: dict[str, Any]) -> PrivacySection:
+    only_keys(d, {"mask_pii"}, "privacy")
+    return PrivacySection(mask_pii=opt_bool(d, "mask_pii", "privacy", True))
 
 
 def _ingest(d: dict[str, Any]) -> IngestSection:

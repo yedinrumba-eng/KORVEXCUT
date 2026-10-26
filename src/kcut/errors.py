@@ -1,10 +1,15 @@
 """Exception hierarchy. Each subclass fixes the process exit code (spec 0.5)."""
 
+MAX_MESSAGE = 300  # characters of the `message` of an error, on the console and in `--json`
+
 
 class KcutError(Exception):
     """Base class of every expected failure; carries the exit code and a Spanish message."""
 
     exit_code: int = 10
+    # The complete text, for the log only, when `message_es` had to leave something out (the name
+    # of an unknown key, for one). `cli` appends it to the log of the run.
+    log_detail: str | None = None
 
     def __init__(self, message_es: str) -> None:
         super().__init__(message_es)

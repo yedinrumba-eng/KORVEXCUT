@@ -83,7 +83,7 @@ class TestLoad:
             ({"obtained": "2026-02-30"}, "obtained"),
             ({"approved_on": "ayer"}, "approved_on"),
             ({"approved_by": 5}, "approved_by"),
-            ({"extra": 1}, "extra"),
+            ({"extra": 1}, "<clave desconocida>"),
         ],
     )
     def test_invalid_item_is_a_project_error_naming_the_field(

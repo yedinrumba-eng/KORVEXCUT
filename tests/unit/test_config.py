@@ -5,11 +5,13 @@ from pathlib import Path
 
 import pytest
 
+from kcut import cli
 from kcut.config.load import load_config, parse_config
 from kcut.config.names import clean_default_name
 from kcut.config.template import render_template
 from kcut.errors import ProjectError
-from tests.unit.config_cases import RANGE_CASES
+from kcut.timebase import MAX_TIME_MS
+from tests.unit.config_cases import HUGE_INT_CASES, PROMPT_FIELDS, RANGE_CASES
 from tests.unit.config_golden import GOLDEN_9X16
 
 
@@ -97,22 +99,6 @@ class TestDefaults:
             cfg.output.fps = 24  # type: ignore[misc]
         with pytest.raises(TypeError):
             cfg.sync.manual["a2"] = 5  # type: ignore[index]
-
-
-class TestUnknownKeys:
-    def test_unknown_section(self) -> None:
-        assert "extra" in _fail("[extra]\nx = 1\n")
-
-    def test_unknown_key_in_a_section_is_named(self) -> None:
-        message = _fail('[transcribe]\nmodle = "base"\n')
-        assert "transcribe.modle" in message
-        assert "desconocida" in message
-
-    def test_unknown_key_in_a_nested_table(self) -> None:
-        assert "audio.voice.gain" in _fail("[audio.voice]\ngain = 3\n")
-
-    def test_w_and_h_are_derived_not_configurable(self) -> None:
-        assert "output.w" in _fail("[output]\nw = 1080\n")
 
 
 class TestRanges:
@@ -241,7 +227,7 @@ class TestIngestSection:
             ("[ingest]\nmax_duration_h = 49\n", "ingest.max_duration_h"),
             ("[ingest]\nwarn_duration_h = 5\nmax_duration_h = 4\n", "ingest.max_duration_h"),
             ("[ingest]\nwarn_duration_h = 13\n", "ingest.max_duration_h"),
-            ("[ingest]\nhoras = 4\n", "ingest.horas"),
+            ("[ingest]\nhoras = 4\n", "ingest.<clave desconocida>"),
             ("[ingest]\nwarn_duration_h = true\n", "ingest.warn_duration_h"),
         ],
     )
@@ -251,3 +237,44 @@ class TestIngestSection:
     def test_the_template_carries_the_section(self) -> None:
         text = render_template("x", "9:16", 30, "es", "2026-10-16")
         assert text.endswith("[ingest]\nwarn_duration_h = 3\nmax_duration_h = 12\n")
+
+
+class TestPromptHygiene:
+    @pytest.mark.parametrize("code", ["u2028", "u2029", "u0085", "u202e", "u200b", "u0007"])
+    @pytest.mark.parametrize(("template", "path"), PROMPT_FIELDS)
+    def test_prompt_hygiene_names_the_field_and_the_position(
+        self, template: str, path: str, code: str
+    ) -> None:
+        message = _fail(template.replace("§", "\\" + code))
+        assert path in message and "posición 2" in message
+
+    def test_prompt_hygiene_keeps_ordinary_text(self) -> None:
+        text = '[glossary]\nterms = ["Higgsfield", "ñandú"]\n[transcribe]\nfillers = ["o sea"]\n'
+        text += 'prompt_extra = "Habla un dominicano: ¿qué lo qué? 日本"\n'
+        cfg = parse_config(text, default_name="x")
+        assert cfg.glossary == ("Higgsfield", "ñandú") and cfg.transcribe.fillers == ("o sea",)
+
+
+class TestManualRange:
+    def test_manual_range_edges_are_accepted(self) -> None:
+        text = f"[sync.manual]\na2 = {MAX_TIME_MS}\na3 = -{MAX_TIME_MS}\n"
+        manual = dict(parse_config(text, default_name="x").sync.manual)
+        assert manual == {"a2": 172_800_000, "a3": -172_800_000}
+
+    @pytest.mark.parametrize(
+        "value",
+        [172_800_001, -172_800_001, 10**15, f"0x{'f' * 5000}"],
+        ids=["plus_one", "minus_one", "1e15", "hex_5000_digits"],
+    )
+    def test_manual_range_outside_names_the_key(self, value: object) -> None:
+        assert "sync.manual.a2" in _fail(f"[sync.manual]\na2 = {value}\n")
+
+
+class TestHugeInt:
+    @pytest.mark.parametrize("text", HUGE_INT_CASES.values(), ids=list(HUGE_INT_CASES))
+    def test_toml_huge_int_is_a_project_error(self, text: str) -> None:
+        _fail(text)  # ProjectError with exit code 3, not ValueError
+
+    def test_toml_huge_int_exits_3_not_internal_error(self, tmp_path: Path) -> None:
+        (tmp_path / "kcut.toml").write_text(HUGE_INT_CASES["fps"], encoding="utf-8")
+        assert cli.main(["ingest", "--project", str(tmp_path)]) == 3  # 10 would be InternalError

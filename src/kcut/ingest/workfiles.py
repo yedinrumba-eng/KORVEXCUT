@@ -16,7 +16,7 @@ from kcut.ff.args import proxy_args, wav_args
 from kcut.ff.color import CHAIN_VERSION, video_chain
 from kcut.ingest.inventory import Clip, Notice
 from kcut.ingest.probe import VideoInfo
-from kcut.jsonio import read_json, refuse_directory, write_json_atomic
+from kcut.jsonio import MAX_SIDECAR_BYTES, read_json, refuse_directory, write_json_atomic
 from kcut.paths import is_inside, resolve_in_project
 from kcut.project import Project
 from kcut.timebase import rdiv
@@ -65,7 +65,7 @@ def sidecar_state(path: Path, qhash: str, params: dict[str, Any]) -> SidecarStat
     if not sidecar.is_file():
         return "missing"
     try:
-        data = read_json(sidecar)
+        data = read_json(sidecar, MAX_SIDECAR_BYTES)
     except ProjectError:
         return "corrupt"
     return "fresh" if data == {"qhash": qhash, "params": params} else "stale"

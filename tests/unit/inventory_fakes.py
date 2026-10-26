@@ -58,7 +58,11 @@ def valid_inventory() -> Inventory:
         (),
     )
     doc = Clip("d1", "crudo/brief.txt", "brief", "doc", "sha256:bbbbbbbb", 3)
-    return Inventory("2026-10-16T10:00:00", 30, (clip, doc), id_high={"a": 1, "d": 1})
+    other = Clip("a2", "crudo/cam b.mp4", "cam-b", "video_voz", "sha256:cccccccc", 10)
+    voice = Clip("s2", "crudo/voz.wav", "voz", "audio", "sha256:dddddddd", 10)  # MEMBER / REJECTED
+    return Inventory(
+        "2026-10-16T10:00:00", 30, (clip, doc, other, voice), id_high={"a": 2, "d": 1, "s": 2}
+    )
 
 
 def written(root: Path, mutate: Mutation | None = None) -> Path:
@@ -74,9 +78,31 @@ def written(root: Path, mutate: Mutation | None = None) -> Path:
 def sync_block(
     rejected: Sequence[dict[str, Any]] = (), members: Sequence[dict[str, Any]] = ()
 ) -> Mutation:
-    """Replace the sync block with the given entries."""
+    """Replace the sync block with the given entries, adding the clips it names (the inventory
+    only accepts a sync block whose ids are clips it has, spec 001.14 point 9)."""
     block = {"master": "a1", "members": list(members), "rejected": list(rejected)}
-    return lambda d: d.update(sync=block)
+    named = [e["id"] for e in (*members, *rejected)]
+
+    def mutate(d: dict[str, Any]) -> None:
+        d["sync"] = block
+        for clip_id in named:
+            if clip_id not in {clip["id"] for clip in d["clips"]}:
+                d["clips"].append(_stub_clip(clip_id))
+                d["id_high"][clip_id[0]] = max(d["id_high"].get(clip_id[0], 0), int(clip_id[1:]))
+
+    return mutate
+
+
+def _stub_clip(clip_id: str) -> dict[str, Any]:
+    kind = {"a": "video_voz", "s": "audio"}[clip_id[0]]
+    return {
+        "id": clip_id,
+        "file": f"crudo/{clip_id}.bin",
+        "slug": clip_id,
+        "class": kind,
+        "qhash": "sha256:00000000",
+        "size_bytes": 1,
+    }
 
 
 def set_clip(**changes: Any) -> Mutation:

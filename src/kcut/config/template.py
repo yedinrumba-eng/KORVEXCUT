@@ -105,6 +105,9 @@ max_av_delta_ms = 25
 [storyboard]
 min_beat_ms = 500
 
+[privacy]
+mask_pii = true          # tapa telefonos, cedulas, tarjetas y correos en lo que lee Claude
+
 [ingest]
 warn_duration_h = 3
 max_duration_h = 12

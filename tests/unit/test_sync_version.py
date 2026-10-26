@@ -1,6 +1,7 @@
 """A stored sync result carries the version of the algorithm that measured it (001.7, point 15)."""
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -71,8 +72,11 @@ def test_sync_version_never_overrides_a_changed_qhash(make: Any) -> None:
 
 def _saved(tmp_path: Path, change: Any = None) -> Path:
     path = tmp_path / "inventory.json"
-    sync = SyncInfo("s1", _accepted(2).members, _rejected(2).rejected)
-    save_inventory(path, Inventory("x", 30, (MASTER, MEMBER), sync=sync))
+    # a clip is a member or a rejected one, never both (spec 001.14, point 9): the rejected is s3
+    rejected = tuple(replace(r, id="s3") for r in _rejected(2).rejected)
+    sync = SyncInfo("s1", _accepted(2).members, rejected)
+    third = Clip("s3", "crudo/c.wav", "c", "audio", "sha256:cccccccc", 10)
+    save_inventory(path, Inventory("x", 30, (MASTER, MEMBER, third), sync=sync))
     if change is not None:
         data = json.loads(path.read_text(encoding="utf-8"))
         change(data["sync"])

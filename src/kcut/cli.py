@@ -10,8 +10,9 @@ from typing import NoReturn, cast
 
 from kcut import __version__
 from kcut.console import Out, safe_text, setup_streams
-from kcut.errors import InternalError, KcutError, ProjectError, UsageError
+from kcut.errors import MAX_MESSAGE, InternalError, KcutError, ProjectError, UsageError
 from kcut.logfile import CreatedLog, append_log, create_run_log, remove_if_empty, set_log_root
+from kcut.pack.pii import mask_text
 from kcut.paths import Layout, log_path
 from kcut.project import check_layout_inside, locate_project
 from kcut.scrub import scrub_media_metadata
@@ -20,9 +21,13 @@ COMMAND_MODULES: tuple[str, ...] = (
     "kcut.commands.doctor",
     "kcut.commands.new",
     "kcut.commands.ingest",
+    "kcut.commands.transcribe",
+    "kcut.commands.pack",
 )
 
 _EXIT_INTERRUPTED = 130
+_MIN_HEAD = 120  # characters of an internal error's own text that stay, whatever the log path
+_BACKUP_HEAD = 40  # characters of the start of a backup traceback: "Traceback (most recent call..."
 _CREATED_LOGS: list[CreatedLog] = []  # logs this invocation created
 
 
@@ -89,6 +94,7 @@ def _main(raw: list[str]) -> int:
     except InternalError as exc:
         return _internal(exc, exc.message_es, args, raw, json_mode, verbose)
     except KcutError as exc:
+        _log_whole(args, exc)
         return _report(exc.exit_code, type(exc).__name__, exc.message_es, json_mode)
     except KeyboardInterrupt:
         return _report(
@@ -97,6 +103,30 @@ def _main(raw: list[str]) -> int:
     except Exception as exc:
         message = f"Error interno ({type(exc).__name__}): {exc}"
         return _internal(exc, message, args, raw, json_mode, verbose)
+
+
+def _log_whole(args: argparse.Namespace | None, exc: KcutError) -> None:
+    """What the console will not show goes to the log: the text `_report` cuts, and the message
+    with the key of a file that kcut does not know (`log_detail`, spec 001.14 points 2 and 7)."""
+    target = getattr(args, "log", None) if args is not None else None
+    whole = exc.log_detail if exc.log_detail is not None else exc.message_es
+    if target is not None and (exc.log_detail is not None or len(whole) > MAX_MESSAGE):
+        append_log(target, f"[{type(exc).__name__}] {whole}\n")
+
+
+def _cap(message: str, limit: int) -> str:
+    """`message` cut to `limit` characters, the last one being `…` when something was left out."""
+    return message if len(message) <= limit else message[: limit - 1] + "…"
+
+
+def _backup(traceback_text: str) -> str:
+    """The traceback with no log to hold it, in `MAX_MESSAGE` characters (spec 001.16, point 10):
+    its first line and its last ones, where the error is, with `…` in the middle."""
+    if len(traceback_text) <= MAX_MESSAGE:
+        return traceback_text
+    joint = "…\n"
+    tail = MAX_MESSAGE - _BACKUP_HEAD - len(joint)
+    return traceback_text[:_BACKUP_HEAD] + joint + traceback_text[-tail:]
 
 
 def _run_log(explicit: str | None, command: str) -> Path | None:
@@ -133,19 +163,25 @@ def _internal(
 ) -> int:
     """Unexpected failure: the full traceback is appended to the run log (or goes to stderr with
     -v when there is no project); the user only gets a short, scrubbed message."""
-    text = scrub_media_metadata("".join(traceback.format_exception(exc)))
+    text = scrub_media_metadata("".join(traceback.format_exception(exc)))  # whole: for the log
+    suffix = ""
     target = getattr(args, "log", None) if args is not None else None
     if target is None and args is None:  # failed before parsing finished
         target = _run_log(_option_value(None, raw), "kcut")
     if target is not None:
         if append_log(target, f"[traceback]\n{text}"):
-            message = f"{message}. Detalle técnico en {target}"  # only if it reached the log
+            suffix = f". Detalle técnico en {target}"  # only if it reached the log
     elif verbose or locate_project(_option_value(args, raw)) is not None:
-        print(safe_text(text), file=sys.stderr)  # no log could be made: do not lose the traceback
+        # no log could be made: a backup of 300 characters, not all of what the error quotes
+        print(safe_text(_backup(mask_text(text, parts=False))), file=sys.stderr)
     else:
-        message = f"{message}. Usa -v para ver el detalle"
-    short = scrub_media_metadata(message).strip() or "Error interno"
-    return _report(InternalError.exit_code, InternalError.__name__, short, json_mode)
+        suffix = ". Usa -v para ver el detalle"
+    # The text is cleaned WHOLE and only then cut (001.17, point 1): cut first, a coordinate or a
+    # number could be left in halves that no longer look like one. The error's own text gives way
+    # to the suffix, so the path of the log is kept whole (001.16).
+    cleaned = mask_text(scrub_media_metadata(message), parts=False).strip() or "Error interno"
+    short = _cap(cleaned, max(_MIN_HEAD, MAX_MESSAGE - len(suffix))) + suffix
+    return _report(InternalError.exit_code, InternalError.__name__, short, json_mode, cap=False)
 
 
 def _option_value(args: argparse.Namespace | None, raw: list[str]) -> str | None:
@@ -171,7 +207,8 @@ def _exit_code(exc: SystemExit) -> int:
     return 1
 
 
-def _report(exit_code: int, kind: str, message: str, json_mode: bool) -> int:
+def _report(exit_code: int, kind: str, message: str, json_mode: bool, cap: bool = True) -> int:
+    message = _cap(message, MAX_MESSAGE) if cap else message
     if json_mode:
         Out(json_mode=True).result(
             {"ok": False, "error": {"exit_code": exit_code, "kind": kind, "message": message}}

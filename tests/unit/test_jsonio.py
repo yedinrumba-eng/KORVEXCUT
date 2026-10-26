@@ -9,10 +9,13 @@ from kcut import jsonio, proc
 from kcut.config.load import parse_config
 from kcut.errors import ProjectError
 from kcut.ingest import workfiles
-from kcut.ingest.inventory import Inventory, save_inventory
+from kcut.ingest.inventory import Inventory, Notice, load_inventory, save_inventory
 from kcut.paths import Layout
 from kcut.proc import RunResult
 from kcut.project import Project
+from kcut.text.corrections import load_corrections
+from kcut.transcribe import cache
+from tests.unit.transcribe_fakes import FakeClip, build_project, tone
 
 
 class TestJsonio:
@@ -161,3 +164,133 @@ def test_surrogate_text_is_written_with_a_replacement_instead_of_crashing(tmp_pa
     jsonio.write_json_atomic(tmp_path / "a.json", {"file": "crudo/clip\ud800.mov"})
     assert jsonio.read_json(tmp_path / "a.json") == {"file": "crudo/clip?.mov"}
     assert not (tmp_path / "a.json.tmp").exists()
+
+
+class TestSizeCap:
+    """001.12 point 13: `read_json` does not parse a file over the cap (64 MiB by default)."""
+
+    def test_size_cap_a_file_over_the_cap_is_not_parsed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "big.json"
+        path.write_text('{"a": "' + "x" * 100 + '"}', encoding="utf-8")
+
+        def never(*_a: object, **_k: object) -> None:
+            raise AssertionError("a file over the cap must not reach the JSON parser")
+
+        monkeypatch.setattr("json.loads", never)
+        with pytest.raises(ProjectError, match="pesa más de"):
+            jsonio.read_json(path, max_bytes=50)
+
+    def test_size_cap_a_file_exactly_at_the_cap_is_read(self, tmp_path: Path) -> None:
+        path = tmp_path / "ok.json"
+        path.write_text('{"a": 1}', encoding="utf-8")
+        assert jsonio.read_json(path, max_bytes=8) == {"a": 1}
+        with pytest.raises(ProjectError):
+            jsonio.read_json(path, max_bytes=7)
+
+    def test_size_cap_the_default_is_64_mib(self, tmp_path: Path) -> None:
+        assert jsonio.MAX_JSON_BYTES == 64 * 1024 * 1024
+        path = tmp_path / "huge.json"
+        with path.open("wb") as handle:
+            handle.truncate(jsonio.MAX_JSON_BYTES + 1)
+        with pytest.raises(ProjectError, match="64 MB"):
+            jsonio.read_json(path)
+
+    def test_size_cap_it_is_the_same_error_as_a_corrupt_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "x.json"
+        path.write_text("{" + " " * 100, encoding="utf-8")
+        with pytest.raises(ProjectError) as corrupt:
+            jsonio.read_json(path)
+        with pytest.raises(ProjectError) as capped:
+            jsonio.read_json(path, max_bytes=10)
+        assert type(corrupt.value) is type(capped.value) is ProjectError
+        assert capped.value.exit_code == corrupt.value.exit_code == 3
+
+    def test_size_cap_the_message_names_the_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "grande ñ.json"
+        path.write_text("[" + "0," * 50 + "0]", encoding="utf-8")
+        with pytest.raises(ProjectError, match=r"grande ñ\.json"):
+            jsonio.read_json(path, max_bytes=20)
+
+    def test_size_cap_a_bad_utf8_file_under_the_cap_is_still_a_project_error(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "bad.json"
+        path.write_bytes(b'{"a": "\xff"}')
+        with pytest.raises(ProjectError):
+            jsonio.read_json(path)
+
+    def test_size_cap_the_inventory_loader_treats_it_as_corrupt(self, tmp_path: Path) -> None:
+        from kcut.ingest.inventory import load_inventory
+
+        path = tmp_path / ".kcut" / "inventory.json"
+        path.parent.mkdir()
+        with path.open("wb") as handle:
+            handle.truncate(jsonio.MAX_JSON_BYTES + 1)
+        with pytest.raises(ProjectError):
+            load_inventory(path, tmp_path)
+
+
+class TestPerFileCaps:
+    """001.14 point 11: each file has its own cap, so one hostile file cannot cost 64 MiB."""
+
+    MIB = 1024 * 1024
+
+    def test_per_file_caps_the_table(self) -> None:
+        assert (jsonio.MAX_INDEX_BYTES, jsonio.MAX_CORRECTIONS_BYTES) == (
+            1 * self.MIB,
+            8 * self.MIB,
+        )
+        assert (jsonio.MAX_INVENTORY_BYTES, jsonio.MAX_JSON_BYTES) == (16 * self.MIB, 64 * self.MIB)
+
+    def _sparse(self, path: Path, size: int) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("wb") as handle:
+            handle.truncate(size)
+        return path
+
+    def test_per_file_caps_index(self, tmp_path: Path) -> None:
+        project = build_project(tmp_path / "p", [FakeClip("a1", tone(1.0))])
+        index = project.layout.transcripts / "index.json"
+        for size, capped in ((self.MIB, False), (self.MIB + 1, True)):
+            self._sparse(index, size)
+            notices: list[Notice] = []
+            assert cache.read_index(project, notices) == {}
+            assert bool(notices) is True  # zeros are not JSON: invalid either way...
+            assert ("más de" in jsonio_error(index, jsonio.MAX_INDEX_BYTES)) is capped
+
+    def test_per_file_caps_corrections(self, tmp_path: Path) -> None:
+        project = build_project(tmp_path / "p", [FakeClip("a1", tone(1.0))])
+        self._sparse(project.layout.edit / "correcciones.json", 8 * self.MIB + 1)
+        with pytest.raises(ProjectError, match="pesa más de 8 MB"):
+            load_corrections(project)
+
+    def test_per_file_caps_inventory(self, tmp_path: Path) -> None:
+        path = self._sparse(tmp_path / ".kcut" / "inventory.json", 16 * self.MIB + 1)
+        with pytest.raises(ProjectError, match="pesa más de 16 MB"):
+            load_inventory(path, tmp_path)
+
+    def test_per_file_caps_transcript(self, tmp_path: Path) -> None:
+        project = build_project(tmp_path / "p", [FakeClip("a1", tone(1.0))])
+        key = "c" * 64
+        self._sparse(cache.transcript_path(project, key), 64 * self.MIB + 1)
+        notices: list[Notice] = []
+        assert cache.load_matching(project, "a1", key, "d" * 64, {}, notices, 1000) is None
+        assert [n.code for n in notices] == ["transcript_invalid"]
+
+    def test_per_file_caps_a_file_at_the_cap_is_not_refused_for_its_size(
+        self, tmp_path: Path
+    ) -> None:
+        path = self._sparse(tmp_path / "x.json", jsonio.MAX_INDEX_BYTES)
+        with pytest.raises(ProjectError) as info:
+            jsonio.read_json(path, jsonio.MAX_INDEX_BYTES)
+        assert "pesa más de" not in info.value.message_es  # it is not JSON, but not "too big"
+
+
+def jsonio_error(path: Path, cap: int) -> str:
+    try:
+        jsonio.read_json(path, cap)
+    except ProjectError as exc:
+        return exc.message_es
+    return ""

@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from kcut.errors import ProjectError
+from kcut.schema_util import describe_value as quoted
 
 CONFIG_NAME = "kcut.toml"
 _RESERVED = frozenset(
@@ -155,7 +156,7 @@ def resolve_in_project(root: Path, rel: str) -> Path:
     root_resolved = root.resolve()
     target = root_resolved.joinpath(*parts).resolve()
     if not is_inside(root_resolved, target):
-        raise ProjectError(f"la ruta {rel!r} sale del proyecto")
+        raise ProjectError(f"la ruta {quoted(rel)} sale del proyecto")
     return target
 
 
@@ -182,13 +183,13 @@ def _reject_unsafe(rel: str) -> None:
     if "\x00" in rel:
         raise ProjectError("la ruta contiene un byte NUL")
     if rel.startswith(("\\\\", "//")):
-        raise ProjectError(f"la ruta {rel!r} es una ruta de red (UNC)")
+        raise ProjectError(f"la ruta {quoted(rel)} es una ruta de red (UNC)")
     if _DRIVE.fullmatch(rel):
-        raise ProjectError(f"la ruta {rel!r} lleva letra de unidad; usa una ruta relativa")
+        raise ProjectError(f"la ruta {quoted(rel)} lleva letra de unidad; usa una ruta relativa")
     if rel.startswith(("/", "\\")):
-        raise ProjectError(f"la ruta {rel!r} es absoluta; usa una ruta relativa al proyecto")
+        raise ProjectError(f"la ruta {quoted(rel)} es absoluta; usa una ruta relativa al proyecto")
     if ":" in rel:
-        raise ProjectError(f"la ruta {rel!r} lleva ':' (flujos alternos de Windows)")
+        raise ProjectError(f"la ruta {quoted(rel)} lleva ':' (flujos alternos de Windows)")
 
 
 def _clean_parts(rel: str) -> list[str]:
@@ -199,15 +200,15 @@ def _clean_parts(rel: str) -> list[str]:
             continue
         stem = part.split(".", 1)[0].strip().upper()
         if stem in _RESERVED:
-            raise ProjectError(f"la ruta {rel!r} usa el nombre reservado de Windows {stem}")
+            raise ProjectError(f"la ruta {quoted(rel)} usa el nombre reservado de Windows {stem}")
         if part == "..":
             if not clean:
-                raise ProjectError(f"la ruta {rel!r} sale del proyecto con '..'")
+                raise ProjectError(f"la ruta {quoted(rel)} sale del proyecto con '..'")
             clean.pop()
             continue
         clean.append(part)
     if not clean:
-        raise ProjectError(f"la ruta {rel!r} no apunta a ningún archivo del proyecto")
+        raise ProjectError(f"la ruta {quoted(rel)} no apunta a ningún archivo del proyecto")
     return clean
 
 

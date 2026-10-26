@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from kcut.errors import ProjectError
+from kcut.ingest.classify import ClipClass
 from kcut.ingest.inventory import (
     Clip,
     ClipAudio,
@@ -38,11 +39,19 @@ VIDEO = make_hlg_video(
 )
 
 
+_CLASSES: dict[str, ClipClass] = {"a": "video_voz", "s": "audio"}
+
+
+def _stubs(*ids: str) -> tuple[Clip, ...]:
+    """Bare clips for the ids a sync block names: it can only name clips the inventory has."""
+    return tuple(Clip(i, f"crudo/{i}.bin", i, _CLASSES[i[0]], "sha256:00000000", 1) for i in ids)
+
+
 def _sample() -> Inventory:
     return Inventory(
         generated="2026-10-16T10:22:31",
         fps=30,
-        id_high={"a": 1, "d": 1, "i": 1},
+        id_high={"a": 2, "d": 1, "i": 1, "s": 2},
         clips=(
             Clip(
                 "a1",
@@ -69,6 +78,7 @@ def _sample() -> Inventory:
                 image=ImageMeta(800, 600, True),
             ),
             Clip("d1", "crudo/brief.txt", "brief", "doc", "sha256:bb", 512),
+            *_stubs("a2", "s1", "s2"),
         ),
         sync=SyncInfo(
             "a1",
@@ -92,9 +102,10 @@ def test_file_shape_matches_the_spec_example(tmp_path: Path) -> None:
     save_inventory(path, _sample())
     data = json.loads(path.read_text(encoding="utf-8"))
     assert list(data) == ["schema", "generated", "fps", "id_high", "clips", "sync"]
-    assert data["id_high"] == {"a": 1, "d": 1, "i": 1}
+    assert data["id_high"] == {"a": 2, "d": 1, "i": 1, "s": 2}
     assert data["schema"] == "kcut.inventory/1"
-    a1, i1, d1 = data["clips"]
+    a1, i1, d1, *stubs = data["clips"]  # the stubs are the clips the sync block names
+    assert [clip["id"] for clip in stubs] == ["a2", "s1", "s2"]
     assert list(a1) == [
         "id",
         "file",
@@ -156,9 +167,8 @@ def test_written_as_utf8_with_unix_newlines(tmp_path: Path) -> None:
 
 def test_an_unbounded_ratio_is_stored_as_null_and_read_back(tmp_path: Path) -> None:
     path = tmp_path / "inventory.json"
-    inv = Inventory(
-        "x", 30, (), SyncInfo("a1", (SyncMember("a2", 5, 0.5, 0.0, None, None, 0, "manual"),))
-    )
+    member = SyncMember("a2", 5, 0.5, 0.0, None, None, 0, "manual")
+    inv = Inventory("x", 30, _stubs("a1", "a2"), SyncInfo("a1", (member,)), {"a": 2})
     save_inventory(path, inv)
     text = path.read_text(encoding="utf-8")
     assert "Infinity" not in text
@@ -190,7 +200,7 @@ class TestStrictReading:
             (lambda d: d.update(extra=1), "extra"),
             (lambda d: d["clips"][0].update(class_="x"), "class_"),
             (lambda d: d["clips"][0].update({"class": "video_raro"}), "class"),
-            (lambda d: d["clips"][0]["video"].update(w="3840"), "clips[a1].video.w"),
+            (lambda d: d["clips"][0]["video"].update(w="3840"), "clips[0].video.w"),
             (lambda d: d["clips"][0]["video"].pop("fps_r"), "fps_r"),
             (lambda d: d["clips"][0]["audio"].update(silent=0), "silent"),
             (lambda d: d["clips"][0]["work"].update(extra=1), "extra"),
@@ -245,7 +255,8 @@ def test_warning_from_reason_comes_from_the_stored_reason(
 def test_ambiguous_rejection_keeps_its_two_lags_and_round_trips(tmp_path: Path) -> None:
     ambiguous = SyncRejected("s2", 0.9, 4.0, "sync_ambiguous: x", 0.85, -2800, 4000)
     plain = SyncRejected("s3", 0.1, 1.0, "pico de correlacion bajo")
-    inv = Inventory("x", 30, (), sync=SyncInfo("a1", (), (ambiguous, plain)))
+    clips, sync = _stubs("a1", "s2", "s3"), SyncInfo("a1", (), (ambiguous, plain))
+    inv = Inventory("x", 30, clips, sync=sync, id_high={"a": 1, "s": 3})
     path = tmp_path / "inventory.json"
     save_inventory(path, inv)
     first, second = json.loads(path.read_text(encoding="utf-8"))["sync"]["rejected"]

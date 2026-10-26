@@ -11,7 +11,15 @@ _FORBIDDEN = frozenset({"Cc", "Cf", "Zl", "Zp"})
 
 def has_forbidden_chars(name: str) -> bool:
     """True if `name` holds any character of the Unicode categories Cc, Cf, Zl or Zp."""
-    return any(unicodedata.category(ch) in _FORBIDDEN for ch in name)
+    return first_forbidden(name) is not None
+
+
+def first_forbidden(text: str) -> int | None:
+    """Index of the first character of `text` in the categories Cc, Cf, Zl or Zp, else None."""
+    for index, ch in enumerate(text):
+        if unicodedata.category(ch) in _FORBIDDEN:
+            return index
+    return None
 
 
 def clean_default_name(folder_name: str) -> str:

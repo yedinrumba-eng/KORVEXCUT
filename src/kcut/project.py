@@ -7,8 +7,9 @@ from pathlib import Path
 from kcut.config.load import load_config
 from kcut.config.model import ProjectConfig
 from kcut.errors import ProjectError
-from kcut.ingest.inventory import Inventory
+from kcut.ingest.inventory import Inventory, InventoryInvalid, field_text
 from kcut.ingest.inventory import load_inventory as _load_inventory_file
+from kcut.logfile import append_log
 from kcut.paths import CONFIG_NAME, Layout, find_project, is_inside
 
 
@@ -70,8 +71,22 @@ def check_layout_inside(root: Path, layout: Layout) -> None:
             raise ProjectError(f"hay un archivo donde kcut espera una carpeta: {rel}")
 
 
-def load_inventory(project: Project) -> Inventory:
-    """Load `.kcut/inventory.json`; without it the user has to run `kcut ingest`."""
+def load_inventory(project: Project, log: Path | None = None) -> Inventory:
+    """Load `.kcut/inventory.json`; without it the user has to run `kcut ingest`.
+
+    An inventory that does not pass validation is a ProjectError with a fixed text and the field
+    by position (`clips[0].id`), never a value from the file (spec 001.12, point 2): the loader's
+    own message quotes the file, which anyone could have planted, and Claude reads this output.
+    The whole message goes to `log` (the run's log) and nowhere else.
+    """
     if not project.layout.inventory.is_file():
         raise ProjectError("no hay inventario: corre kcut ingest")
-    return _load_inventory_file(project.layout.inventory, project.root)
+    try:
+        return _load_inventory_file(project.layout.inventory, project.root)
+    except InventoryInvalid as exc:
+        if log is not None:
+            append_log(log, f"[inventory_invalid] {exc.message_es}\n")
+        where = f" ({field_text(exc.field)})" if exc.field else ""
+        raise ProjectError(
+            f"inventory.json no pasó la validación{where}; corre kcut ingest"
+        ) from None

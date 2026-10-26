@@ -7,10 +7,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast, get_args
 
-from kcut.config.names import has_forbidden_chars
 from kcut.errors import ProjectError
 from kcut.ingest.classify import ClipClass
-from kcut.ingest.inventory_check import check_clip, check_ids
+from kcut.ingest.inventory_check import (
+    PREFIXES,
+    check_clip,
+    check_ids,
+    check_sync_refs,
+)
 from kcut.ingest.inventory_json import inventory_to_json, video_keys
 from kcut.ingest.inventory_model import (
     SCHEMA,
@@ -24,16 +28,16 @@ from kcut.ingest.inventory_model import (
     SyncRejected,
     WorkFiles,
 )
+from kcut.ingest.inventory_sync import obj_without_nulls as _obj
+from kcut.ingest.inventory_sync import parse_sync
 from kcut.ingest.probe import VideoInfo
-from kcut.ingest.sync_reasons import MAX_TEXT_LEN
-from kcut.jsonio import read_json, write_json_atomic
+from kcut.jsonio import MAX_INVENTORY_BYTES, read_json, write_json_atomic
 from kcut.schema_util import (
     SchemaError,
+    describe_value,
     join_path,
-    obj,
     one_of,
     only_keys,
-    opt_float,
     opt_int,
     opt_list,
     opt_str,
@@ -43,39 +47,39 @@ from kcut.schema_util import (
     req_list,
     req_str,
 )
-from kcut.timebase import MAX_TIME_MS
 
 _VIDEO_KEYS = video_keys()
-MAX_DRIFT_WINDOWS = 100_000  # the windows of the drift check: far above any real clip
+MAX_PATH_LEN = 260  # characters of a path in the inventory: Windows' own limit
 
 
-def _text(d: dict[str, Any], key: str, path: str) -> str:
-    """Free text of the sync results: short, and with no control, format or line-separator
-    characters (it may be printed to a terminal)."""
-    value = req_str(d, key, path, max_len=MAX_TEXT_LEN)
-    if has_forbidden_chars(value):
-        raise SchemaError(
-            join_path(path, key), "no puede llevar caracteres de control ni de formato"
-        )
-    return value
+FIELD_MAX = 120  # characters of a field path that go into a message
 
 
-def _obj(v: object, path: str) -> dict[str, Any]:
-    """A JSON object where `null` means "absent" (the file writes `null` for missing values)."""
-    return {k: item for k, item in obj(v, path).items() if item is not None}
+def field_text(field: str) -> str:
+    """A field path cut to 120 characters (the last three are `...` when it was longer)."""
+    return field if len(field) <= FIELD_MAX else field[: FIELD_MAX - 3] + "..."
+
+
+class InventoryInvalid(ProjectError):
+    """The file parsed but failed validation. `field` is the data path of the value that did
+    (`clips[3].slug`, never the value); the message holds everything, so only a log may print it."""
+
+    def __init__(self, message_es: str, field: str) -> None:
+        super().__init__(message_es)
+        self.field = field
 
 
 def load_inventory(path: Path, root: Path | None = None) -> Inventory:
     """Read and validate an inventory file; the cache is never trusted.
 
     `root` is the project root (default: two levels above `.kcut/inventory.json`). Any bad id,
-    slug or path makes the whole file invalid (ProjectError).
+    slug or path makes the whole file invalid (InventoryInvalid, a ProjectError).
     """
     base = root if root is not None else path.resolve().parent.parent
     try:
-        return _inventory(read_json(path), base)
+        return _inventory(read_json(path, MAX_INVENTORY_BYTES), base)
     except SchemaError as exc:
-        raise ProjectError(f"{path.name}: {exc.message_es}") from None
+        raise InventoryInvalid(f"{path.name}: {exc.full_es}", exc.path) from None
 
 
 def save_inventory(path: Path, inv: Inventory) -> None:
@@ -87,31 +91,48 @@ def _inventory(data: object, root: Path) -> Inventory:
     only_keys(d, {"schema", "generated", "fps", "id_high", "clips", "sync"}, "")
     schema = req_str(d, "schema", "")
     if schema != SCHEMA:
-        raise SchemaError("schema", f"se esperaba {SCHEMA} (vino {schema!r})")
+        raise SchemaError("schema", f"se esperaba {SCHEMA} (vino {describe_value(schema)})")
     clips = tuple(
-        _clip(_obj(item, join_path("clips", i))) for i, item in enumerate(req_list(d, "clips", ""))
+        _clip(_obj(item, join_path("clips", i)), i)
+        for i, item in enumerate(req_list(d, "clips", ""))
     )
-    for clip in clips:
-        check_clip(clip, root)
+    for index, clip in enumerate(clips):
+        check_clip(clip, root, index)
     raw_high = _obj(d["id_high"], "id_high") if "id_high" in d else None
-    high = None if raw_high is None else {k: req_int(raw_high, k, "id_high") for k in raw_high}
+    high = None if raw_high is None else _id_high(raw_high)
+    sync = parse_sync(_obj(d.get("sync", {}), "sync"))
+    check_sync_refs(sync, clips)
     return Inventory(
         generated=req_str(d, "generated", ""),
         fps=req_int(d, "fps", "", 1, 240),
         clips=clips,
-        sync=_sync(_obj(d.get("sync", {}), "sync")),
+        sync=sync,
         id_high=check_ids(clips, high),
     )
 
 
-def _clip(d: dict[str, Any]) -> Clip:
-    here = f"clips[{d.get('id', '?')}]"
+def _id_high(raw: dict[str, Any]) -> dict[str, int]:
+    """The `id_high` numbers. A key that is not an id prefix is the file's own text, so the path
+    of its error stops at `id_high` (the key is in the log, spec 001.14 point 2)."""
+    high: dict[str, int] = {}
+    for key in raw:
+        try:
+            high[key] = req_int(raw, key, "id_high")
+        except SchemaError as exc:
+            if key in PREFIXES:
+                raise
+            raise SchemaError("id_high", exc.detail_es, full_path=exc.path) from None
+    return high
+
+
+def _clip(d: dict[str, Any], index: int) -> Clip:
+    here = join_path("clips", index)  # by position: the id is not trusted yet
     allowed = {"id", "file", "slug", "class", "qhash", "size_bytes", "duration_ms", "frames"}
     only_keys(d, allowed | {"video", "audio", "image", "work", "warnings"}, here)
     clip_class = one_of(req_str(d, "class", here), get_args(ClipClass), join_path(here, "class"))
     return Clip(
         id=req_str(d, "id", here, min_len=2),
-        file=req_str(d, "file", here, min_len=1),
+        file=req_str(d, "file", here, max_len=MAX_PATH_LEN, min_len=1),
         slug=req_str(d, "slug", here, min_len=1),
         clip_class=cast(ClipClass, clip_class),
         qhash=req_str(d, "qhash", here, min_len=8),
@@ -187,8 +208,8 @@ def _image(d: dict[str, Any], path: str) -> ImageMeta:
 def _work(d: dict[str, Any], path: str) -> WorkFiles:
     only_keys(d, {"proxy", "wav16", "proxy_w", "proxy_h"}, path)
     return WorkFiles(
-        proxy=opt_str(d, "proxy", path, None),
-        wav16=opt_str(d, "wav16", path, None),
+        proxy=opt_str(d, "proxy", path, None, max_len=MAX_PATH_LEN),
+        wav16=opt_str(d, "wav16", path, None, max_len=MAX_PATH_LEN),
         proxy_w=opt_int(d, "proxy_w", path, None, 1),
         proxy_h=opt_int(d, "proxy_h", path, None, 1),
     )
@@ -202,63 +223,19 @@ def _warnings(d: dict[str, Any], here: str) -> list[str]:
     return cast(list[str], items)
 
 
-def _sync(d: dict[str, Any]) -> SyncInfo:
-    only_keys(d, {"master", "members", "rejected"}, "sync")
-    members = tuple(
-        _member(_obj(m, join_path("sync.members", i)), join_path("sync.members", i))
-        for i, m in enumerate(opt_list(d, "members", "sync", []))
-    )
-    rejected = tuple(
-        _rejected(_obj(r, join_path("sync.rejected", i)), join_path("sync.rejected", i))
-        for i, r in enumerate(opt_list(d, "rejected", "sync", []))
-    )
-    return SyncInfo(master=opt_str(d, "master", "sync", None), members=members, rejected=rejected)
-
-
-def _member(d: dict[str, Any], path: str) -> SyncMember:
-    keys = {"id", "offset_ms", "score", "second", "ratio", "refine_corr", "drift_ms"}
-    keys |= {"drift_windows", "method", "sync_version"}
-    only_keys(d, keys, path)
-    return SyncMember(
-        id=req_str(d, "id", path),
-        offset_ms=req_int(d, "offset_ms", path, -MAX_TIME_MS, MAX_TIME_MS),
-        score=req_float(d, "score", path),
-        second=req_float(d, "second", path),
-        ratio=opt_float(d, "ratio", path, None),
-        drift_ms=opt_int(d, "drift_ms", path, None, -MAX_TIME_MS, MAX_TIME_MS),
-        drift_windows=req_int(d, "drift_windows", path, 0, MAX_DRIFT_WINDOWS),
-        method=_text(d, "method", path),
-        refine_corr=opt_float(d, "refine_corr", path, None),
-        sync_version=opt_int(d, "sync_version", path, 1, 1, 1000),
-    )
-
-
-def _rejected(d: dict[str, Any], path: str) -> SyncRejected:
-    keys = {"id", "score", "ratio", "refine_corr", "reason", "lag_a_ms", "lag_b_ms", "sync_version"}
-    only_keys(d, keys, path)
-    return SyncRejected(
-        id=req_str(d, "id", path),
-        score=req_float(d, "score", path),
-        ratio=opt_float(d, "ratio", path, None),
-        reason=_text(d, "reason", path),
-        refine_corr=opt_float(d, "refine_corr", path, None),
-        lag_a_ms=opt_int(d, "lag_a_ms", path, None, -MAX_TIME_MS, MAX_TIME_MS),
-        lag_b_ms=opt_int(d, "lag_b_ms", path, None, -MAX_TIME_MS, MAX_TIME_MS),
-        sync_version=opt_int(d, "sync_version", path, 1, 1, 1000),
-    )
-
-
 __all__ = [
     "SCHEMA",
     "Clip",
     "ClipAudio",
     "ImageMeta",
     "Inventory",
+    "InventoryInvalid",
     "Notice",
     "SyncInfo",
     "SyncMember",
     "SyncRejected",
     "WorkFiles",
+    "field_text",
     "load_inventory",
     "save_inventory",
 ]

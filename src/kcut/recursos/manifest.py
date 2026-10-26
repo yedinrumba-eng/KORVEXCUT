@@ -7,16 +7,18 @@ from datetime import date
 from typing import Any
 
 from kcut.errors import GateError, ProjectError
-from kcut.jsonio import read_json
+from kcut.jsonio import MAX_MANIFEST_BYTES, read_json
 from kcut.paths import resolve_in_project, to_rel
 from kcut.project import Project
 from kcut.schema_util import (
     SchemaError,
+    describe_value,
     join_path,
     obj,
     one_of,
     only_keys,
     opt_str,
+    project_error,
     req_list,
     req_str,
 )
@@ -106,24 +108,24 @@ def _raw_items(project: Project) -> list[tuple[int, dict[str, Any]]]:
     if not path.is_file():
         return []
     try:
-        data = obj(read_json(path), "")
+        data = obj(read_json(path, MAX_MANIFEST_BYTES), "")
         only_keys(data, {"schema", "items"}, "")
         schema = req_str(data, "schema", "")
         if schema != SCHEMA:
-            raise SchemaError("schema", f"se esperaba {SCHEMA} (vino {schema!r})")
+            raise SchemaError("schema", f"se esperaba {SCHEMA} (vino {describe_value(schema)})")
         return [
             (i, _without_nulls(obj(item, join_path("items", i))))
             for i, item in enumerate(req_list(data, "items", ""))
         ]
     except SchemaError as exc:
-        raise ProjectError(f"{path.name}: {exc.message_es}") from None
+        raise project_error(path.name, exc) from None
 
 
 def _parse_item(project: Project, d: dict[str, Any], path: str) -> ResourceItem:
     try:
         return _item(project, d, path)
     except SchemaError as exc:
-        raise ProjectError(f"{project.layout.manifest.name}: {exc.message_es}") from None
+        raise project_error(project.layout.manifest.name, exc) from None
 
 
 def _item(project: Project, d: dict[str, Any], path: str) -> ResourceItem:
@@ -157,7 +159,7 @@ def _file(project: Project, rel: str, where: str) -> str:
     except ProjectError as exc:
         raise SchemaError(where, exc.message_es) from None
     if not normalized.startswith("recursos/"):
-        raise SchemaError(where, f"debe empezar con recursos/ (vino {rel!r})")
+        raise SchemaError(where, f"debe empezar con recursos/ (vino {describe_value(rel)})")
     return normalized
 
 
@@ -172,7 +174,7 @@ def _date(text: str, where: str) -> str:
     except ValueError:
         valid = False
     if not valid:
-        raise SchemaError(where, f"debe ser una fecha AAAA-MM-DD (vino {text!r})")
+        raise SchemaError(where, f"debe ser una fecha AAAA-MM-DD (vino {describe_value(text)})")
     return text
 
 

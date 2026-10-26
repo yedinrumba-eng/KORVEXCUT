@@ -21,13 +21,32 @@ _KINDS = {
 }
 
 
-class SchemaError(ProjectError):
-    """A value does not match its schema; `path` locates it, e.g. `spans[3].zoom`."""
+UNKNOWN_KEY = "<clave desconocida>"  # what a key kcut does not know is called in a path
 
-    def __init__(self, path: str, detail_es: str) -> None:
+
+class SchemaError(ProjectError):
+    """A value does not match its schema; `path` locates it, e.g. `spans[3].zoom`.
+
+    `path` and `message_es` are safe to print: they keep the keys kcut knows and the `[n]`
+    indexes, and a key it does not know is `<clave desconocida>` (spec 001.14, point 2). `full_es`
+    is the same message with the real path, for the log only.
+    """
+
+    def __init__(self, path: str, detail_es: str, *, full_path: str | None = None) -> None:
         super().__init__(f"{path}: {detail_es}" if path else detail_es)
         self.path = path
         self.detail_es = detail_es
+        shown = path if full_path is None else full_path
+        self.full_es = f"{shown}: {detail_es}" if shown else detail_es
+
+
+def project_error(prefix: str, exc: SchemaError) -> ProjectError:
+    """`ProjectError` for the console (`prefix: path: detail`, the unknown keys hidden) that
+    carries, for the log, the same message with the real keys (`KcutError.log_detail`)."""
+    error = ProjectError(f"{prefix}: {exc.message_es}")
+    if exc.full_es != exc.message_es:
+        error.log_detail = f"{prefix}: {exc.full_es}"
+    return error
 
 
 def join_path(path: str, key: str | int) -> str:
@@ -40,15 +59,18 @@ def join_path(path: str, key: str | int) -> str:
 def obj(v: object, path: str) -> dict[str, Any]:
     """`v` must be a JSON object."""
     if not isinstance(v, dict):
-        raise SchemaError(path, f"debe ser un objeto (vino {_describe(v)})")
+        raise SchemaError(path, f"debe ser un objeto (vino {describe_value(v)})")
     return v
 
 
 def only_keys(d: dict[str, Any], allowed: set[str], path: str) -> None:
-    """Reject any key that is not in `allowed`, naming it."""
+    """Reject any key that is not in `allowed`. The error names the table, not the key: the key is
+    the data of someone else (the full path, with the key, is in `SchemaError.full_es`)."""
     for key in sorted(d):
         if key not in allowed:
-            raise SchemaError(join_path(path, key), "clave desconocida")
+            raise SchemaError(
+                join_path(path, UNKNOWN_KEY), "clave desconocida", full_path=join_path(path, key)
+            )
 
 
 def req_int(
@@ -146,7 +168,7 @@ def opt_list[D](d: dict[str, Any], key: str, path: str, default: D) -> list[Any]
 def hex_color(v: object, path: str) -> str:
     """Validate `#RRGGBB` and normalize it to upper case."""
     if not isinstance(v, str) or _HEX.fullmatch(v) is None:
-        raise SchemaError(path, f"debe ser un color #RRGGBB (vino {_describe(v)})")
+        raise SchemaError(path, f"debe ser un color #RRGGBB (vino {describe_value(v)})")
     return v.upper()
 
 
@@ -155,20 +177,20 @@ def one_of[T](v: T, choices: Iterable[T], path: str) -> T:
     options = list(choices)
     if v not in options:
         listed = ", ".join(str(c) for c in options)
-        raise SchemaError(path, f"debe ser uno de: {listed} (vino {_describe(v)})")
+        raise SchemaError(path, f"debe ser uno de: {listed} (vino {describe_value(v)})")
     return v
 
 
 def _int(v: object, where: str, lo: int | None, hi: int | None) -> int:
     if isinstance(v, bool) or not isinstance(v, int):
-        raise SchemaError(where, f"debe ser un entero (vino {_describe(v)})")
+        raise SchemaError(where, f"debe ser un entero (vino {describe_value(v)})")
     _check_range(v, where, lo, hi)
     return v
 
 
 def _float(v: object, where: str, lo: float | None, hi: float | None) -> float:
     if isinstance(v, bool) or not isinstance(v, int | float) or not _is_finite(v):
-        raise SchemaError(where, f"debe ser un número finito (vino {_describe(v)})")
+        raise SchemaError(where, f"debe ser un número finito (vino {describe_value(v)})")
     _check_range(v, where, lo, hi)
     return float(v)
 
@@ -184,7 +206,7 @@ def _is_finite(v: float) -> bool:
 
 def _str(v: object, where: str, max_len: int | None, min_len: int) -> str:
     if not isinstance(v, str):
-        raise SchemaError(where, f"debe ser texto (vino {_describe(v)})")
+        raise SchemaError(where, f"debe ser texto (vino {describe_value(v)})")
     if len(v) < min_len or (max_len is not None and len(v) > max_len):
         if max_len is None:
             span = f"al menos {min_len} caracteres"
@@ -196,13 +218,13 @@ def _str(v: object, where: str, max_len: int | None, min_len: int) -> str:
 
 def _bool(v: object, where: str) -> bool:
     if not isinstance(v, bool):
-        raise SchemaError(where, f"debe ser verdadero o falso (vino {_describe(v)})")
+        raise SchemaError(where, f"debe ser verdadero o falso (vino {describe_value(v)})")
     return v
 
 
 def _list(v: object, where: str) -> list[Any]:
     if not isinstance(v, list):
-        raise SchemaError(where, f"debe ser una lista (vino {_describe(v)})")
+        raise SchemaError(where, f"debe ser una lista (vino {describe_value(v)})")
     return v
 
 
@@ -228,9 +250,10 @@ def _shown(v: float) -> str:
     return str(v)
 
 
-def _describe(v: object) -> str:
-    """Short rendering of a bad value for messages: its type for containers, `_shown` for an
-    integer (`repr` of a huge one raises ValueError), repr otherwise."""
+def describe_value(v: object) -> str:
+    """Short rendering of an untrusted value for a message: its type for containers, `_shown` for
+    an integer (`repr` of a huge one raises ValueError), otherwise its repr cut to 40 characters
+    (spec 001.14, point 7). Every `vino ...` in a message goes through here."""
     kind = _KINDS.get(type(v), type(v).__name__)
     if isinstance(v, list | dict):
         return kind

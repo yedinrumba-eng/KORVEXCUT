@@ -14,19 +14,23 @@ from kcut.ingest.inventory import (
     Clip,
     ClipAudio,
     Inventory,
+    InventoryInvalid,
     Notice,
     WorkFiles,
+    field_text,
     load_inventory,
     save_inventory,
 )
 from kcut.ingest.naming import slugify
 from kcut.ingest.scan import Found, scan_crudo
 from kcut.ingest.sync_stage import clip_warnings, sync_clips
+from kcut.logfile import append_log
 from kcut.paths import to_rel
 from kcut.project import Project
 from kcut.timebase import ms_to_f_floor
 
 SILENT_DBFS = -60.0
+_INVALID = "se ignora el inventario anterior: no pasó la validación"
 
 
 def run_ingest(
@@ -63,7 +67,7 @@ def _run(
     notes: list[Notice],
 ) -> Inventory:
     layout, fps = project.layout, project.config.output.fps
-    previous = _previous(project, notes)
+    previous = _previous(project, notes, log)
     reusable = {c.qhash: c for c in previous.clips} if previous else {}
     found = scan_crudo(project, notes)
     _set_total(progress, len(found))
@@ -113,15 +117,28 @@ def _flags(item: Found) -> frozenset[str]:
     return frozenset(flags)
 
 
-def _previous(project: Project, notes: list[Notice]) -> Inventory | None:
-    """The previous inventory, or None. An unreadable or untrustworthy one counts as absent."""
+def _previous(project: Project, notes: list[Notice], log: Path | None) -> Inventory | None:
+    """The previous inventory, or None. An unreadable or untrustworthy one counts as absent.
+
+    The warning says a fixed text plus the path of the failing field, cut to 120 characters
+    (001.10, point 1): the loader's message quotes keys, ids and values of a file anyone could
+    have planted, and Claude reads this output. The whole message goes to the log, and only there.
+    """
     if not project.layout.inventory.is_file():
         return None
     try:
         return load_inventory(project.layout.inventory, project.root)
     except ProjectError as exc:
-        notes.append(Notice("inventory_invalid", f"se ignora el inventario anterior: {exc}"))
+        field = exc.field if isinstance(exc, InventoryInvalid) else ""
+        notes.append(Notice("inventory_invalid", _invalid_text(field)))
+        if log is not None:
+            append_log(log, f"[inventory_invalid] {exc.message_es}\n")
         return None
+
+
+def _invalid_text(field: str) -> str:
+    """`se ignora el inventario anterior: no pasó la validación (<field cut to 120>)`."""
+    return f"{_INVALID} ({field_text(field)})" if field else _INVALID
 
 
 def _make_clip(project: Project, item: Found, clip_id: str, shared: set[Path]) -> Clip:
