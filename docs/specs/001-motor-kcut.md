@@ -1996,13 +1996,14 @@ con la marca por defecto de la plantilla (`accent = #E5FF1F`), exit 0 y 12 288 b
 | 16 | Paso 0 (001.22 punto 2): en la parte local de un correo dicho, las centenas (`hundred`, `cien`/`ciento`, `doscientos`…`novecientos`) y `mil`/`thousand` cuentan como número dicho: "juan mil novecientos ochenta y cinco arroba gmail punto com" → `j***@***.com`; "maria novecientos arroba gmail punto com" → `m***@***.com` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email_v5_numbers` → exit 0 | ❌ |
 | 17 | Paso 0 (001.22 punto 3): `guion` y `guión` entran a `JOIN`: "maria guion gonzalez arroba hotmail punto com" → `m***@***.com`; "juan guion bajo perez arroba gmail punto com" sigue saliendo `j***@***.com` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email_v5_guion` → exit 0 | ❌ |
 | 18 | Paso 0 (001.22 punto 4): en un correo **dicho**, la última etiqueta después de `dot`/`punto` puede ser cualquier palabra de 2 a 24 letras (`[a-z]{2,24}` después de plegar), aunque no esté en `TLDS`: "maria arroba empresa punto store" → `m***@***.store`, "john at gmail dot me" → `j***@***.me`, "ops at fleet dot xyz" → `o***@***.xyz`, "info arroba miweb punto cr" → `i***@***.cr`, "ana arroba tienda punto com punto ar" → `a***@***.com.ar`; los correos **escritos** siguen con la lista (`logo@2x.png` no cambia) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email_v5_open_tld` → exit 0 | ❌ |
-| 19 | Paso 0 (001.22 punto 5): `MIN_SIDE` baja a 2: "ocho cero nueve, ya, cinco cinco, ya, cinco uno dos, ya, tres cuatro" y "809 ya 55 ya 512 ya 34" no dejan a la vista ningún dígito salvo los 2 últimos; la absorción hacia atrás usa el mismo mínimo; un grupo de 1 dígito sigue sin entrar ("seis, los otros son, cero nueve ocho…" deja `seis`) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_aside_v3` → exit 0 | ❌ |
+| 19 | Paso 0 (001.22 punto 5, ejemplos corregidos en 001.23): `MIN_SIDE` baja a 2: "ocho cero nueve ya cinco cinco cinco uno ya dos tres" y "809 ya 5551 ya 23" no dejan a la vista ningún dígito salvo los 2 últimos; la absorción hacia atrás usa el mismo mínimo; un grupo de 1 dígito sigue sin entrar ("seis, los otros son, cero nueve ocho…" deja `seis`); una cadena en la que ningún par llega a 7 ("809 ya 55 ya 512 ya 34") queda igual, límite aceptado (001.23 punto 1), y su test lo fija | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_aside_v3` → exit 0 | ❌ |
 | 20 | Paso 0 (001.22 punto 6): un número pegado a un correo escrito en el mismo token pasa por el pase de números: en habla, `juan@gmail.com;8095551234` y `juan@gmail.com/8095551234` no dejan a la vista más que los 2 últimos dígitos del teléfono, y la dirección sale `j***@***.com` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py tests/unit/test_pii_pack.py -q -k email_glued_number` → exit 0 | ❌ |
 | 21 | Paso 0 (001.22 punto 7): en rutas, si una parte trae `@` y `mask_written` no encontró correo sin la extensión, se prueba con la extensión pegada: `crudo/juan@gmail.com` → `crudo/j***@***.com`; `crudo/contrato_juan@gmail.com.mp4` sigue como en S1.4-38 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py -q -k path_email_no_ext` → exit 0 | ❌ |
 | 22 | Paso 0 (001.22 punto 8): `seek_input` pide el tamaño esperado y pone `-max_pixels <2·w·h>` antes de `-i`; un proxy MPEG-TS que empieza en 540×960 y sigue en 1080×1920 (inventario 540×960) da exit 0 en un frame del primer tramo y, en un frame del segundo, sale con `ToolError` (4) en menos de 60 s, sin traceback y sin escribir PNG | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_reader_args.py tests/integration/test_view_frames_synth.py -q -k max_pixels` → exit 0 | ❌ |
 | 23 | Paso 0 (001.22 punto 9): el docstring de `write_bytes_atomic` y el comentario de `_replace_through_tmp` dicen que `os.rename` solo falla si el destino existe en Windows y que en POSIX lo pisa (deuda 32) | `.venv/Scripts/python.exe -I -X utf8 -c "import sys, kcut.jsonio as j; sys.exit(0 if 'POSIX' in (j.write_bytes_atomic.__doc__ or '') else 1)"` → exit 0 | ❌ |
 | 24 | Paso 0 (001.22 punto 10): ningún test conserva un nombre que contradiga su aserción: los 5 nombres viejos de 001.22 punto 10 no aparecen en `tests/` | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib, re, sys; old = re.compile(r'a_word_that_is_not_a_bridge_still_cuts|two_numbers_apart_stay_apart|a_word_that_is_no_filler_still_cuts|four_words_in_a_label_are_not_a_domain|does_not_join_a_long_group'); bad = [str(p) for p in pathlib.Path('tests').rglob('*.py') if old.search(p.read_text(encoding='utf-8'))]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
 | 25 | Paso 0 (001.22): toda aserción vieja que cambie en este paso lleva `# 001.22` en la misma línea o en el comentario justo encima; `git diff --exit-code` de `tests/unit/test_pack_cameras.py` y `tests/unit/test_pack_writer.py` contra el commit `40e9c65` da exit 0 | revisión del diff + `git diff --exit-code 40e9c65 -- tests/unit/test_pack_cameras.py tests/unit/test_pack_writer.py` → exit 0 | ❌ |
+| 26 | (001.23 punto 2) La última etiqueta de un correo escrito (el TLD) es solo de letras: en habla, `juan@gmail.com-8095551234` y `juan@gmail.com.8095551234` salen con la dirección `j***@***.com` y el teléfono sin más que sus 2 últimos dígitos a la vista; `juan@mi-empresa.com` sigue siendo una sola dirección | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py tests/unit/test_pii_pack.py -q -k email_glued_v2` → exit 0 | ❌ |
 
 Equivalencias: S1.5-1 → a-1 (cambia: tabla nueva) · S1.5-2 → a-2 · S1.5-3 → a-3 · S1.5-4 → a-4 ·
 S1.5-12 → a-5 (con archivo de test propio) · S1.5-14 → a-6 · S1.5-16 → a-7 (su parte de `render` es b-9) ·
@@ -4105,7 +4106,7 @@ S1.4 cerró en `40e9c65` bajo la regla de corte de 001.17. El verificador y segu
 4. **MEDIO — TLD abierto en correos dichos** (`pack/pii_email.py`):
    - Cuando ya hay `at`/`arroba`, una parte local válida, un dominio y `dot`/`punto`, la última etiqueta puede ser cualquier palabra de 2 a 24 letras ASCII después de plegar, aunque no esté en `TLDS`.
    - Si la penúltima etiqueta es `com`, `net`, `org`, `co`, `gob` o `edu` y la última tiene 2 letras, el TLD que se muestra son las dos (`com.ar`).
-   - Los correos **escritos** siguen con la lista cerrada. Abrirla taparía nombres como `logo@2x.png`, que Claude necesita para referirse al archivo.
+   - Los correos escritos **en rutas** (`mask_text` con partes) siguen con la lista cerrada. Abrirla taparía nombres como `logo@2x.png`, que Claude necesita para referirse al archivo. En habla, `mask_written` no tiene lista y tapa `logo@2x.png` como palabra: se acepta (texto corregido en 001.23).
    - Tapa de más cuando "arroba … punto <palabra>" no es un correo. Está aceptado: mejor tapar de más.
    - Criterio S1.5a-18.
 5. **MEDIO — grupos de 2 dígitos entre apartes** (`pack/pii_numbers.py`):
@@ -4139,3 +4140,32 @@ S1.4 cerró en `40e9c65` bajo la regla de corte de 001.17. El verificador y segu
     - Un reinicio separado por un aparte de 7 palabras o más deja a la vista el primer intento (3 a 6 dígitos). En el fuzz de seguridad hubo 0 fugas con apartes de 6 o menos.
     - La excepción de fecha `(19|20)\d{6}` puede dejar 2 dígitos más a la vista en nombres como `tel_20255501_23`.
     - Una lista de números de 3 dígitos que termina en uno de 7 o más se tapa entera, por diseño.
+
+### 001.23 — 26/10/2026 — BLOQUEADO de S1.5a-19 resuelto (decisión del coordinador)
+
+El implementador paró en la fila 19. Los ejemplos de 001.22 punto 5 eran cadenas 3+2+3+2 con un aparte entre cada trozo. Ningún par llega a 7, así que la regla de pares de 001.18/001.20 no tiene ancla, y la absorción hacia atrás de 001.21 punto 1 solo crece junto a un tramo que ya llegó a 7. El error estaba en el spec, no en el código. S1.5a suma el criterio 26.
+
+1. **Se mantiene el mecanismo de pares.** No hay regla de cadena.
+   - `MIN_SIDE = 2` queda: un trozo de 2 dígitos se une a un par que sí llega a 7.
+   - Los ejemplos de la fila 19 pasan a "ocho cero nueve ya cinco cinco cinco uno ya dos tres" y "809 ya 5551 ya 23".
+   - **Por qué no la regla de cadena:** tapa listas de precios o cantidades que no tienen ningún número de 7 ("199, el otro 299, el otro 399"). Además rompe el diseño de 001.21 punto 1 ("nunca crea un tramo nuevo") y su test `never_starts_a_number`.
+   - **Límite aceptado (va a la deuda 30):** una cadena con un aparte entre cada trozo, en la que ningún par llega a 7 ("809 ya 55 ya 512 ya 34"), queda a la vista. Seguridad lo juzgó habla poco realista: sin apartes, los trozos se unen como dígitos seguidos. Un test lo fija, para que cualquier cambio futuro se note.
+   - Se ratifica el renombre de los 7 tests extra cuyo nombre contradecía la aserción nueva.
+2. **El TLD escrito es solo de letras** (`pack/pii_email.py`, el `split_written` de 001.22 punto 6):
+   - La dirección termina en la última etiqueta hecha solo de letras.
+   - Lo que sigue (`-8095551234`, `.8095551234`) entra al pase de números en su posición, como en 001.22 punto 6.
+   - Un guion **dentro** del dominio (`mi-empresa.com`) sigue siendo parte de la dirección.
+   - Criterio S1.5a-26.
+3. **Se ratifican las decisiones 1–30 del implementador**, que no están palabra por palabra en el spec. En especial:
+   - el TLD dicho abierto solo con etiquetas de una palabra;
+   - `com net org co gob edu` + 2 letras muestran las dos;
+   - el reintento con la extensión solo si la extensión está en `TLDS`;
+   - `-max_pixels` entre `-ss` y `-i`;
+   - `MAX_TIMES` cuenta los argumentos crudos;
+   - `LOOK_IDS` en `edl/refs.py`, y S1.5b agrega un test que lo compara con `render/looks.py`;
+   - E12 con cotas analíticas;
+   - `kept_words` con `cover`;
+   - el gate estricto (cierre `---` obligatorio, BOM = duda, 256 KiB);
+   - `MAX_EDL_BYTES = 4 MiB`;
+   - `edl/model.py` partido en `model`, `parse`, `files`, `fields` y `hints` por la regla de 300 líneas.
+4. **Texto corregido de 001.22 punto 4:** la lista cerrada de TLD aplica a los correos escritos **en rutas**. En habla, `mask_written` no tiene lista.
