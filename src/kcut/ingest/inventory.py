@@ -205,13 +205,16 @@ def _image(d: dict[str, Any], path: str) -> ImageMeta:
     )
 
 
+MAX_PROXY_SIDE = 4096  # width or height of a proxy the inventory takes (spec 001.20, point 4)
+
+
 def _work(d: dict[str, Any], path: str) -> WorkFiles:
     only_keys(d, {"proxy", "wav16", "proxy_w", "proxy_h"}, path)
     return WorkFiles(
         proxy=opt_str(d, "proxy", path, None, max_len=MAX_PATH_LEN),
         wav16=opt_str(d, "wav16", path, None, max_len=MAX_PATH_LEN),
-        proxy_w=opt_int(d, "proxy_w", path, None, 1),
-        proxy_h=opt_int(d, "proxy_h", path, None, 1),
+        proxy_w=opt_int(d, "proxy_w", path, None, 1, MAX_PROXY_SIDE),
+        proxy_h=opt_int(d, "proxy_h", path, None, 1, MAX_PROXY_SIDE),
     )
 
 

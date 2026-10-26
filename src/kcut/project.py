@@ -6,11 +6,12 @@ from pathlib import Path
 
 from kcut.config.load import load_config
 from kcut.config.model import ProjectConfig
-from kcut.errors import ProjectError
+from kcut.errors import ProjectError, UsageError
 from kcut.ingest.inventory import Inventory, InventoryInvalid, field_text
 from kcut.ingest.inventory import load_inventory as _load_inventory_file
+from kcut.jsonio import refuse_directory
 from kcut.logfile import append_log
-from kcut.paths import CONFIG_NAME, Layout, find_project, is_inside
+from kcut.paths import CONFIG_NAME, Layout, _clean_parts, _reject_unsafe, find_project, is_inside
 
 
 @dataclass
@@ -90,3 +91,48 @@ def load_inventory(project: Project, log: Path | None = None) -> Inventory:
         raise ProjectError(
             f"inventory.json no pasó la validación{where}; corre kcut ingest"
         ) from None
+
+
+def under_kcut(project: Project, target: Path) -> bool:
+    """Is `target` inside `.kcut/`, the folder kcut keeps its own files in? A file there is
+    replaced without `--force` (001.21, point 6)."""
+    return is_inside(project.root.resolve() / ".kcut", target.resolve())
+
+
+def assert_writable(project: Project, rel: str, *, replace: bool = True) -> Path:
+    """The absolute path of `rel` (relative to the project, with `/`) if kcut may write there.
+
+    For every write outside `.kcut/` (spec 0.9, 001.15 T4). Refuses, with a ProjectError:
+    a path that breaks the rules of 0.10.7 (absolute, drive letter, UNC, `..` that escapes, `:`,
+    NUL, reserved names); a path that goes through a symlink or a junction; a target that is not
+    inside the project or is under `crudo/`; a target that is a folder or a hard link. It does
+    not create folders: the caller makes the parent after this.
+
+    With `replace=False` a file that is already there is a UsageError that names it (001.20,
+    point 9): what `--out` does without `--force`, so a prompt injection cannot ask for
+    `recursos/logo.png` to be overwritten. Under `.kcut/` it is replaced all the same (001.21,
+    point 6). `pack` keeps the default: it rewrites its files.
+    """
+    _reject_unsafe(rel)
+    parts = _clean_parts(rel)
+    root = project.root.resolve()
+    current = root
+    for part in parts:
+        current = current / part
+        if os.path.lexists(current) and (os.path.islink(current) or os.path.isjunction(current)):
+            raise ProjectError(
+                f"{rel} pasa por un enlace (symlink o junction): "
+                "kcut no escribe a través de enlaces"
+            )
+    target = root.joinpath(*parts).resolve()
+    # Windows reads `crudo.` and `crudo ` as `crudo`: the first part is compared without them
+    in_crudo = parts[0].rstrip(". ").lower() == "crudo" or is_inside((root / "crudo"), target)
+    if not is_inside(root, target) or in_crudo:
+        raise ProjectError(f"kcut no escribe en {rel}")
+    if target.exists():
+        refuse_directory(target)
+        if os.lstat(target).st_nlink > 1:
+            raise ProjectError(f"{rel} es un enlace duro (hard link): kcut no escribe ahí")
+        if not replace and not under_kcut(project, target):
+            raise UsageError(f"{rel} ya existe; usa --force para pisarlo")
+    return target

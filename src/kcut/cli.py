@@ -23,6 +23,8 @@ COMMAND_MODULES: tuple[str, ...] = (
     "kcut.commands.ingest",
     "kcut.commands.transcribe",
     "kcut.commands.pack",
+    "kcut.commands.view",
+    "kcut.commands.frames",
 )
 
 _EXIT_INTERRUPTED = 130

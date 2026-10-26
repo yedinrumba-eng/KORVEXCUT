@@ -224,12 +224,15 @@ def run(
 def popen(
     args: list[str],
     *,
-    log: Path,
+    log: Path | None,
     stdin_pipe: bool = False,
     stdout_pipe: bool = False,
     grace_s: float = _DEFAULT_GRACE_S,
 ) -> ChildProcess:
     """Start a long-running child. Use it as a context manager and call `wait()`.
+
+    With `log=None` nothing is written to a log (no header, no stderr block), as in `run`;
+    `stderr_tail` still gives the child's stderr once it is done (spec 001.15, T9).
 
     Leaving the `with` without an exception while the child still runs waits `grace_s`, then
     kills it and raises ToolError: a child is never killed silently.

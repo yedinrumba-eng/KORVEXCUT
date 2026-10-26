@@ -15,6 +15,7 @@ from kcut.pack.votes import tally
 from kcut.transcribe.model import Word
 from tests.unit.pii_cases_covered import *  # noqa: F403
 from tests.unit.pii_cases_pack import *  # noqa: F403  (001.17: collected here, 300-line rule)
+from tests.unit.pii_cases_paths import *  # noqa: F403  (001.18)
 from tests.unit.test_pack_command import HEADER_LINES, LAYOUT, _md, _pack, _ready, _tsv
 from tests.unit.transcribe_fakes import (
     FakeClip,
@@ -260,7 +261,8 @@ class TestPiiHeadingMasked:
 
     def test_heading_masked_text_keeps_its_spaces_and_masks_the_numbers(self) -> None:
         # 001.17: a path is read by parts (`/ _ . -`), the extension apart: 7 digits in a part
-        assert mask_text("Juan Perez 001-1234567-8.mp4") == "Juan Perez 001-*****67-8.mp4"
+        # 001.20: the hyphens join the groups, so only the last two digits of the ID stay
+        assert mask_text("Juan Perez 001-1234567-8.mp4") == "Juan Perez ***-******7-8.mp4"
         assert mask_text("  crudo/cam  a.mp4 ") == "  crudo/cam  a.mp4 "
         assert mask_text("") == ""
         assert mask_text("Casa 8095551234") == "Casa ********34"
@@ -276,7 +278,7 @@ class TestPiiHeadingMasked:
         assert _pack(root) == 0
         md = "\n".join(_md(root))
         assert "# Transcripcion - Casa ********34" in md
-        assert "## a1 - `crudo/Juan Perez 001-*****67-8.mp4`" in md
+        assert "## a1 - `crudo/Juan Perez ***-******7-8.mp4`" in md  # 001.20
         assert "1234567" not in md and "8095551234" not in md
 
     def test_heading_masked_with_masking_off_the_names_are_as_they_are(

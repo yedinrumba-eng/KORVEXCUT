@@ -51,7 +51,7 @@ class TestPiiDigits:
         assert _shown("+1 (972) 808-3211") == ["+*", "(***)", "***-**11"]
 
     def test_pii_digits_words_between_the_numbers_cut_the_run(self) -> None:
-        assert _shown("972 uh 808 3211") == ["972", "uh", "***", "**11"]
+        assert _shown("972 uh 808 3211") == ["***", "uh", "***", "**11"]  # 001.18
 
     def test_pii_digits_the_punctuation_around_a_word_stays(self) -> None:
         assert _shown("¿972, 808 3211?") == ["¿***,", "***", "**11?"]
@@ -73,7 +73,7 @@ class TestPiiDigits:
         assert _ids("- . ( )") == set()
 
     def test_pii_digits_two_runs_are_judged_one_by_one(self) -> None:
-        assert _shown("123 456 luego 4567890") == ["123", "456", "luego", "*****90"]
+        assert _shown("123 456 luego 4567890") == ["***", "***", "luego", "*****90"]  # 001.18
 
     def test_pii_digits_ids_are_those_of_the_masked_words_only(self) -> None:
         _, ids = mask_pii(_words("hola", "972", "808", "3211", "adios", "5551234"))
@@ -182,7 +182,7 @@ class TestPiiEmail:
     def test_pii_email_written_with_punctuation_around(self) -> None:
         assert _shown("(john.doe@gmail.com),") == ["(j***@***.com),"]
         assert _shown("john.doe@gmail.com.") == ["j***@***.com."]
-        assert _shown("<Maria_1+x@mail.co.uk>") == ["<M***@***.uk>"]
+        assert _shown("<Maria_1+x@mail.co.uk>") == ["<M***@***.co.uk>"]  # 001.21
 
     def test_pii_email_written_two_in_one_word(self) -> None:
         assert _shown("a@b.com,c@d.org") == ["a***@***.com,c***@***.org"]
@@ -293,7 +293,7 @@ class TestPiiHard:
         started = time.monotonic()
         shown, ids = mask_pii(words)
         assert time.monotonic() - started < 2.0 and len(ids) == 12_000
-        assert [w.text for w in shown[:5]] == ["hola", "***", "***", "**11", "adios"]
+        assert [w.text for w in shown[:5]] == ["hola", "***", "***", "****", "adios"]  # 001.20
 
     def test_pii_email_hostile_addresses_are_still_masked_once(self) -> None:
         assert _shown("x" * 60 + "@" + "y" * 60 + ".com") == ["x***@***.com"]

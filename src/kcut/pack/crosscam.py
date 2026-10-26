@@ -3,6 +3,10 @@
 Each camera is read alone, so a member that missed the last group of a phone number the master
 heard shows the other groups in plain sight in its own rows ("972 808": six digits, no PII for
 it). The spans the detector masks, moved to the master's clock, cover those words too.
+
+The length of a word under the spans comes from running totals and one `bisect`, so it costs
+O(log spans) whatever the word's length (spec 001.18, point 6): a hostile transcript of long
+words over thousands of spans does not walk every pair.
 """
 
 from bisect import bisect_right
@@ -30,7 +34,7 @@ def covered_ids(
             for run in _runs(words, inside)
         ]
     )
-    starts = [s for s, _ in spans]
+    index = _Spans(spans)
     covered: dict[str, set[str]] = {}
     for clip_id, (words, inside, offset) in clips.items():
         found = {
@@ -38,8 +42,7 @@ def covered_ids(
             for word in words
             if word.text
             and word.id not in inside
-            and _overlap(word.s_ms + offset, word.e_ms + offset, spans, starts) * 2
-            >= word.e_ms - word.s_ms
+            and index.overlap(word.s_ms + offset, word.e_ms + offset) * 2 >= word.e_ms - word.s_ms
         }
         if found:
             covered[clip_id] = found
@@ -73,14 +76,26 @@ def _merge(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
-def _overlap(s_ms: int, e_ms: int, spans: list[tuple[int, int]], starts: list[int]) -> int:
-    """How many milliseconds of `[s_ms, e_ms)` lie inside the (merged, sorted) spans."""
-    total = 0
-    i = max(0, bisect_right(starts, s_ms) - 1)
-    while i < len(spans) and spans[i][0] < e_ms:
-        total += max(0, min(e_ms, spans[i][1]) - max(s_ms, spans[i][0]))
-        i += 1
-    return total
+class _Spans:
+    """Merged, sorted, disjoint spans with the running length of those before each one."""
+
+    def __init__(self, spans: list[tuple[int, int]]) -> None:
+        self.starts = [s for s, _ in spans]
+        self.ends = [e for _, e in spans]
+        self.before = [0]  # before[i]: total length of spans[:i]
+        for s, e in spans:
+            self.before.append(self.before[-1] + e - s)
+
+    def below(self, t_ms: int) -> int:
+        """Milliseconds of the spans that lie before `t_ms`."""
+        i = bisect_right(self.starts, t_ms)  # spans[:i] start at or before t_ms
+        if i == 0:
+            return 0
+        return self.before[i - 1] + min(t_ms, self.ends[i - 1]) - self.starts[i - 1]
+
+    def overlap(self, s_ms: int, e_ms: int) -> int:
+        """How many milliseconds of `[s_ms, e_ms)` lie inside the spans."""
+        return self.below(e_ms) - self.below(s_ms)
 
 
 def covered_by_sync(

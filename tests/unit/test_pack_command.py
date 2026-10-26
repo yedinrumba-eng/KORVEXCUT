@@ -204,12 +204,14 @@ class TestPiiDigits:
         stdout = capsys.readouterr().out
         md = (root / "edit" / "transcripcion.md").read_text(encoding="utf-8")
         tsv = (root / "edit" / "palabras.tsv").read_text(encoding="utf-8")
-        assert "mi numero es *** *** **11" in md
+        # 001.20: the card is six words from the phone, so they are one number: only the
+        # last two digits of the whole stay readable (the last digits of the ID number)
+        assert "mi numero es *** *** ****" in md
         assert "tarjeta **** **** **** **** y ***-******7-8" in md  # "y" bridges: one number
         for raw in self.RAW:
             assert not any(raw in text for text in (md, tsv, stdout)), raw
         rows = {r[0]: r for r in _tsv(root)[1:]}
-        assert [rows[f"a1:w{i:04d}"][7] for i in (3, 4, 5)] == ["***", "***", "**11"]
+        assert [rows[f"a1:w{i:04d}"][7] for i in (3, 4, 5)] == ["***", "***", "****"]  # 001.20
         assert rows["a1:w0003"][6] == "P" and rows["a1:w0000"][6] == ""
         cache = "".join(
             p.read_text(encoding="utf-8") for p in (root / ".kcut/transcripts").glob("*.json")

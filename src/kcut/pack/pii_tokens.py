@@ -15,6 +15,7 @@ from kcut.pack.pii_vocab import (
     MULTIPLIERS,
     TENS_EN,
     TENS_ES,
+    THOUSANDS,
     TWO_DIGITS,
     UNITS,
     UNITS_EN,
@@ -152,7 +153,7 @@ def classify(toks: Sequence[Tok], bridges: Bridges) -> None:
             tok.slots, nxt.slots = 1, 2
             i += 2
             continue
-        elif norm in HUNDREDS:
+        elif norm in HUNDREDS or norm in THOUSANDS:
             tok.slots = 3
         elif norm in TWO_DIGITS or VEINTI.fullmatch(norm):
             tok.slots = 2

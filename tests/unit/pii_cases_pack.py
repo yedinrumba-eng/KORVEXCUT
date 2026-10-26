@@ -180,7 +180,7 @@ class TestPiiCorrectionUnmasks:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         root = self._ready(tmp_path, monkeypatch)
-        self._fix(root, "a1:w0005", "eh", "x")
+        self._fix(root, "a1:w0005", "eh", "a b c d e f g")  # 001.20: one word is an aside
         capsys.readouterr()
         assert _pack(root, "--json") == 1
         error = json.loads(capsys.readouterr().out)["error"]
@@ -203,7 +203,9 @@ class TestPiiCorrectionUnmasks:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         root = self._ready(tmp_path, monkeypatch)
-        self._fix(root, "a1:w0005", "eh", "a ver")
+        self._fix(
+            root, "a1:w0005", "eh", "a b c d e f g"
+        )  # 001.20: seven words, "a ver" is an aside
         assert _pack(root) == 1
 
     def test_correction_unmasks_another_bridge_word_keeps_the_number_masked(
@@ -226,7 +228,7 @@ class TestPiiCorrectionUnmasks:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         root = self._ready(tmp_path, monkeypatch)
-        self._fix(root, "a1:w0005", "eh", "x")
+        self._fix(root, "a1:w0005", "eh", "a b c d e f g")  # 001.20: one word is an aside
         capsys.readouterr()
         _pack(root)
         err = capsys.readouterr().err

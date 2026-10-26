@@ -15,7 +15,7 @@ from kcut.analysis.energy import silence_runs, voiced_without_words
 from kcut.config.model import AnalysisSection
 from kcut.pack.markers import FLAG_ORDER, filler_sequences, retakes, word_flags
 from kcut.pack.phrases import split_phrases
-from kcut.pack.pii import mask_pii, mask_pii_spans
+from kcut.pack.pii import mask_pii_spans
 from kcut.pack.votes import Tally
 from kcut.pack.writer import MdPhrase, MdWord, TsvRow
 from kcut.text.normalize import norm_token
@@ -66,8 +66,8 @@ def assemble_clip(
     raw, raw_hidden, raw_inside = (
         mask_pii_spans(raw, fillers) if mask else (list(raw), nothing, nothing)
     )
-    words, extra = _cover(words, covered)  # words under another camera's mask (001.17, point 2)
-    raw, raw_extra = _cover(raw, covered)
+    words, extra = cover(words, covered)  # words under another camera's mask (001.17, point 2)
+    raw, raw_extra = cover(raw, covered)
     hidden, raw_hidden = hidden | extra, raw_hidden | raw_extra
     inside, raw_inside = inside | extra, raw_inside | raw_extra
     alts = _masked_alts(alts, words, inside | raw_inside) if mask else alts
@@ -97,7 +97,7 @@ def assemble_clip(
     return ClipParts(md_phrases, sounds, rows)
 
 
-def _cover(words: Sequence[Word], covered: Collection[str]) -> tuple[list[Word], set[str]]:
+def cover(words: Sequence[Word], covered: Collection[str]) -> tuple[list[Word], set[str]]:
     """The words whose raw id is in `covered` with their letters and digits turned into `*`, and
     their ids. They count as masked: `P` flag, no alternative, no correction shown."""
     shown = list(words)
@@ -118,20 +118,33 @@ def _pieces(words: Sequence[Word]) -> dict[str, list[Word]]:
 
 
 def displayed_alts(
-    tally: Tally, members: Sequence[Sequence[Word]], fillers: Sequence[str], mask: bool
+    tally: Tally,
+    members: Sequence[Sequence[Word]],
+    fillers: Sequence[str],
+    mask: bool,
+    covered: Sequence[Collection[str]] = (),
 ) -> dict[str, str]:
-    """The text of each alternative as it is shown (spec 001.16, point 1).
+    """The text of each alternative as it is shown (spec 001.16, point 1 and 001.18, point 1).
 
     The vote runs on raw words, but what is shown is the masked text of the member's word, with
     the member's WHOLE transcript masked first: a digit heard alone is part of a number only in
-    its context. A word masked down to nothing (a piece of a spoken address) shows `*`.
-    `members` are the transcripts, in the order they were given to the vote.
+    its context. A word masked down to nothing (a piece of a spoken address) shows `*`, and so
+    does every word that sits inside a masked number of its own camera (bridges and separators
+    too) or under the mask of another one (`covered[k]`: the raw ids of member `k` that
+    `crosscam` covers): such a word may be the alternative of a master word at the edge of the
+    mask, where it overlaps half of each. `members` are the transcripts, in the order they were
+    given to the vote.
     """
     if not mask:
         return dict(tally.alternatives)
-    texts = [{w.id: w.text for w in mask_pii(words, fillers)[0]} for words in members]
+    texts: list[dict[str, str]] = []
+    hidden: list[set[str]] = []
+    for k, words in enumerate(members):
+        shown, _, inside = mask_pii_spans(words, fillers)
+        texts.append({w.id: w.text for w in shown})
+        hidden.append(inside | set(covered[k] if k < len(covered) else ()))
     return {
-        master_id: texts[member].get(word_id) or "*"
+        master_id: "*" if word_id in hidden[member] else texts[member].get(word_id) or "*"
         for master_id, (member, word_id) in tally.sources.items()
     }
 

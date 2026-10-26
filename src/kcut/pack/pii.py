@@ -29,8 +29,11 @@ from kcut.pack.pii_tokens import Tok, classify, tokenize
 from kcut.pack.pii_vocab import bridge_tokens
 from kcut.transcribe.model import Word
 
-_PATH_SEPARATORS = re.compile(r"([/_.\-])")
+_WORD_SEPARATORS = re.compile(r"([\s_.\-]+)")  # what cuts a path into words (and `/` into folders)
+_PART_BREAK = re.compile(r"[_.\-]")  # of those, what also cuts it into parts
 _EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,5}$")
+_CUT = "x0"  # stands for a `_` that does not join: letters and a digit cut a run of digits
+_DATE = re.compile(r"(?:19|20)\d{6}")  # YYYYMMDD: the one group a `_` does not join (001.21)
 
 
 def mask_pii(words: Sequence[Word], fillers: Sequence[str] = ()) -> tuple[list[Word], set[str]]:
@@ -92,19 +95,73 @@ def mask_text(text: str, fillers: Sequence[str] = (), *, parts: bool = True) -> 
 
     With `parts` (a file name, a path) the text is cut at `/ _ . -`, the final extension is left
     out, and every part is read on its own: `GX010123.MP4` stays, `Juan 809 555 1234.mp4` does not
-    (spec 001.17, point 6). Without it (a project name, an error) the words are read whole.
+    (spec 001.17, point 6). A second pass reads the digits of a name with `- _ .` as spaces, so a
+    number that separators cut into parts is masked too: `809-555-1234.mp4`, `Maria_809_555_1234`
+    (001.18, point 4); `_` always joins, except next to a date of 8 digits: `amex_3782_822463_10005`
+    is a card, `VID_20261025_143015` is not (001.21, point 3). An address written in a name is
+    masked first, on the whole folder or file name (001.21, point 4). Without `parts` (a project
+    name, an error) the words are read whole.
     """
     if not parts:
         return _mask_phrase(text, fillers)
     ext = _EXTENSION.search(text)
     body, tail = (text[: ext.start()], ext.group()) if ext else (text, "")
-    pieces = _PATH_SEPARATORS.split(body)
-    pieces[::2] = [_mask_phrase(piece, fillers) for piece in pieces[::2]]
-    return "".join(pieces) + tail
+    return "/".join(_mask_segment(segment, fillers) for segment in body.split("/")) + tail
+
+
+def _mask_segment(segment: str, fillers: Sequence[str]) -> str:
+    """One folder or file name of a path. A written address goes first, on the whole name, before
+    anything cuts it at `_ . -` (001.21, point 4). Then two passes (001.17 point 6, 001.18 point 4,
+    001.21 point 3): every part alone (the words between `_ . -`), and all its words together,
+    where what sits between two words says whether they are one number: `-`, `.`, a space and
+    the parentheses always join them, and so does `_`, unless one of the two is a date of 8
+    digits. So `001-1234567-8` and `cedula_001_1234567_8` lose all but their last two digits,
+    `Maria_809_555_1234` is a phone, and `VID_<date>_<time>` keeps its time. Of the two, the pass
+    that masks more of a word wins."""
+    written = mask_written(segment)
+    if written is not None:
+        segment = written
+    pieces = _WORD_SEPARATORS.split(segment)
+    words, seps = pieces[::2], pieces[1::2]
+    first = list(words)
+    begin = 0
+    for k in range(len(words)):
+        if k == len(words) - 1 or _PART_BREAK.search(seps[k]):
+            first[begin : k + 1] = _mask_words(words[begin : k + 1], fillers)
+            begin = k + 1
+    flat: list[str] = []
+    slot: list[int | None] = []  # the word each entry of `flat` is, None for a cut
+    for i, word in enumerate(words):
+        if i and not _joins(words[i - 1], word, seps[i - 1]):
+            flat.append(_CUT)
+            slot.append(None)
+        flat.append(word)
+        slot.append(i)
+    second = list(words)
+    for at, text in zip(slot, _mask_words(flat, fillers), strict=True):
+        if at is not None:
+            second[at] = text
+    pieces[::2] = [
+        s if s.count("*") >= f.count("*") else f for f, s in zip(first, second, strict=True)
+    ]
+    return "".join(pieces)
+
+
+def _joins(before: str, after: str, separator: str) -> bool:
+    """Are the two words of a name, with `separator` between them, read as neighbours? Everything
+    but `_` says yes; `_` says yes too, unless one of the two words is a date."""
+    if "_" not in separator:
+        return True
+    return not (_DATE.fullmatch(before) or _DATE.fullmatch(after))
+
+
+def _mask_words(texts: Sequence[str], fillers: Sequence[str]) -> list[str]:
+    """The texts as the words of one phrase, masked."""
+    words = [Word(f"t{n}", n, text, 0, 1, 1.0) for n, text in enumerate(texts)]
+    return [word.text for word in mask_pii(words, fillers)[0]]
 
 
 def _mask_phrase(text: str, fillers: Sequence[str]) -> str:
     pieces = re.split(r"(\s+)", text)
-    words = [Word(f"t{n}", n, piece, 0, 1, 1.0) for n, piece in enumerate(pieces[::2])]
-    pieces[::2] = [word.text for word in mask_pii(words, fillers)[0]]
+    pieces[::2] = _mask_words(pieces[::2], fillers)
     return "".join(pieces)

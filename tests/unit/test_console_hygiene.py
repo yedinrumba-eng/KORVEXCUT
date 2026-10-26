@@ -197,6 +197,7 @@ def _reference_safe_text(text: str) -> str:
 
 
 class TestSafeTextFast:
+    @pytest.mark.slow  # ~26 s: walks all 0x110000 code points
     def test_safe_text_fast_equals_the_reference_on_every_code_point(self) -> None:
         step = 0x1000
         for start in range(0, 0x110000, step):

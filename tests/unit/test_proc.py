@@ -145,6 +145,23 @@ class TestPopen:
             assert child.stdout is None
             assert child.wait(timeout_s=30) == 0
 
+    def test_popen_log_none_writes_no_log_and_still_gives_the_stderr_tail(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("a child started with log=None must not touch any log")
+
+        monkeypatch.setattr(proc, "append_log", forbidden)
+        monkeypatch.setattr(proc, "log_writer", forbidden)
+        monkeypatch.chdir(tmp_path)
+        code = "import sys; print('hola'); print('queja', 'fin', sep='\\n', file=sys.stderr)"
+        with proc.popen([PY, "-c", code], log=None, stdout_pipe=True) as child:
+            assert child.stdout is not None
+            assert child.stdout.read().strip() == b"hola"
+            assert child.wait(timeout_s=30) == 0
+            assert child.stderr_tail().splitlines() == ["queja", "fin"]
+        assert list(tmp_path.iterdir()) == []  # no log file was created anywhere
+
     def test_stderr_tail_is_empty_until_the_child_is_done(self, tmp_path: Path) -> None:
         with proc.popen(SLEEPER, log=tmp_path / "s.log") as child:
             assert child.stderr_tail() == ""

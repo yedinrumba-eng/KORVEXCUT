@@ -63,3 +63,28 @@ class TestFillersBounds:
         cfg = parse_config(_fillers(["éste", "o sea", "¿sabes?"]), default_name="x")
         assert cfg.transcribe.fillers == ("éste", "o sea", "¿sabes?")
         assert parse_config("", default_name="x").transcribe.fillers[0] == "eh"
+
+
+class TestFillerWordsCap:
+    """001.18 point 6: a filler of `kcut.toml` has at most 5 words (the bridges of the PII
+    detector compare sequences, and their cost grows with the longest one)."""
+
+    def test_filler_words_cap_five_words_are_accepted(self) -> None:
+        cfg = parse_config(_fillers(["a b c d e"]), default_name="x")
+        assert cfg.transcribe.fillers == ("a b c d e",)
+
+    def test_filler_words_cap_six_words_name_the_field(self) -> None:
+        message = _fail(_fillers(["eh", "a b c d e f"]))
+        assert "transcribe.fillers[1]" in message and "5" in message
+
+    def test_filler_words_cap_counts_words_not_spaces(self) -> None:
+        assert parse_config(_fillers(["a   b   c"]), default_name="x").transcribe.fillers
+        assert "transcribe.fillers[0]" in _fail(_fillers(["a b c d e f g h i j k l m n o"]))
+
+    def test_filler_words_cap_does_not_touch_the_glossary(self) -> None:
+        term = "uno dos tres cuatro cinco seis"
+        assert parse_config(_terms([term]), default_name="x").glossary == (term,)
+
+    def test_filler_words_cap_the_defaults_fit(self) -> None:
+        cfg = parse_config("", default_name="x")
+        assert max(len(f.split()) for f in cfg.transcribe.fillers) <= 5

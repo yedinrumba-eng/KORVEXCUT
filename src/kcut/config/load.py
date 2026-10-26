@@ -50,6 +50,7 @@ from kcut.timebase import ALLOWED_FPS, MAX_TIME_MS
 
 _LANG = re.compile(r"[a-z]{2}")
 _MAX_HOURS = MAX_TIME_MS / 3_600_000  # 48.0: the same cap the inventory puts on stored times
+MAX_FILLER_WORDS = 5  # words of one `transcribe.fillers` entry (001.18, point 6)
 
 
 def load_config(path: Path) -> ProjectConfig:
@@ -177,6 +178,7 @@ def _transcribe(d: dict[str, Any]) -> TranscribeSection:
             "transcribe",
             max_items=200,
             max_len=40,
+            max_words=MAX_FILLER_WORDS,
             default=DEFAULT_FILLERS,
             clean=True,
         ),

@@ -1,11 +1,13 @@
 """UTF-8 JSON and text files, written atomically (spec 0.9)."""
 
+import contextlib
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from kcut.errors import ProjectError
+from kcut.errors import ProjectError, UsageError
 
 _MIB = 1024 * 1024
 # What each JSON file kcut reads may weigh (spec 001.14, point 11): one hostile file cannot cost
@@ -81,19 +83,66 @@ def refuse_directory(path: Path) -> None:
 
 def write_text_atomic(path: Path, text: str) -> None:
     """Write UTF-8 text with `\\n` newlines through `<path>.tmp` and `os.replace`."""
-    refuse_directory(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        tmp.unlink(missing_ok=True)  # never write through a stale file or a planted link
+
+    def write(tmp: Path) -> None:
         with tmp.open(
             "w", encoding="utf-8", errors="replace", newline="\n"
         ) as fh:  # no surrogate crash
             fh.write(text)
-        os.replace(tmp, path)
+
+    _replace_through_tmp(path, write)
+
+
+def write_bytes_atomic(path: Path, data: bytes, *, replace: bool = True) -> None:
+    """Write bytes through `<path>.tmp` and `os.replace`, as `write_text_atomic` does for text.
+
+    The PNG and JPG that kcut makes are encoded in memory (`io.BytesIO`) and written with this
+    (spec 001.15): a folder in the target, a stale `.tmp`, a target open in a viewer and any
+    other failure of the disk give the same errors as for the text files.
+
+    With `replace=False` the move is `os.rename`, which fails if `path` is there: a file that
+    appeared after `assert_writable` looked is not overwritten but a UsageError that names it
+    (001.21, point 6). Callers pass `--force` (or "it is under `.kcut/`") as `replace`.
+    """
+
+    def write(tmp: Path) -> None:
+        with tmp.open("wb") as fh:
+            fh.write(data)
+
+    _replace_through_tmp(path, write, replace=replace)
+
+
+def _replace_through_tmp(
+    path: Path, write: Callable[[Path], None], *, replace: bool = True
+) -> None:
+    """The shared flow: refuse a folder at `path`, make its parent, write `<path>.tmp` with
+    `write`, `os.replace` it over `path` (`os.rename` if `replace` is False, which refuses a file
+    that is there). Failures are a ProjectError (spec 0.10, point 5)."""
+    refuse_directory(path)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:  # a parent that is a file, a name the system refuses, no permission
+        raise ProjectError(f"no pude crear la carpeta {path.parent}: {exc}") from None
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.unlink(missing_ok=True)  # never write through a stale file or a planted link
+        write(tmp)
+        if replace:
+            os.replace(tmp, path)
+        else:
+            os.rename(tmp, path)  # fails if `path` is there: nothing is overwritten
+    except FileExistsError:
+        _discard(tmp)
+        raise UsageError(f"{path.name} ya existe; usa --force para pisarlo") from None
     except PermissionError:
-        tmp.unlink(missing_ok=True)
+        _discard(tmp)
         raise ProjectError(f"cierra el archivo {path} en el reproductor y repite") from None
     except OSError as exc:
-        tmp.unlink(missing_ok=True)
+        _discard(tmp)
         raise ProjectError(f"no pude escribir {path}: {exc}") from None
+
+
+def _discard(tmp: Path) -> None:
+    """Remove a leftover `.tmp`; if the system refuses even that (an invalid name), leave it."""
+    with contextlib.suppress(OSError):
+        tmp.unlink(missing_ok=True)

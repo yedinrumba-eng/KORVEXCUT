@@ -36,11 +36,13 @@ def string_list(
     *,
     max_items: int,
     max_len: int | None = None,
+    max_words: int | None = None,
     default: tuple[str, ...] = (),
     clean: bool = False,
 ) -> tuple[str, ...]:
-    """A list of strings with at most `max_items` entries (each `1..max_len` long if given;
-    with `clean`, none may hold the characters `check_clean` refuses)."""
+    """A list of strings with at most `max_items` entries (each `1..max_len` long and, if
+    `max_words` is given, of at most that many words; with `clean`, none may hold the
+    characters `check_clean` refuses)."""
     raw = opt_list(d, key, path, None)
     where = join_path(path, key)
     if raw is None:
@@ -53,6 +55,11 @@ def string_list(
             raise SchemaError(item_path, f"debe ser texto (vino {describe_value(item)})")
         if max_len is not None and not 1 <= len(item) <= max_len:
             raise SchemaError(item_path, f"debe tener entre 1 y {max_len} caracteres")
+        if max_words is not None and len(item.split()) > max_words:
+            raise SchemaError(
+                item_path,
+                f"debe tener como máximo {max_words} palabras (tiene {len(item.split())})",
+            )
         if clean:
             check_clean(item, item_path)
     return tuple(raw)

@@ -105,6 +105,12 @@ class WavReader:
         except _WAVE_ERRORS as exc:
             raise _unreadable(self._label, self._path, exc) from None
 
+    def setpos(self, pos: int) -> None:
+        try:
+            self._wav.setpos(pos)
+        except _WAVE_ERRORS as exc:
+            raise _unreadable(self._label, self._path, exc) from None
+
 
 def _unreadable(label: str, path: Path, exc: Exception) -> ProjectError:
     return ProjectError(f"no pude leer el {label} {path}: {exc}")
@@ -136,6 +142,32 @@ def read_wav_s16_mono(path: Path) -> tuple[NDArray[np.float32], int]:
                 f"(tiene {channels} canales y {width * 8} bits)"
             )
         raw = wav.readframes(wav.getnframes())
+    samples = np.frombuffer(raw, dtype="<i2").astype(np.float32)
+    return samples / np.float32(_S16_FULL_SCALE), rate
+
+
+def read_wav_range(path: Path, start: int, count: int) -> tuple[NDArray[np.float32], int]:
+    """Samples `[start, min(start + count, n))` of a mono 16-bit wav as float32 in [-1, 1), and
+    its sample rate (spec 001.15, T7). `n` is the number of frames of the file.
+
+    `start` or `count` under 0 is a ValueError (a bug of the caller). The header is checked
+    against the real file first (`open_wav`, spec 001.14 point 4), so `n` can be trusted;
+    `start >= n` gives an empty array. It seeks with `setpos` and reads once, `min(count,
+    n - start)` frames: it never reads or reserves more than that, however long the file is."""
+    if start < 0 or count < 0:
+        raise ValueError(f"start y count no pueden ser negativos (start={start}, count={count})")
+    with open_wav(path) as wav:
+        channels, width, rate = wav.getnchannels(), wav.getsampwidth(), wav.getframerate()
+        if channels != 1 or width != 2:
+            raise ProjectError(
+                f"{path}: se esperaba un wav mono de 16 bits "
+                f"(tiene {channels} canales y {width * 8} bits)"
+            )
+        take = min(count, wav.getnframes() - start)
+        if take <= 0:
+            return np.zeros(0, dtype=np.float32), rate
+        wav.setpos(start)
+        raw = wav.readframes(take)
     samples = np.frombuffer(raw, dtype="<i2").astype(np.float32)
     return samples / np.float32(_S16_FULL_SCALE), rate
 

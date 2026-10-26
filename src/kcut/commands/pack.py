@@ -18,25 +18,17 @@ from numpy.typing import NDArray
 from kcut.analysis.energy import rms_db_stream
 from kcut.audio.wavio import PEAK_BLOCK_FRAMES, WavReader, open_wav
 from kcut.console import Out
-from kcut.errors import CheckFailed, ProjectError
+from kcut.errors import ProjectError
 from kcut.ingest.inventory import Clip, Inventory, Notice
 from kcut.jsonio import write_text_atomic
 from kcut.pack.assemble import HOP_MS, ClipParts, assemble_clip, displayed_alts
-from kcut.pack.crosscam import covered_by_sync
-from kcut.pack.guards import refuse_masked, refuse_unmasked
 from kcut.pack.pii import mask_text
 from kcut.pack.votes import tally
 from kcut.pack.writer import UNTRANSCRIBED, MdClip, TsvRow, render_md, render_tsv, voting_status
 from kcut.paths import resolve_in_project
-from kcut.project import Project, load_inventory, open_project
-from kcut.text.corrections import apply_all, load_corrections, mismatch_message, unmatched
-from kcut.transcribe.cache import (
-    WAV16_RATE,
-    file_sha256,
-    load_transcript,
-    read_index,
-    wav16_length_ms,
-)
+from kcut.project import Project, assert_writable, load_inventory, open_project
+from kcut.transcribe.cache import WAV16_RATE, wav16_length_ms
+from kcut.transcribe.loaded import has_voice, load_corrected
 from kcut.transcribe.model import Transcript, Word
 
 NAME = "pack"
@@ -83,7 +75,7 @@ def run(args: argparse.Namespace) -> int:
     for clip in state.inventory.clips:
         if clip.clip_class in _NOT_VOICE:
             continue
-        if not _has_voice(clip):
+        if not has_voice(clip):
             clips.append(MdClip(clip.id, clip.file, role="sin audio"))
         elif clip.id not in state.transcripts:
             message = f"{clip.id}: sin transcribir; corre kcut transcribe"
@@ -102,8 +94,10 @@ def run(args: argparse.Namespace) -> int:
         name = mask_text(name, fillers, parts=False)  # a name, not a path
         clips = [replace(c, file=mask_text(c.file, fillers)) for c in clips]
     md = render_md(name, cfg.output.fps, cfg.analysis.long_pause_ms, clips)
-    write_text_atomic(project.layout.edit / MD_NAME, md)
-    write_text_atomic(project.layout.edit / TSV_NAME, render_tsv(cfg.output.fps, rows))
+    md_path = assert_writable(project, f"edit/{MD_NAME}")  # both targets first (001.15, T4)
+    tsv_path = assert_writable(project, f"edit/{TSV_NAME}")
+    write_text_atomic(md_path, md)
+    write_text_atomic(tsv_path, render_tsv(cfg.output.fps, rows))
     for notice in notices:
         out.warn(f"{notice.code}: {notice.detail}")
     out.line("OK", f"edit/{MD_NAME} y edit/{TSV_NAME}: {len(docs)} clips con texto")
@@ -119,52 +113,20 @@ def run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _has_voice(clip: Clip) -> bool:
-    audible = clip.audio is not None and not clip.audio.silent
-    return clip.clip_class in ("video_voz", "audio") and audible
-
-
 def _load(project: Project, notices: list[Notice], log: Path | None) -> _Run:
-    """Transcripts with the corrections applied, and the votes between cameras.
+    """Transcripts with the corrections applied (`load_corrected`), and the votes between cameras.
 
     A correction that names a word the transcript no longer has is CheckFailed: it was written
     for another transcription. A transcript that does not fit its wav16 counts as missing.
     """
     inventory = load_inventory(project, log)
-    corrections = load_corrections(project)
-    transcripts: dict[str, Transcript] = {}
-    index = read_index(project, notices)  # once for the whole run
-    for clip in inventory.clips:
-        wav = _wav16_or_none(project, clip) if _has_voice(clip) else None
-        if wav is None:
-            continue
-        length = wav16_length_ms(wav)  # a wav16 whose header lies stops the run, transcript or not
-        if clip.id not in index:
-            continue
-        # the hash of the audio is compared first: a changed wav16 is "another audio" (row 16),
-        # whatever its length is, and only then do the words have to fit its length (row 21)
-        sha = file_sha256(wav)
-        found = load_transcript(project, clip.id, notices, length, index, sha)
-        if found is not None:
-            transcripts[clip.id] = found
-    lost = unmatched(
-        corrections, [w for t in transcripts.values() for w in t.words], set(transcripts)
-    )
-    if lost:
-        raise CheckFailed(mismatch_message(lost))
+    loaded = load_corrected(project, inventory, notices, log)
+    transcripts, words = loaded.transcripts, loaded.words
     fillers = project.config.transcribe.fillers
     mask = project.config.privacy.mask_pii
-    # what another camera's mask covers is masked before any correction is looked at
-    covered = covered_by_sync(transcripts, inventory.sync, fillers) if mask else {}
-    if mask:
-        refuse_masked(transcripts, corrections, fillers, covered)
-    raw = {clip_id: t.words for clip_id, t in transcripts.items()}
-    words = apply_all(raw, corrections)
-    if project.config.privacy.mask_pii:  # a correction elsewhere may not open a masked number
-        refuse_unmasked(raw, words, fillers)
     state = _Run(project, inventory, transcripts, words)
-    state.covered = covered  # a number masked in one camera is masked in all
-    master = inventory.sync.master
+    state.covered = loaded.covered  # a number masked in one
+    master = inventory.sync.master  # camera is masked in all
     if master in words:
         # the vote is on the RAW words: the tsv keeps the trace of why a word was corrected
         members = [m for m in inventory.sync.members if m.id in transcripts]
@@ -172,7 +134,11 @@ def _load(project: Project, notices: list[Notice], log: Path | None) -> _Run:
             transcripts[master].words, [(transcripts[m.id].words, m.offset_ms) for m in members]
         )  # every member is voted once; its own disagreements come out of the same pass
         state.alts = displayed_alts(
-            result, [transcripts[m.id].words for m in members], fillers, mask
+            result,
+            [transcripts[m.id].words for m in members],
+            fillers,
+            mask,
+            [state.covered.get(m.id, ()) for m in members],
         )
         state.disagreements.update(
             {m.id: n for m, n in zip(members, result.disagreements, strict=True)}
@@ -235,14 +201,6 @@ def _doc(state: _Run, clip: Clip, parts: ClipParts) -> dict[str, Any]:
 def _signed_seconds(ms: int) -> str:
     """`+4.722` / `-0.040`: milliseconds as signed seconds with three decimals."""
     return f"{'-' if ms < 0 else '+'}{abs(ms) // 1000}.{abs(ms) % 1000:03d}"
-
-
-def _wav16_or_none(project: Project, clip: Clip) -> Path | None:
-    """The clip's wav16 file, or None if the inventory has none or the file is gone."""
-    if clip.work is None or clip.work.wav16 is None:
-        return None
-    path = resolve_in_project(project.root, clip.work.wav16)
-    return path if path.is_file() else None
 
 
 def _wav16(project: Project, clip: Clip) -> Path:

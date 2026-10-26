@@ -11,8 +11,21 @@ import pytest
 
 from kcut.pack.pii import mask_pii
 from kcut.transcribe.model import Word
+from tests.unit.pii_cases_asides import (
+    TestPiiAbsorbBackwards,
+    TestPiiAsideV2,
+    TestPiiAsideV2Transcript,
+    TestPiiRestartV2,
+)
 
-__all__ = ["TestPiiBridge", "TestPiiTens"]
+__all__ = [
+    "TestPiiAbsorbBackwards",
+    "TestPiiAsideV2",
+    "TestPiiAsideV2Transcript",
+    "TestPiiBridge",
+    "TestPiiRestartV2",
+    "TestPiiTens",
+]
 FILLERS = ("eh", "ehh", "em", "este", "o sea", "pues")
 
 
@@ -57,12 +70,15 @@ class TestPiiBridge:
 
     def test_pii_bridge_four_tokens_are_the_limit(self) -> None:  # 001.17: it was two
         assert _shown("809 eh eh eh eh 5551") == ["***", "eh", "eh", "eh", "eh", "**51"]
-        assert _shown("809 eh eh eh eh eh 5551") == ["809", *["eh"] * 5, "5551"]
+        # 001.20: five or six words are an aside now (up to 6); seven cut the number
+        assert _shown("809 eh eh eh eh eh 5551") == ["***", *["eh"] * 5, "**51"]
+        assert _shown("809 " + "eh " * 7 + "5551")[0] == "809"
 
     def test_pii_bridge_a_two_word_filler_counts_as_one_token(self) -> None:  # 001.17: it was two
         assert _shown("809 o sea 5551234") == ["***", "o", "sea", "*****34"]
         assert _shown("809 o sea eh eh eh 5551")[1:5] == ["o", "sea", "eh", "eh"]  # four in all
-        assert _shown("809 o sea eh eh eh eh 5551")[0] == "809"  # five: the number is cut
+        assert _shown("809 o sea eh eh eh eh 5551")[0] == "***"  # 001.20: five, an aside
+        assert _shown("809 o sea eh eh eh eh eh 5551")[0] == "809"  # 001.20: seven words cut
 
     def test_pii_bridge_both_sides_must_bring_digits(self) -> None:
         assert _shown("eh 5551234 eh") == ["eh", "*****34", "eh"]
@@ -76,15 +92,15 @@ class TestPiiBridge:
         assert _shown("y 5551234 y") == ["y", "*****34", "y"]
 
     def test_pii_bridge_a_word_that_is_not_a_bridge_still_cuts(self) -> None:
-        assert _shown("809 hola 5551234") == ["809", "hola", "*****34"]
-        assert _shown("809 uh 555 1234") == ["809", "uh", "***", "**34"]  # "uh" is no filler here
+        assert _shown("809 hola 5551234") == ["***", "hola", "*****34"]  # 001.20
+        assert _shown("809 uh 555 1234") == ["***", "uh", "***", "**34"]  # 001.18: fixed bridge
 
     def test_pii_bridge_the_fillers_come_from_the_config(self) -> None:
         assert _shown("809 uh 555 1234", fillers=("uh",)) == ["***", "uh", "***", "**34"]
-        assert _shown("809 eh 555 1234", fillers=()) == ["809", "eh", "***", "**34"]
+        assert _shown("809 eh 555 1234", fillers=()) == ["***", "eh", "***", "**34"]  # 001.18
 
     def test_pii_bridge_two_numbers_apart_stay_apart(self) -> None:
-        assert _shown("123 hola 4567 y 890") == ["123", "hola", "****", "y", "*90"]
+        assert _shown("123 hola 4567 y 890") == ["***", "hola", "****", "y", "*90"]  # 001.20
 
     def test_pii_bridge_two_years_joined_by_y_are_masked_the_price_of_the_rule(self) -> None:
         assert _shown("en 1990 y 2026") == ["en", "****", "y", "**26"]  # eight digits in all

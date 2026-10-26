@@ -34,9 +34,13 @@ TWO_DIGITS = TENS_EN | TENS_ES | frozenset({
     "eighteen", "nineteen", "once", "doce", "trece", "catorce", "quince", "dieciseis",
     "diecisiete", "dieciocho", "diecinueve",
 })  # fmt: skip
+THOUSANDS = frozenset({"mil", "thousand"})  # three digits (the zeros), like a hundred (001.18)
 VEINTI = re.compile(r"veinti(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve)")
 MULTIPLIERS = {"double": 2, "doble": 2, "triple": 3}
 FIXED_BRIDGES = ("y", "and", "dash", "guion", "o", "double", "doble", "triple")
+# Fillers of any language: they sit between two groups of digits whatever `transcribe.fillers` says
+# (001.18, point 2). Letters are collapsed on use, so `hmm` is `hm` and `mmm` is `m`.
+FIXED_FILLERS = ("uh", "um", "uhm", "er", "hmm", "eh", "em", "mmm", "ah")
 
 
 def is_number_word(norm: str) -> bool:
@@ -45,6 +49,7 @@ def is_number_word(norm: str) -> bool:
         norm in UNITS
         or norm in TWO_DIGITS
         or norm in HUNDREDS
+        or norm in THOUSANDS
         or norm in MULTIPLIERS
         or norm in ("y", "and")
         or VEINTI.fullmatch(norm) is not None
@@ -74,7 +79,7 @@ class Bridges:
 
 def bridge_tokens(fillers: Iterable[str]) -> Bridges:
     """The bridges for these fillers (`transcribe.fillers`) plus the fixed ones."""
-    words = {collapse(w) for w in FIXED_BRIDGES}
+    words = {collapse(w) for w in (*FIXED_BRIDGES, *FIXED_FILLERS)}
     sequences: set[tuple[str, ...]] = set()
     for filler in fillers:
         parts = tuple(collapse(t) for t in norm_tokens(filler))
