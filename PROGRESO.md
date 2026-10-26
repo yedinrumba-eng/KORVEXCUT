@@ -381,3 +381,4 @@ Entre comprobar que el log vacío es el mismo archivo y borrarlo, alguien con ac
 | Tone-map por GPU con `libplacebo`/Vulkan en Iris Xe | Falla al configurar la salida en dos intentos | 14/10/2026 |
 | `cv2.CascadeClassifier` | Eliminado en OpenCV 5 | 14/10/2026 |
 | Descargar assets sin aprobación | Toda descarga necesita OK explícito; logos de marcas ajenas solo del kit oficial | 15/10/2026 |
+| Rastreo de manos y detección de caras (F2: `piloto/track.py`, YuNet/MediaPipe, blur automático de caras) | Yedin, 26/10/2026: "no lo usaremos, todo el que vaya a pertenecer será parte del video, tenemos que hacer muchos procesos básicos y ya". Quien sale en cámara forma parte del video (consentimiento en la entrevista); los componentes van sin rastreo y se posicionan a mano | 26/10/2026 |
