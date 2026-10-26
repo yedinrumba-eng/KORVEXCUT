@@ -673,7 +673,7 @@ nombrándola. Rangos (fuera de rango → `ProjectError`):
 | `transcribe.compute_type` | str | `"int8"` | `int8 int8_float32 float32` |
 | `transcribe.beam_size` | int | 5 | 1–10 |
 | `transcribe.cpu_threads` | int | 0 (= `os.cpu_count()`) | 0–64 |
-| `transcribe.fillers` | list[str] | ver plantilla | ≤ 50, cada uno 1–40; sin `Cc`/`Cf`/`Zl`/`Zp` (001.6, S1.3) |
+| `transcribe.fillers` | list[str] | ver plantilla | ≤ 50, cada uno 1–40; sin `Cc`/`Cf`/`Zl`/`Zp` (001.6, S1.3) | (001.12 punto 11 subió el tope a 200 elementos de 40 caracteres)
 | `transcribe.prompt_extra` | str | `""` | ≤ 400; sin `Cc`/`Cf`/`Zl`/`Zp` (001.6, S1.3) |
 | `analysis.silence_db` | float | −42.0 | −70 a −20 |
 | `analysis.min_silence_ms` | int | 250 | 50–2000 |
@@ -1342,6 +1342,17 @@ hace desde 001.4) rechazan cualquier carácter de las categorías Unicode `Cc`, 
 | 32 | Números dichos en palabras (inglés y español) que llegan a 7 dígitos seguidos ("nine seven two eight zero eight three", "nueve siete dos ocho cero ocho tres") se enmascaran; no se tocan "2026", "15 minutes", "Terminal C21", "flight 1234" ni "5:31" (menos de 7 dígitos seguidos) (001.13 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k "pii_spoken or pii_not_masked"` → exit 0 | ❌ |
 | 33 | Correos escritos ("john.doe@gmail.com") y dichos ("john at gmail dot com", "juan arroba gmail punto com") salen como `j***@***.com` (001.13 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email` → exit 0 | ❌ |
 | 34 | Con `[privacy] mask_pii = false` no se enmascara nada y `pack` avisa en cada corrida "PII sin enmascarar (privacy.mask_pii = false)"; una corrección que apunta a una palabra enmascarada → `CheckFailed` "la palabra <id> está enmascarada por privacidad; no se corrige desde aquí"; la marca `P` sale en `flags` del tsv en el orden F R ? H C P y la `V` al final (001.13 puntos 3–5) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k "pii_config or pii_correction or pii_flag"` → exit 0 | ❌ |
+| 35 | Ninguna línea del md empieza con `#` salvo el título y los encabezados `## <id> - ...` que arma el writer: un `note`, `role` o texto de aviso que empiece con `## `, `# ` o `#` sale con el prefijo fijo `nota: ` y en una sola línea; un test barre todas las líneas de `render_md` con datos hostiles (001.14 punto 1) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_writer_hostile.py -q -k "hash_prefix or heading_injection"` → exit 0 | ❌ |
+| 36 | En todo mensaje que va a consola o `--json`, la ruta de un campo conserva solo claves conocidas e índices `[n]`; una clave desconocida sale como `<clave desconocida>` (inventario, `correcciones.json`, `kcut.toml`, `index.json`); el texto completo va solo al log (001.14 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k unknown_key_hidden` → exit 0 | ❌ |
+| 37 | Un wav16 cambiado y además más corto que la transcripción da el `CheckFailed` de la fila 16 (la comparación de `wav_sha256` va antes que la validación por largo) (001.14 punto 3) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pack_command.py -q -k stale_and_shorter` → exit 0 | ❌ |
+| 38 | Un wav cuya cabecera declara más datos de los que tiene el archivo, o con un bloque de datos de largo impar, → `ProjectError` "el wav16 está truncado o su cabecera miente; corre kcut ingest" en `wav16_length_ms`, `read_wav_s16_mono` y `pack`; nunca se reserva memoria por lo declarado (001.14 punto 4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_wavio.py tests/unit/test_transcribe_cache_files.py -q -k lying_header` → exit 0 | ❌ |
+| 39 | `vote` con 2000 palabras por cámara todas solapadas en el mismo medio segundo termina en menos de 5 s; cada miembro se vota una sola vez (001.14 punto 5) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_votes.py -q -k vote_overlap_capped` → exit 0 | ❌ |
+| 40 | `index.json` se lee una vez por comando; uno de más de 1 MB o con más de 10 000 entradas se ignora con aviso fijo (001.14 punto 6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_transcribe_cache_files.py -q -k index_read_once` → exit 0 | ❌ |
+| 41 | Un valor no confiable citado en un mensaje (por ejemplo el `schema` de `correcciones.json`) sale recortado a 40 caracteres; todo `message` de error sale recortado a 300 caracteres en modo humano y `--json` (001.14 punto 7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k "value_echo_capped or error_message_capped"` → exit 0 | ❌ |
+| 42 | `clips[].file` y las rutas `work.*` del inventario con más de 260 caracteres → `inventory_invalid` (001.14 punto 8) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_inventory_validation.py -q -k path_len` → exit 0 | ❌ |
+| 43 | `sync.master` o un miembro que no existe en `clips`, ids repetidos entre miembros, o el maestro listado como miembro → `inventory_invalid` (001.14 punto 9) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_inventory_sync_ids.py -q -k dangling` → exit 0 | ❌ |
+| 44 | `safe_text` escapa además U+034F, U+17B4–U+17B5, U+180B–U+180D, U+180F, U+2065, U+FFF0–U+FFF8 y todo U+E0000–U+E0FFF (001.14 punto 10) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_console_hygiene.py -q -k more_invisibles` → exit 0 | ❌ |
+| 45 | Topes por archivo en `read_json`: `index.json` 1 MB, `correcciones.json` 8 MB, `inventory.json` 16 MB, transcripción 64 MB (001.14 punto 11) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_jsonio.py -q -k per_file_caps` → exit 0 | ❌ |
 
 ---
 
@@ -2887,3 +2898,61 @@ Yedin decidió el 25/10/2026 ("Enmascarar (Recomendado)") cómo cumplir su regla
 4. **Config:** `[privacy] mask_pii`, booleano, por defecto `true`. Va en `config/model.py`, `load.py` y `template.py`, con su comentario en la plantilla. Con `false` no se enmascara nada y `pack` avisa en cada corrida, en stderr y en `--json` warnings, con el código `pii_unmasked` y el texto "PII sin enmascarar (privacy.mask_pii = false)".
 5. **Correcciones:** si una corrección apunta a una palabra enmascarada → `CheckFailed` (exit 1) con el texto fijo "la palabra <id> está enmascarada por privacidad; no se corrige desde aquí". La corrección no se aplica. El mensaje nunca muestra el texto crudo.
 6. **Nota para S1.6 y S1.9:** los subtítulos y el QA leen la caché cruda. Si el cliente dijo su teléfono, sale en sus subtítulos, porque es lo que dijo en su video. Lo que no ve nunca es Claude.
+
+### 001.14 — 25/10/2026 — ronda 2 de revisión de S1.3 (verificador DEVUELTO por 1 ALTO; seguridad APROBADO con 4 MEDIO y 5 BAJO)
+
+Ronda 3 de 3, la última. Va junto con 001.13 (PII). S1.3 suma los criterios 35–45. Lo que no es contrato y lo decidió el coordinador va marcado así.
+
+1. **ALTO — una línea de datos que empieza con `#`** (`pack/writer.py`): la regla "una sola línea por campo" no impedía que `note` empezara con `## ` y fabricara un encabezado.
+   - Invariante nuevo: **ninguna línea del md empieza con `#`** salvo el título fijo y los encabezados `## <id> - ...` que arma el writer.
+   - Toda línea que empiece con datos (`note`, avisos) lleva el prefijo fijo `nota: ` antes del `_cell`.
+   - El test barre todas las líneas con payloads que empiezan con `# `, `## ` y `#`.
+   - Criterio S1.3-35.
+2. **MEDIO — una clave desconocida en la ruta del campo** (`schema_util.only_keys` y quien arme rutas de campo; inventario, `correcciones.json`, `kcut.toml`, `index.json`):
+   - En consola y `--json`, la ruta conserva solo las claves que kcut conoce y los índices `[n]`. Lo demás sale como `<clave desconocida>`.
+   - El mensaje completo va solo al log.
+   - Cierra el residual de 001.10 punto 1 y 001.12 punto 2.
+   - Criterio S1.3-36.
+3. **BAJO — las filas 16 y 21 se pisaban** (`commands/pack.py`): `wav_sha256` se compara **antes** de validar contra el largo, y manda la fila 16. Criterio S1.3-37.
+4. **MEDIO — cabecera de wav mentirosa** (`transcribe/cache.py wav16_length_ms`, `audio/wavio.py read_wav_s16_mono` y todo lector de wav16):
+   - Se verifica que el bloque de datos declarado quepa en el archivo real: `offset_datos + frames × bloque <= st_size`, y que el largo sea múltiplo del bloque.
+   - Si no → `ProjectError` "el wav16 está truncado o su cabecera miente; corre kcut ingest".
+   - `readframes` nunca pide más frames de los que el tamaño real permite.
+   - Cierra también el BAJO-8 (data chunk impar, exit 10).
+   - Criterio S1.3-38.
+5. **MEDIO — `vote` O(n·k) con solape masivo** (`pack/votes.py`, `commands/pack.py`; decisión del coordinador):
+   - Por palabra del maestro se consideran como mucho **8 candidatas**: las de mayor solape, y si empatan, la más temprana.
+   - El voto de cada miembro se calcula **una sola vez** y se fusiona; ya no se vota "todos juntos" y otra vez "uno por uno".
+   - Criterio S1.3-39.
+6. **MEDIO — `index.json` leído por cada clip** (`transcribe/cache.py`, `commands/pack.py`, `commands/transcribe.py`):
+   - Se lee una vez por comando y se pasa el dict.
+   - Tope propio de 1 MB y 10 000 entradas. Si se pasa: se ignora con aviso fijo `cache_rebuilt`, como cualquier índice inválido.
+   - Criterio S1.3-40.
+7. **MEDIO — prosa del atacante en mensajes de `correcciones.json` y `kcut.toml`**:
+   - Todo valor no confiable citado en un mensaje (`{x!r}`) se recorta a **40 caracteres** antes de citarse: `schema` en `text/corrections.py`, `ingest/inventory.py` y `transcribe/document.py`.
+   - Defensa en profundidad en `cli`: el `message` de todo error se recorta a **300 caracteres** con `…`, en modo humano y en `--json`. El traceback completo sigue en el log.
+   - Criterio S1.3-41.
+8. **BAJO — rutas sin largo máximo** (`ingest/inventory.py`): `clips[].file` y `work.proxy`/`work.wav16`/`work.wav48` llevan `max_len = 260`. Criterio S1.3-42.
+9. **BAJO — referencias colgantes en `sync`** (`ingest/inventory.py _sync`): todas deben cumplirse, si no → `inventory_invalid`.
+   - `master` existe en `clips`.
+   - Cada miembro y cada rechazado existe en `clips`.
+   - No hay ids repetidos.
+   - El maestro no aparece como miembro.
+
+   Criterio S1.3-43.
+10. **BAJO — invisibles que faltaban** (`console.safe_text`): U+034F, U+17B4–U+17B5, U+180B–U+180D, U+180F, U+2065, U+FFF0–U+FFF8, y el rango completo U+E0000–U+E0FFF. El camino rápido sigue igual a la definición carácter por carácter. Criterio S1.3-44.
+11. **BAJO — un tope único de 64 MB amplifica la memoria** (`jsonio.read_json`, decisión del coordinador). Topes por archivo:
+
+    | Archivo | Tope |
+    |---|---|
+    | `index.json` | 1 MB |
+    | `correcciones.json` | 8 MB |
+    | `inventory.json` | 16 MB |
+    | transcripción | 64 MB |
+
+    Criterio S1.3-45.
+12. **Decisiones del implementador aceptadas** (las revisó el verificador):
+    - `transcribe.fillers` hasta 200 elementos de 40 caracteres (001.12 punto 11). La tabla vieja de S1.2 queda anotada.
+    - Un solo código `transcript_invalid` para todo fallo de una transcripción.
+    - Las palabras que empiezan en el fin del audio o después se descartan al guardar.
+    - El tope de 1000 caracteres del prompt incluye `prompt_extra`, que siempre se conserva.
