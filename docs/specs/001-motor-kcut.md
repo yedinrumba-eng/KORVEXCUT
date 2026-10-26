@@ -83,6 +83,7 @@ src/kcut/transcribe/__init__.py  model.py  engine.py  cache.py                 S
 src/kcut/analysis/__init__.py  energy.py                                       S1.3
 src/kcut/pack/__init__.py  phrases.py  markers.py  votes.py  writer.py         S1.3
 src/kcut/pack/pii.py                                                           S1.3 (001.13: PII enmascarada en lo que lee Claude)
+src/kcut/config/sync_section.py  src/kcut/ingest/inventory_sync.py              S1.3 (partidos por la regla de 300 líneas en 001.14)
 src/kcut/pack/assemble.py  src/kcut/transcribe/document.py                    S1.3 (partidos por la regla de 300 líneas; 001.11)
 src/kcut/commands/transcribe.py  pack.py                                       S1.3
 src/kcut/transcribe/loaded.py                                                  S1.4 (001.15 T1: cargador común de palabras corregidas; `pack` lo usa)
@@ -1400,6 +1401,16 @@ hace desde 001.4) rechazan cualquier carácter de las categorías Unicode `Cc`, 
 | 43 | `sync.master` o un miembro que no existe en `clips`, ids repetidos entre miembros, o el maestro listado como miembro → `inventory_invalid` (001.14 punto 9) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_inventory_sync_ids.py -q -k dangling` → exit 0 | ❌ |
 | 44 | `safe_text` escapa además U+034F, U+17B4–U+17B5, U+180B–U+180D, U+180F, U+2065, U+FFF0–U+FFF8 y todo U+E0000–U+E0FFF (001.14 punto 10) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_console_hygiene.py -q -k more_invisibles` → exit 0 | ❌ |
 | 45 | Topes por archivo en `read_json`: `index.json` 1 MB, `correcciones.json` 8 MB, `inventory.json` 16 MB, transcripción 64 MB (001.14 punto 11) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_jsonio.py -q -k per_file_caps` → exit 0 | ❌ |
+| 46 | La alternativa de la otra cámara nunca filtra PII: el miembro se enmascara completo **antes** de votar y la alternativa que se muestra es su texto enmascarado (`*` si quedó oculta); maestro "mi numero 972 y 3211" contra miembro "mi numero 972 808 3211" no deja `808` ni en el md ni en el tsv; maestro en sílabas contra miembro en dígitos sueltos tampoco (001.16 punto 1) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py -q -k alt_never_leaks` → exit 0 | ❌ |
+| 47 | Tramos con puente: hasta 2 tokens de puente entre grupos de dígitos (muletillas de `transcribe.fillers` y `y and dash guion o double doble triple`) no cortan el tramo; "ocho cero nueve, eh, cinco cinco cinco, eh, uno dos tres cuatro", "809 555 eh 1234", "eight zero nine dash five five five dash one two three four" y "eight O nine five five five one two three four" salen enmascarados enteros (001.16 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_bridge` → exit 0 | ❌ |
+| 48 | Números dichos en decenas y multiplicadores: "twelve thirty four", "doce treinta y cuatro", "double five", "triple cinco" cuentan sus dígitos reales; "eight oh nine five five five twelve thirty four" se enmascara; "twenty twenty six", "las doce" y "fifteen minutes" no (menos de 7 dígitos) (001.16 punto 3) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_tens` → exit 0 | ❌ |
+| 49 | Correos dichos: "john at gmail.com", "juan arroba gmail punto mx", "john dot doe at gmail dot com", "juan punto perez arroba gmail punto com" salen enteros como `j***@***.<tld>`, sin dejar ver nombres; TLD ampliados (001.16 punto 4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email_spoken` → exit 0 | ❌ |
+| 50 | Dígitos Unicode (árabe-índicos, fullwidth, devanagari) se pliegan con NFKC y cuentan; separadores `, / _ – —` y NBSP dentro de un token no cortan; un token con letras y 7 dígitos o más ("tel8095551234") enmascara sus dígitos (001.16 punto 5) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_unicode` → exit 0 | ❌ |
+| 51 | El nombre de archivo del clip y el nombre del proyecto en los encabezados del md pasan por `pii.mask_text`: `Juan Perez 001-1234567-8.mp4` sale con los dígitos enmascarados (001.16 punto 6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py -q -k heading_masked` → exit 0 | ❌ |
+| 52 | Wav: el bloque sale de `nchannels × ((bits + 7) // 8)` del `fmt `, todo chunk tiene que caber en `min(st_size, 8 + tamaño RIFF)`, y cualquier fallo de `wave` (incluido `RuntimeError`) es `ProjectError`; las variantes `block_align=1` con data de 32001 bytes, RIFF corto y `LIST` de 0xFFFFFFFF dan exit 3, nunca 10 (001.16 punto 7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_wavio.py -q -k lying_header_v2` → exit 0 | ❌ |
+| 53 | `vote` con 20 000 palabras apiladas por cámara en 500 ms termina en menos de 10 s: las 8 candidatas salen con `np.argpartition` antes de ordenar (001.16 punto 8) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_votes.py -q -k vote_stacked_20k` → exit 0 | ❌ |
+| 54 | Topes: las correcciones no producen más de 20 000 tokens por clip (`CheckFailed`); `kcut.toml` de más de 1 MB → `ProjectError`; `read_json` mira `st_size` antes de leer y no reserva el tope entero; `workfiles` y `recursos/manifest` con topes de 1 MB y 4 MB (001.16 punto 9) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "corrections_token_cap or toml_size_cap or read_json_no_prealloc or sidecar_caps"` → exit 0 | ❌ |
+| 55 | El mensaje de huérfanas mete ids hasta llenar `300 − prefijo − cola` y siempre conserva "(y N más)"; sin log, el traceback de respaldo sale recortado a 300 caracteres; el aviso de error interno conserva entera la ruta del log aunque la raíz sea larga (001.16 punto 10) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "orphan_fit or nolog_traceback_capped or internal_keeps_log_path"` → exit 0 | ❌ |
 
 ---
 
@@ -3784,3 +3795,63 @@ respondieron el mismo día: puntos 5 y 40.
 
 Ninguna. Las dos que había quedaron respondidas el 25/10/2026: el reloj de fuente (punto 5, opción A,
 decisión del coordinador) y los subtítulos sin `edit/graphics.json` (punto 40, decisión de Yedin).
+
+### 001.16 — 25/10/2026 — ronda 4 corta y dirigida de S1.3 (Yedin: "Ronda 4 corta y dirigida (Recomendado)")
+
+La ronda 3 la devolvieron los dos revisores. El verificador marcó 2 ALTO (alternativa con PII y wav mentiroso); seguridad, 1 ALTO (muletilla entre grupos de dígitos), 3 MEDIO y 7 BAJO. Yedin autorizó una ronda 4 corta con revisión dirigida a estos puntos. S1.3 suma los criterios 46–55. Lo que no es contrato lo decidió el coordinador.
+
+**Sobre la PII:** el enmascarado es una heurística sobre el habla. Ninguna detección es perfecta, pero esta ronda cierra los huecos de habla normal que encontró seguridad. Los límites que quedan están en el punto 11.
+
+1. **ALTO — la alternativa de la otra cámara filtra PII** (`pack/assemble.py _masked_alts`, `pack/votes.py tally`, `commands/pack.py`):
+   - Cada miembro pasa por `mask_pii` sobre su transcripción **completa** antes de mostrar nada.
+   - `tally` sigue votando sobre crudo (001.12 punto 3), pero informa de qué palabra del miembro sale cada alternativa.
+   - La alternativa que se muestra en el md (`[≠x]`) y en la columna `alt` del tsv es el texto enmascarado de esa palabra. Si quedó oculta, sale `*`.
+   - Criterio S1.3-46.
+2. **ALTO — una muletilla entre grupos de dígitos corta el tramo** (`pack/pii.py _digit_runs`):
+   - Entre dos grupos de dígitos se toleran hasta **2 tokens de puente**: las muletillas de `transcribe.fillers` (`mask_pii` las recibe) y `y and dash guion o double doble triple`.
+   - Los dos lados tienen que aportar dígitos, y el total tiene que llegar a 7.
+   - Un puente al inicio o al final no cuenta. El prefijo `eight O nine…` ya no filtra.
+   - Criterio S1.3-47.
+3. **MEDIO — decenas y multiplicadores**:
+   - Las decenas y la decena más unidad (EN `ten…ninety` más `one…nine`; ES `diez…noventa`, `veinti…`, `X y Y`) cuentan **2 dígitos**.
+   - Los números de 11 a 19 (`eleven…nineteen`, `once…diecinueve`) cuentan 2.
+   - `double`/`doble` X cuenta 2 y `triple` X cuenta 3.
+   - `o`/`O` es cero solo dentro de un tramo que ya tiene dígitos a los dos lados.
+   - Criterio S1.3-48.
+4. **MEDIO — correos dichos**:
+   - Se acepta `(at|arroba)` seguido de un token que ya trae punto y TLD (`gmail.com`).
+   - La parte local puede tener de 1 a 3 palabras unidas por `dot punto underscore "guion bajo"`.
+   - TLD: `com net org edu gov io co us do mx es info biz pr uk ca`.
+   - El correo entero sale como `<inicial>***@***.<tld>`: los nombres de la parte local no se ven.
+   - Las letras deletreadas quedan como límite (punto 11).
+   - Criterio S1.3-49.
+5. **BAJO — dígitos Unicode y separadores**:
+   - Cada token se pliega con NFKC.
+   - Un dígito es `str.isdecimal()`.
+   - Los separadores `, / _ – —` y NBSP dentro de un token no cortan el tramo.
+   - Un token con letras y 7 dígitos o más enmascara sus dígitos.
+   - Criterio S1.3-50.
+6. **Fuera del diff — PII en encabezados**: el nombre de archivo del clip y el nombre del proyecto que salen en el md pasan por `pii.mask_text`. Criterio S1.3-51.
+7. **ALTO — wav mentiroso** (`audio/wavio.py _data_lies`/`check_wav_extent` y quien lo llama):
+   - El bloque sale de `nchannels × ((bits + 7) // 8)`, leído del `fmt `.
+   - Todo chunk debe caber en `min(st_size, 8 + tamaño RIFF)`.
+   - Cualquier fallo de `wave` o del chequeo es `ProjectError`, incluido el `RuntimeError` de `wave.Chunk.seek`.
+   - Criterio S1.3-52.
+8. **MEDIO — `vote` con solape total**: en `_Index.best`, las 8 mejores candidatas salen con `np.argpartition` antes de ordenarlas. El costo queda acotado por palabra. Criterio S1.3-53.
+9. **BAJO — topes**:
+   - Las correcciones producen como mucho 20 000 tokens por clip; si se pasan, `CheckFailed`.
+   - `kcut.toml` de 1 MB como máximo.
+   - `read_json` mira `st_size` antes de leer y no reserva el tope entero.
+   - `workfiles` usa un tope de 1 MB y `recursos/manifest` uno de 4 MB.
+   - Criterio S1.3-54.
+10. **BAJO — mensajes**:
+    - Las huérfanas llenan el espacio disponible y conservan "(y N más)".
+    - Sin log, el traceback de respaldo va recortado a 300 caracteres.
+    - El aviso de error interno conserva entera la ruta del log.
+    - El árbol §0.2 suma `config/sync_section.py` e `ingest/inventory_sync.py` (ya aplicado).
+    - Criterio S1.3-55.
+11. **Límites aceptados del enmascarado** (anotados; los recoge el spec 002):
+    - Un número partido **entre dos clips** no se junta.
+    - Los correos deletreados letra por letra no se detectan.
+    - La prosa del atacante pasa hasta 40 caracteres por mensaje (001.14 punto 7).
+    - **Para el plugin (spec 002):** Claude **no** lee `.kcut/transcripts/**`, porque tiene las palabras crudas. El plugin lo niega por configuración y siempre trabaja con `pack`. Si `kcut.toml` llega con `[privacy] mask_pii = false` desde una carpeta ajena, el plugin pide confirmación antes de seguir.
