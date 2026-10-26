@@ -1412,6 +1412,16 @@ hace desde 001.4) rechazan cualquier carácter de las categorías Unicode `Cc`, 
 | 53 | `vote` con 20 000 palabras apiladas por cámara en 500 ms termina en menos de 10 s: las 8 candidatas salen con `np.argpartition` antes de ordenar (001.16 punto 8) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_votes.py -q -k vote_stacked_20k` → exit 0 | ❌ |
 | 54 | Topes: las correcciones no producen más de 20 000 tokens por clip (`CheckFailed`); `kcut.toml` de más de 1 MB → `ProjectError`; `read_json` mira `st_size` antes de leer y no reserva el tope entero; `workfiles` y `recursos/manifest` con topes de 1 MB y 4 MB (001.16 punto 9) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "corrections_token_cap or toml_size_cap or read_json_no_prealloc or sidecar_caps"` → exit 0 | ❌ |
 | 55 | El mensaje de huérfanas mete ids hasta llenar `300 − prefijo − cola` y siempre conserva "(y N más)"; sin log, el traceback de respaldo sale recortado a 300 caracteres; el aviso de error interno conserva entera la ruta del log aunque la raíz sea larga (001.16 punto 10) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "orphan_fit or nolog_traceback_capped or internal_keeps_log_path"` → exit 0 | ❌ |
+| 56 | El mensaje de error interno se limpia **entero** (`scrub_media_metadata` y `pii.mask_text`) y **después** se recorta; con una raíz de proyecto de 175 caracteres o más y `RuntimeError("ffmpeg dijo +18.4861-069.9312/ ok")` no sale ningún pedazo de la coordenada; el test viejo `TestScrubbedMessage::test_the_short_message_is_scrubbed_of_coordinates_in_stderr` pasa con cualquier largo de `--basetemp`; el traceback de respaldo sin log también pasa por `pii.mask_text` (001.17 punto 1) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_cli_internal_error.py tests/unit/test_error_caps.py -q -k "scrubbed or long_root or nolog"` → exit 0 | ❌ |
+| 57 | La alternativa se oculta entera (`*`) en **toda** palabra del maestro que cae dentro de un tramo enmascarado, puentes y neutros incluidos: maestro "mi numero 972 y 3211 gracias" contra miembro "mi numero 972 808 gracias ya" no deja `808`, ni con dos ni con tres cámaras en cualquier orden de `sync.members` (001.17 punto 2) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py -q -k alt_bridge_hidden` → exit 0 | ❌ |
+| 58 | Puentes: una muletilla de varias palabras cuenta como **un** puente; las letras repetidas se colapsan al comparar (`ehhh` → `eh`, `ummm` → `um`); hasta **4** puentes entre grupos; "809 555 uh um eh 1234", "809 555 eh o sea 1234" y "ocho cero nueve éh cinco cinco cinco ehhh uno dos tres cuatro" se enmascaran (001.17 punto 3) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_bridge_v2` → exit 0 | ❌ |
+| 59 | Un token hecho solo de `, / _ – — …` entre grupos es neutro: no corta el tramo y no cuenta como puente; "809 — 555 — 1234", "809 / 555 / 1234" y "809 , 555 , 1234" se enmascaran (001.17 punto 4) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_loose_separator` → exit 0 | ❌ |
+| 60 | Una corrección que destapa un número da `CheckFailed`, con solo el id: después de `apply`, todo id enmascarado en crudo tiene que seguir enmascarado en el texto corregido; corregir el `eh` puente de "ocho cero nueve eh cinco cinco cinco uno dos tres cuatro" → exit 1; borrarlo sigue enmascarado → exit 0 (001.17 punto 5) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py -q -k correction_unmasks` → exit 0 | ❌ |
+| 61 | Rutas: `mask_text` parte la ruta en partes por `/ _ . -` y deja la extensión fuera del conteo; los tramos se miden sobre las partes: `crudo/Juan 809 555 1234.mp4` se enmascara; `GX010123.MP4` queda igual (6 dígitos); `VID_20261025_143015.mp4` y `VID_20261025_150215.mp4` siguen distinguibles porque ninguna parte llega a 7 dígitos (001.17 punto 6) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py tests/unit/test_pii.py -q -k path_parts` → exit 0 | ❌ |
+| 62 | `open_wav` convierte en `ProjectError` solo lo que lanzan `wave.open`, `readframes` y el chequeo de extensión; un error dentro del cuerpo del `with` (por ejemplo, un bug en `rms_db_stream`) sale como `InternalError`, con traceback al log (001.17 punto 7) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_wavio.py -q -k body_error_not_masked` → exit 0 | ❌ |
+| 63 | Vocabulario: `una` = 1; `O O` seguidas = 00; dígitos dichos con guion (`five-five-five-one-two-three-four`) se parten; centenas (`hundred`, `ochocientos`…) cuentan 3 dígitos; `double`/`triple` seguidos de un dígito escrito cuentan 2 o 3; los caracteres de formato (`Cf`, p. ej. ZWSP) se quitan antes de analizar; una `@` suelta cuenta como `at`; los TLD suman `cl dev app ai net.do com.do` (001.17 punto 8) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_vocab_v2` → exit 0 | ❌ |
+| 64 | Topes: las correcciones producen como mucho 200 000 tokens entre todos los clips (`CheckFailed`); `read_capped` da `ProjectError` si el archivo creció entre `stat` y `read`; el análisis de un token pliega como mucho 64 caracteres (001.17 punto 9) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "corrections_global_cap or read_capped_grew or nfkc_capped"` → exit 0 | ❌ |
+| 65 | El test de tiempo del voto apilado deja de depender de la carga de la máquina: verifica con el espía que nunca se ordenan más de 8 candidatas por palabra, y el tope de tiempo pasa a 30 s (001.17 punto 10) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_votes.py -q -k vote_stacked` → exit 0 | ❌ |
 
 ---
 
@@ -3856,3 +3866,66 @@ La ronda 3 la devolvieron los dos revisores. El verificador marcó 2 ALTO (alter
     - Los correos deletreados letra por letra no se detectan.
     - La prosa del atacante pasa hasta 40 caracteres por mensaje (001.14 punto 7).
     - **Para el plugin (spec 002):** Claude **no** lee `.kcut/transcripts/**`, porque tiene las palabras crudas. El plugin lo niega por configuración y siempre trabaja con `pack`. Si `kcut.toml` llega con `[privacy] mask_pii = false` desde una carpeta ajena, el plugin pide confirmación antes de seguir.
+
+### 001.17 — 26/10/2026 — ronda 5 final de S1.3, con regla de corte (Yedin: "Ronda 5 final y regla de corte (Recomendado)")
+
+En la ronda 4, seguridad aprobó (0 CRÍTICO, 0 ALTO, 4 MEDIO, 6 BAJO) y el verificador devolvió con 2 ALTO, 2 MEDIO y 3 BAJO. Esta es la última ronda de S1.3.
+
+**Regla de corte:** después de esta revisión, S1.3 se cierra. Lo MEDIO o BAJO que salga va al paso 0 de S1.4. Solo para un CRÍTICO o una fuga de PII con habla normal.
+
+S1.3 suma los criterios 56–65. Lo que no es contrato lo decidió el coordinador.
+
+1. **ALTO (regresión de la ronda 4) — se recortaba antes de limpiar** (`cli.py`):
+   - El texto de todo error se limpia **entero** con `scrub_media_metadata` y `pii.mask_text`, y solo después se recorta a 300 caracteres.
+   - Lo mismo vale para el traceback de respaldo sin log.
+   - El test viejo de coordenadas tiene que pasar con cualquier largo de ruta.
+   - Criterio S1.3-56.
+2. **ALTO — la alternativa sale por un puente** (`pack/assemble.py`):
+   - Se oculta entera (`*`) la alternativa de **toda** palabra del maestro que cae dentro de un tramo enmascarado, incluidos los puentes y los neutros.
+   - `mask_pii` devuelve, además de los ids enmascarados, los ids que forman parte de un tramo enmascarado.
+   - Esto vale con dos y con tres cámaras, en cualquier orden.
+   - Criterio S1.3-57.
+3. **MEDIO — los puentes eran una lista cerrada** (`pack/pii_numbers.py`, `pii_tokens.py`):
+   - Una muletilla de varias palabras (`o sea`, `you know`) cuenta como **un** puente.
+   - Antes de comparar se colapsan las letras repetidas: `ehhh` → `eh`, `ummm` → `um`, `uh-huh` → `uh huh`.
+   - `MAX_BRIDGE = 4`. Siguen exigiéndose dígitos a los dos lados y 7 en total.
+   - Criterio S1.3-58.
+4. **MEDIO — un separador suelto cortaba el tramo**: un token compuesto solo de `, / _ – — …` es **neutro**. No corta el tramo y no cuenta como puente. Criterio S1.3-59.
+5. **MEDIO — una corrección destapaba el número** (`commands/pack.py`, después de `apply`):
+   - Se vuelve a correr `mask_pii` sobre el texto corregido.
+   - Todo id que estaba enmascarado en crudo tiene que seguir enmascarado en lo corregido. Si no → `CheckFailed`, con solo el id: "la corrección de <id> dejaría ver un dato privado; no se aplica".
+   - Borrar una palabra sigue permitido.
+   - Criterio S1.3-60.
+6. **MEDIO — nombres de archivo** (`pii.mask_text` sobre rutas; decisión del coordinador):
+   - La ruta se parte por `/ _ . -`.
+   - La extensión final (`.[A-Za-z0-9]{1,5}`) no cuenta.
+   - Las reglas de tramos y de "token con letras y 7 dígitos" se aplican **por parte**.
+   - Resultado: los nombres de cámara (`GX010123.MP4`, `VID_20261025_143015.mp4`) siguen distinguibles, y un número partido en el nombre (`Juan 809 555 1234.mp4`) se enmascara.
+   - Criterio S1.3-61.
+7. **MEDIO — `open_wav` tapaba bugs** (`audio/wavio.py`):
+   - Solo lo que lanzan `wave.open`, `readframes` y el chequeo de extensión pasa a `ProjectError`.
+   - Un error en el cuerpo del `with` sigue siendo `InternalError`, con su traceback en el log.
+   - Criterio S1.3-62.
+8. **BAJO — vocabulario**:
+   - `una` cuenta como 1.
+   - `O O` seguidas cuentan como dos ceros.
+   - Las palabras-dígito unidas con guion se parten.
+   - Las centenas (`hundred`, `cien`/`ciento`, `doscientos`…`novecientos`) cuentan 3 dígitos.
+   - `double`/`triple` seguidos de un dígito escrito cuentan 2 o 3.
+   - Los caracteres `Cf` (ZWSP y otros) se quitan antes de analizar.
+   - Una `@` suelta cuenta como `at`.
+   - Los TLD suman `cl dev app ai`, más los compuestos `com.do` y `net.do`.
+   - Criterio S1.3-63.
+9. **BAJO — topes**:
+   - Las correcciones producen como mucho 200 000 tokens entre todos los clips, además del tope de 20 000 por clip.
+   - `read_capped` da `ProjectError` si el archivo creció entre `stat` y `read`.
+   - El análisis de un token pliega como mucho 64 caracteres.
+   - Criterio S1.3-64.
+10. **BAJO — test inestable**:
+    - `test_vote_stacked_20k` verifica con el espía que nunca se ordenan más de 8 candidatas por palabra.
+    - El tope de tiempo pasa a 30 s, para que no falle con la máquina cargada.
+    - El punto 8 de 001.16 acepta `np.partition` con `flatnonzero`, que es determinista, en lugar de `argpartition`.
+    - Criterio S1.3-65.
+11. **Aceptados, sin código**:
+    - Falsos positivos como `$1,000,000`, `10/25/2026`, "2020 y 2026" y "entre 150 o 200". Mejor tapar de más que filtrar.
+    - "Antes de votar" en la fila 46 quiere decir "antes de mostrar"; el voto sigue sobre crudo (001.12 punto 3).
