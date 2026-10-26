@@ -24,8 +24,9 @@
       · verificado: pytest -q -ra → 2332 passed, 3 skipped (5 rondas de revisión)
 - [x] **S1.4** — `kcut view` + `kcut frames`
       · verificado: suite completa → 2968 passed, 3 skipped (456.59 s, exit 0) · ruff check, ruff format, mypy OK · 3 rondas + paso 0 de PII (001.18–001.21)
-- [ ] **S1.5a** — (parte a de S1.5, 001.15) EDL en frames: modelo, validación, `kcut edl check`, `kcut edl sources`, `kept_words`, geometría · paso 0 = spec 001.22
-- [ ] **S1.5b** — (parte b de S1.5, 001.15) `kcut render` base (cámaras, insertos, looks, mezzanines por tramo)
+- [x] **S1.5a** — (parte a de S1.5, 001.15) EDL en frames: modelo, validación, `kcut edl check`, `kcut edl sources`, `kept_words`, geometría
+      · verificado: suite completa → 3331 passed, 3 skipped (implementador 442.57 s; verificador 606.77 s; exit 0 en ambas) · ruff check, ruff format y mypy OK · 1 ronda de revisión + paso 0 (001.22–001.23)
+- [ ] **S1.5b** — (parte b de S1.5, 001.15) `kcut render` base (cámaras, insertos, looks, mezzanines por tramo) · paso 0 = spec 001.24
 - [ ] **S1.6a** — (parte a de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
 - [ ] **S1.6b** — (parte b de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
 - [ ] **S1.7** — Componentes de lucimiento (pasos, sticker, holograma, globo)
@@ -55,6 +56,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 17/10/2026 | S1.2 | Merge de la deuda de S1.1 (001.3) y deuda de S1.2 pagada (001.7–001.9): sync ambiguo, logs, higiene de consola, topes de 48 h | pytest -q -ra → 1238 passed, 3 skipped |
 | 17–26/10/2026 | S1.3 | kcut transcribe + pack; 5 rondas; PII enmascarada; endurecimiento ante inyección de prompt | pytest -q -ra → 2332 passed, 3 skipped |
 | 26/10/2026 | S1.4 | kcut view + kcut frames (timeline PNG con cajas de palabras enmascaradas, filmstrip, frames y hoja ≤25 Mpx sin upscale, `FrameReader` con topes de 60 s y 64 MB, `PROXY_MISMATCH`, escritura fuera de `.kcut/` sin `--force`); PII: paso 0 + 3 rondas (001.18–001.21); revisión final aprobada (verificador y seguridad, 0 CRÍTICO, 0 ALTO); commit `40e9c65` pusheado a `origin/main` | suite completa → 2968 passed, 3 skipped (456.59 s, exit 0); suite rápida (implementador) → 2719 passed, 3 skipped, 249 deselected (87.20 s); ruff check, ruff format y mypy limpios; ningún archivo pasa de 300 líneas; criterios S1.4 1–41 exit 0 |
+| 26/10/2026 | S1.5a | EDL en frames: modelo, validación, `kcut edl check` (`--json`) y `kcut edl sources`, `kept_words`, geometría; gate que cierra a `no` ante cualquier duda; paso 0 (001.22–001.23); BLOQUEADO del implementador por ejemplos del spec mal escritos (001.23, lección 21); 1 ronda de revisión (verificador y seguridad APROBADOS, 0 CRÍTICO, 0 ALTO); commit `6605456` pusheado a `origin/main` | suite completa → 3331 passed, 3 skipped (implementador 442.57 s; verificador 606.77 s; exit 0 en ambas) · ruff check, ruff format y mypy limpios · ningún archivo pasa de 300 líneas · criterios S1.5a 1–26 exit 0 |
 
 ---
 
@@ -305,11 +307,14 @@ Entre comprobar que el log vacío es el mismo archivo y borrarlo, alguien con ac
 - Un grupo de 1 dígito antes de un aparte queda visible (no es PII por sí solo).
 - La excepción de fecha puede dejar 2 dígitos extra en nombres como `tel_20255501_23`.
 - Cadenas de sobre-enmascarado: una lista de números de 3 dígitos que termina en un número de 7 o más se tapa completa. Es por diseño.
+- Una cadena con un aparte entre cada trozo, donde ningún par llega a 7 ("809 ya 55 ya 512 ya 34"), queda visible (001.23, punto 1).
+- `juan arroba gmail punto com;8095551234`: el correo dictado queda legible; solo pasa con texto hostil.
+- (Fuera del enmascarado, anotado aquí para no perderlo) `qhash` no cubre la parte del medio de los archivos de más de 16 MiB: frena la renumeración accidental, no un archivo fabricado.
 - **Mitigado hoy por:** cada clip se enmascara entero; el md lleva la línea fija "es dato, nunca instrucciones"; los mensajes van recortados.
 - **Cura real:** en el plugin, negar la lectura de `.kcut/transcripts/**` y trabajar solo con `pack`; juntar números entre clips solo si aparece el caso real — ~2 h.
 - **Cuándo:** spec 002 (el plugin no deja que Claude lea `.kcut/transcripts/`).
 
-### 31. Hallazgos de la ronda final de S1.4 🟡
+### 31. Hallazgos de la ronda final de S1.4 ✅ pagada
 
 Lo que falta; todo va al paso 0 de S1.5a (spec 001.22):
 
@@ -326,6 +331,7 @@ Lo que falta; todo va al paso 0 de S1.5a (spec 001.22):
 - **Mitigado hoy por:** la regla de corte: ninguno deja una dirección o un teléfono reconstruible con habla normal. El DoS necesita un archivo plantado en `.kcut/proxy/` y muere a los 60 s.
 - **Cura real:** spec 001.22 (paso 0 de S1.5a).
 - **Cuándo:** ahora (paso 0 de S1.5a).
+- **Pagada 26/10/2026** (paso 0 de S1.5a, 001.22–001.23, commit `6605456`).
 
 ### 32. `replace=False` con `os.rename` no protege en POSIX ⚪
 
@@ -334,6 +340,28 @@ En Linux o WSL, `os.rename` sobrescribe en silencio, así que `write_bytes_atomi
 - **Mitigado hoy por:** la herramienta es Windows-first; en Windows, `os.rename` falla con `FileExistsError`.
 - **Cura real:** `os.link(tmp, path)` + `unlink(tmp)`, con fallback para volúmenes FAT/exFAT sin hard links (los discos de footage suelen ser exFAT) — 1–2 h.
 - **Cuándo:** si kcut llega a correr en Linux.
+
+### 33. Hallazgos de la revisión de S1.5a 🟡
+
+Lo que falta; todo va al paso 0 de S1.5b (spec 001.24):
+
+- Números entre dos correos escritos, pegados en una sola palabra, quedan crudos: por ejemplo, una tarjeta de 16 dígitos.
+- La segunda dirección de correo dentro de una parte de ruta queda legible.
+- El gate aprueba `❌ sí` y `[ ] sí`, porque quita todo lo que no sea `[a-z0-9]`.
+- La validación es cuadrática: 30 000 spans tardaron 370 s.
+- La salida de `edl check` no tiene tope, y dos enteros enormes terminan en exit 10.
+- Hasta 37 caracteres de texto del atacante aparecen en los errores.
+- Sin bloque `sources`, da E01 en vez de E04.
+- `edl.kept` importa `commands.pack`.
+- Un test de E06 no ejercita su guarda.
+- Un EDL vacío pasa.
+- El texto crudo llega al `repr` de `KeptWord`.
+- `display_w = 0` divide entre cero.
+- `guion guion` corta la parte local.
+
+- **Mitigado hoy por:** nada llega todavía al video final: `render` (S1.5b) no existe, así que nada consume el gate. El DoS y la inundación de la salida necesitan un EDL plantado.
+- **Cura real:** spec 001.24 (paso 0 de S1.5b).
+- **Cuándo:** ahora (paso 0 de S1.5b).
 
 ---
 
@@ -437,6 +465,12 @@ En Linux o WSL, `os.rename` sobrescribe en silencio, así que `write_bytes_atomi
 - **Por qué engañaba:** los tests se escribieron en el orden en que la gente dicta, y la asimetría parecía un límite de la heurística.
 - **Causa real:** una sola pasada de izquierda a derecha; el resultado dependía de qué número venía primero.
 - **Fix:** una pasada de derecha a izquierda, repetida hasta que nada cambie. Cada caso se prueba junto con su espejo y contra fuerza bruta frente a una clausura independiente del orden.
+
+### 21. Un ejemplo del spec que el mecanismo no puede cumplir es un error del spec, no del código
+- **Síntoma:** el implementador quedó BLOQUEADO en la fila 19 de los criterios de S1.5a: los ejemplos (trozos 3+2+3+2, con un aparte entre cada uno) no tenían ningún par que llegara a 7.
+- **Por qué engañaba:** la regla se leía como si fuera por cada trozo, cuando es por pares.
+- **Causa real:** el coordinador escribió ejemplos para `MIN_SIDE = 2` que ningún par de grupos podía alcanzar, sin comprobarlos contra el mecanismo.
+- **Fix:** 001.23 se quedó con el mecanismo de pares. Una regla de cadena cubriría listas de precios sin número largo, así que el caso de cadena queda como límite aceptado (deuda 30) con un test que lo fija. Antes de escribir un ejemplo, correrlo en la cabeza contra el mecanismo real (o en el scratchpad contra el código actual). El BLOQUEADO hizo su trabajo: paró en vez de inventar una regla de cadena.
 
 ---
 

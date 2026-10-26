@@ -2,16 +2,16 @@
 
 > Lo primero que se lee al retomar. Si esto está desactualizado, la sesión arranca ciega.
 
-Actualizado: 26/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.4
+Actualizado: 26/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.5a
 
 ---
 
 ## Dónde vamos
 
-`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`, 11/11 ok), S1.2 (`kcut new` + `kcut ingest`, `pytest -q -ra` → 1238 passed, 3 skipped), S1.3 (`kcut transcribe` + `kcut pack`, `pytest -q -ra` → 2332 passed, 3 skipped; código en commit `7ee3c92`, pusheado) y S1.4 (`kcut view` + `kcut frames`, suite completa → 2968 passed, 3 skipped; commit `40e9c65`, pusheado a `origin/main`). Parches de spec: S1.3 001.10 a 001.17; S1.4 001.18 a 001.21. **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
+`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`, 11/11 ok), S1.2 (`kcut new` + `kcut ingest`, `pytest -q -ra` → 1238 passed, 3 skipped), S1.3 (`kcut transcribe` + `kcut pack`, `pytest -q -ra` → 2332 passed, 3 skipped; código en commit `7ee3c92`, pusheado) y S1.4 (`kcut view` + `kcut frames`, suite completa → 2968 passed, 3 skipped; commit `40e9c65`, pusheado a `origin/main`) y S1.5a (`kcut edl check` + `kcut edl sources`, EDL en frames, `kept_words` y geometría; suite completa → 3331 passed, 3 skipped; commit `6605456`, pusheado a `origin/main`). Parches de spec: S1.3 001.10 a 001.17; S1.4 001.18 a 001.21; S1.5a 001.22 a 001.23. El parche 001.24 (commit `5076880`) es el paso 0 de S1.5b y la cura de la deuda 33. **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
 
 **Fase actual:** F1 — Núcleo (spec 001 Motor + spec 002 Experiencia)
-**Próximo paso:** S1.5a — EDL (modelo, validación, `kcut edl check`, `kcut edl sources`, `kept_words`, geometría). Arranca con **paso 0** = spec 001.22 (hallazgos de la ronda final de S1.4, deuda 31). **Comando de verificación:** las filas 1–25 de "Criterios de aceptación S1.5a" del spec (cada una con su `pytest -k`), más la suite completa con `-p no:cacheprovider --basetemp=<carpeta nueva>`. Después: S1.5b → S1.6a → S1.6b → S1.7 → S1.8a → S1.8b → S1.9a → S1.9b → S1.10. Después de S1.10, la propuesta de Gate 1 del spec 002.
+**Próximo paso:** S1.5b — `kcut render` base (cámaras, insertos, looks, mezzanines por tramo, voz exacta a la muestra, lock, sidecar, sincronía A/V end-to-end). Arranca con **paso 0** = spec 001.24 (hallazgos de la revisión de S1.5a, deuda 33). **Comando de verificación:** las filas 1–31 de "Criterios de aceptación S1.5b" del spec (cada una con su `pytest -k`), más la suite completa con `-p no:cacheprovider --basetemp=<carpeta nueva>`. Después: S1.6a → S1.6b → S1.7 → S1.8a → S1.8b → S1.9a → S1.9b → S1.10. Después de S1.10, la propuesta de Gate 1 del spec 002.
 
 **Notas para slices siguientes:**
 - S1.6b: Pillow revisa las dimensiones antes de `cv2.imdecode`.
@@ -28,6 +28,7 @@ Actualizado: 26/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.4
 | S1.2 | kcut new + kcut ingest (layout del proyecto y `kcut.toml`, inventario con ids estables, probe HDR/VFR, proxies bt709, sincronía de audio multicam con piso de solape, guardas de refinado débil y de ambigüedad, `SYNC_VERSION`, logs seguros por corrida, validación de caché no confiable, scrub de metadatos, consola limpia) | pytest -q -ra → 1238 passed, 3 skipped; suite rápida 1108 passed en 70 s | 17/10 |
 | S1.3 | kcut transcribe + kcut pack (transcripción local con faster-whisper y caché validada, silencios por energía, frases y marcadores, votación de dos cámaras, `transcripcion.md` / `palabras.tsv`, endurecimiento ante inyección de prompt y PII enmascarada en todo lo que lee Claude) | pytest -q -ra → 2332 passed, 3 skipped | 26/10 |
 | S1.4 | kcut view + kcut frames (timeline PNG con cajas de palabras enmascaradas, filmstrip, frames y hoja ≤25 Mpx sin upscale, `FrameReader` con topes de 60 s y 64 MB, `PROXY_MISMATCH`, escritura fuera de `.kcut/` sin `--force`; PII: paso 0 + 3 rondas, 001.18–001.21) | suite completa → 2968 passed, 3 skipped (456.59 s, exit 0); ruff check, ruff format y mypy limpios; criterios S1.4 1–41 exit 0 | 26/10 |
+| S1.5a | EDL en frames: modelo, parseo, validación (E01–E09, E11–E15, E17, E18; W01–W05; E10 y E16 reservados), aritmética de frames con `Fraction`, gate que cierra a `no` ante cualquier duda, `kcut edl check` (`--json`) y `kcut edl sources`, `kept_words` (`words` crudo y `shown` enmascarado, con `cover` entre cámaras), geometría (cover, crops, easings, `upscale_factor`); paso 0 (001.22–001.23) incluido | suite completa → 3331 passed, 3 skipped (implementador 442.57 s, verificador 606.77 s; exit 0 en ambas); ruff check, ruff format y mypy limpios; chequeo de 300 líneas → `[]`; criterios S1.5a 1–26 exit 0; `kcut edl check` → `"ok": true`, `frames: 345`, un W01 en `spans[3]` | 26/10 |
 
 ## Qué está escrito pero SIN verificar
 
