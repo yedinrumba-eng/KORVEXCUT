@@ -83,6 +83,7 @@ src/kcut/transcribe/__init__.py  model.py  engine.py  cache.py                 S
 src/kcut/analysis/__init__.py  energy.py                                       S1.3
 src/kcut/pack/__init__.py  phrases.py  markers.py  votes.py  writer.py         S1.3
 src/kcut/pack/pii.py                                                           S1.3 (001.13: PII enmascarada en lo que lee Claude)
+src/kcut/pack/pii_tokens.py  pii_numbers.py  pii_email.py                     S1.3 (partidos de pii.py por la regla de 300 líneas en 001.16)
 src/kcut/config/sync_section.py  src/kcut/ingest/inventory_sync.py              S1.3 (partidos por la regla de 300 líneas en 001.14)
 src/kcut/pack/assemble.py  src/kcut/transcribe/document.py                    S1.3 (partidos por la regla de 300 líneas; 001.11)
 src/kcut/commands/transcribe.py  pack.py                                       S1.3
