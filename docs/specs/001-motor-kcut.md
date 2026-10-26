@@ -1604,7 +1604,7 @@ Recorre todo `src/**/*.py` y falla si alguna línea casa con `cv2\.(imread|imwri
 | 10 | (001.15 T7) `read_wav_range` da el mismo tramo que `read_wav_s16_mono`; pasado el final devuelve menos; `start` negativo → `ValueError`; cabecera mentirosa → `ProjectError`; nunca pide a `readframes` más de `min(count, n − start)` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_wavio_range.py -q` → exit 0 | ❌ |
 | 11 | (001.15 T8) Ningún `cv2.imread(` ni `cv2.imwrite(` en `src/` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_no_cv2_path_io.py -q` → `1 passed` | ❌ |
 | 12 | (001.15 T9) `popen([...], log=None)` corre, no crea ningún archivo de log y `stderr_tail` devuelve el stderr del hijo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_proc.py -q -k popen_log_none` → exit 0 | ❌ |
-| 13 | (001.15 T1) `pack` usa `load_corrected` y los tests de S1.3 pasan sin tocarlos | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -m "not whisper" -k "pack or corrections or pii or loaded"` → exit 0; y `git diff --exit-code HEAD -- tests/unit/test_pack_command.py tests/unit/test_pack_cameras.py tests/unit/test_pack_writer.py tests/unit/test_pii.py` → exit 0 | ❌ |
+| 13 | (001.15 T1) `pack` usa `load_corrected` y los tests de S1.3 pasan sin tocarlos | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -m "not whisper" -k "pack or corrections or pii or loaded"` → exit 0; y `git diff --exit-code HEAD -- tests/unit/test_pack_command.py tests/unit/test_pack_cameras.py tests/unit/test_pack_writer.py tests/unit/test_pii.py` → exit 0 (001.19: excepto las 5 aserciones de PII que 001.18 cambió a propósito; ver 001.19 punto 1) | ❌ |
 | 14 | (001.15 T5, 0.6) Clip con el video 0.5 s después del audio (proyecto aparte con un solo `.mov` sintético, id `a1`, hecho con `-itsoffset 0.5` en la entrada de video y destello en su frame de video 30, que es el instante 1.5 s): `kcut frames a1 45` da el destello (gris medio ≥ 200) y `kcut frames a1 14` → exit 2 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k video_start_offset` → exit 0 | ❌ |
 | 15 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
 | 16 | Paso 0 (001.18 punto 1): en `displayed_alts`, una palabra del miembro cubierta por otra cámara (`covered`) o dentro de un tramo enmascarado sale `*`; con un desfase de media palabra en el borde del tramo, `gracias[≠808]` no aparece y la columna `alt` no trae `808` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py -q -k alt_straddle` → exit 0 | ❌ |
@@ -1613,6 +1613,8 @@ Recorre todo `src/**/*.py` y falla si alguna línea casa con `cv2\.(imread|imwri
 | 19 | Paso 0 (001.18 punto 4): nombres de archivo: además del pase por partes, un pase de dígitos contiguos sobre el cuerpo con `- _ .` cambiados por espacio: `809-555-1234.mp4`, `Maria_809_555_1234.mp4`, `(809) 555-1234.mp4` y `4111-1111-1111-1111.mp4` se enmascaran; `GX010123.MP4` y los `VID_<fecha>_<hora>` siguen distinguibles | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py tests/unit/test_pii_pack.py -q -k path_contiguous` → exit 0 | ❌ |
 | 20 | Paso 0 (001.18 punto 5): correos dictados con dominio de 1–3 palabras ("info at big apple trucking dot com", "info arroba spa bella vida punto com"), dígitos dichos en la parte local y `dash`/`hyphen` en la parte local salen como `<inicial>***@***.<tld>` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii.py -q -k pii_email_v3` → exit 0 | ❌ |
 | 21 | Paso 0 (001.18 punto 6): `crosscam` usa prefijos acumulados con `bisect`: 16 000 palabras del maestro contra 2 000 tramos y 8 000 palabras largas del miembro en menos de 2 s; una muletilla de `kcut.toml` tiene como mucho 5 palabras | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "crosscam_linear or filler_words_cap"` → exit 0 | ❌ |
+| 22 | (001.19 punto 2) `kcut view` aplica también la cobertura entre cámaras: un `808` que solo oyó la cámara 2, dentro del número enmascarado de la cámara 1, sale `*` en el PNG y en `words` de `view a2 --json` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_view_words.py -q -k covered` → exit 0 | ❌ |
+| 23 | (001.19 punto 3) `kcut frames` con un frame después del último cuadro real del proxy (video más corto que el contenedor) → `UsageError` (2) que nombra el frame y el máximo, nunca `ToolError`; más de 64 tiempos en una sola corrida → `UsageError` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_view_frames_synth.py -q -k "past_video_end or too_many_times"` → exit 0 | ❌ |
 
 ---
 
@@ -3956,3 +3958,21 @@ S1.3 cerró bajo la regla de corte de 001.17. El ALTO que la cumplía (una corre
    - la ruta del log va entera a la consola (001.16), aunque la carpeta del proyecto lleve un número;
    - el formato `lat … lon …`, que ffmpeg no produce;
    - los `KcutError` no internos no pasan por el scrub, por diseño.
+
+### 001.19 — 26/10/2026 — BLOQUEADO de S1.4 resuelto (decisión del coordinador)
+
+1. **Aserciones viejas contra 001.18.** Los puntos 2 y 3 de 001.18 enmascaran más a propósito: `uh`/`eh` son puentes fijos, se tapa el reinicio de 6 dígitos y también los apartes. Eso invalida 5 aserciones de S1.3 que esperaban ver crudos esos dígitos:
+   - `test_pii.py:54` y `:76`;
+   - `pii_cases_numbers.py:80` y `:84`;
+   - `pii_cases_bridges.py:74-75`.
+
+   Se actualizan al valor nuevo, que tapa más, así que la privacidad sale reforzada. `tests/unit/test_pii.py` sale de la lista del `git diff --exit-code` de la fila 13, que ahora dice esto. Cada aserción cambiada lleva un comentario `# 001.18`.
+2. **`view` y la cobertura entre cámaras** (`transcribe/loaded.py`, `commands/view.py`):
+   - `load_corrected` devuelve también `covered`, el conjunto de ids cubiertos por otra cámara (001.17 punto 2).
+   - `view` lo aplica igual que `pack`: una palabra cubierta sale `*`.
+   - `pack` deja de calcular `covered_by_sync` dos veces.
+   - Criterio S1.4-22.
+3. **`frames` fuera del video y sin tope** (`commands/frames.py`):
+   - Un frame fuera de `[vs_f, último cuadro real del proxy]` da `UsageError` (2), que nombra el frame y el máximo. El último cuadro real sale del número de frames del proxy, no de `Clip.frames`.
+   - Una corrida acepta como mucho 64 tiempos; si pasa de ahí, `UsageError`.
+   - Criterio S1.4-23.
