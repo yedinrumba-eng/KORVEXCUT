@@ -14,9 +14,10 @@ from numpy.typing import NDArray
 
 from kcut.config.model import BrandSection
 from kcut.edl.model import BrollSpan, CamSpan, ColorSpan, Edl, ScreenSpan, Span
+from kcut.project import Project
 from kcut.render.geometry import broll_crop, cam_crop
 from kcut.render.looks import look_chain
-from kcut.render.screen_card import bgr_of, screen_frame
+from kcut.render.screen_card import bgr_of, make_background, screen_frame
 
 Frame = NDArray[np.uint8]
 _SHARPEN_SIGMA = 2.0
@@ -33,6 +34,15 @@ class FxContext:
     bg: Frame
     dark: str
     accent: str
+
+
+def fx_context(project: Project, edl: Edl) -> FxContext:
+    """What every frame of a render or of a preview shares: the output size, the fps and the
+    background of the screen inserts, made once (001.31, point 12: `compose` and `preview` both
+    used to build it by hand)."""
+    brand = project.config.brand
+    bg = make_background(edl.out_w, edl.out_h, brand.dark, brand.accent)
+    return FxContext(edl.out_w, edl.out_h, edl.fps, bg, brand.dark, brand.accent)
 
 
 def look_for(edl: Edl, span: Span, brand: BrandSection) -> str:

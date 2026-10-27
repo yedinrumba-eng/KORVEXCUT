@@ -20,14 +20,15 @@ from kcut.audio.wavio import read_wav_range
 from kcut.config.model import AnalysisSection
 from kcut.console import Out
 from kcut.errors import ProjectError, UsageError
-from kcut.ff.reader import PROXY_MISMATCH, grab, proxy_frame_count, proxy_index
+from kcut.ff.reader import grab, proxy_frame_count, proxy_index
 from kcut.ingest import workfiles
 from kcut.ingest.inventory import Clip, Inventory, Notice
 from kcut.jsonio import write_bytes_atomic
 from kcut.pack.assemble import HOP_MS, cover
 from kcut.pack.pii import UNMASKED, mask_pii
-from kcut.paths import resolve_in_project, to_rel
+from kcut.paths import to_rel
 from kcut.project import Project, assert_writable, load_inventory, open_project, under_kcut
+from kcut.render.proxy_file import Proxy, proxy_of
 from kcut.schema_util import describe_value
 from kcut.timebase import ms_to_f_ceil
 from kcut.timeparse import parse_time
@@ -47,7 +48,6 @@ _HOLE = np.array((46, 40, 40), dtype=np.uint8)  # (40, 40, 46) in BGR: a frame t
 _BLOCK = WAV16_RATE * HOP_MS // 1000  # samples in a block of 10 ms: where `pack` starts counting
 
 Warnings = list[dict[str, str]]
-Proxy = tuple[Path, tuple[int, int]]  # the file and its size (w, h)
 
 
 def add_parser(
@@ -129,22 +129,6 @@ def png_bytes(image: Image.Image) -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     return buffer.getvalue()
-
-
-def proxy_of(project: Project, clip: Clip) -> Proxy:
-    """The clip's proxy file and its size `(w, h)`; a clip without video is a UsageError, a proxy
-    that is not there (or not in the inventory) a ProjectError that says to run `kcut ingest`."""
-    if clip.video is None:
-        raise UsageError(f"{clip.id} no tiene video")
-    work = clip.work
-    if work is None or work.proxy is None or work.proxy_w is None or work.proxy_h is None:
-        raise ProjectError(f"falta el proxy de {clip.id}; corre kcut ingest")
-    if (work.proxy_w, work.proxy_h) != workfiles.proxy_size(clip.video):
-        raise ProjectError(PROXY_MISMATCH)  # the inventory is not trusted (001.20, point 4)
-    path = resolve_in_project(project.root, work.proxy)
-    if not path.is_file():
-        raise ProjectError(f"falta el proxy de {clip.id}; corre kcut ingest")
-    return path, (work.proxy_w, work.proxy_h)
 
 
 def _check_window(start_f: int, end_f: int, fps: int) -> None:

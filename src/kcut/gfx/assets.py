@@ -3,7 +3,8 @@
 The page is loaded from a file with the network blocked, so an image cannot be a URL: it goes
 inside the page. Only what `recursos/recursos.json` lists and a person approved (DS9), only
 `.png`, `.webp`, `.jpg` and `.jpeg` (SVG can carry scripts and links), and nothing that is not
-really an image of the format its extension says, of at most 4096 x 4096 pixels (001.28).
+really an image of the format its extension says, of at most 4096 x 4096 pixels (001.28). A
+WebP says its size in the RIFF header, and that is read before Pillow opens it (001.30).
 """
 
 import base64
@@ -20,6 +21,7 @@ from kcut.recursos.manifest import require_approved
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_ASSET_PIXELS = 4096 * 4096  # width x height, read from the header before the image is decoded
+WEBP_HEADER_BYTES = 30  # all the RIFF header of a WebP needs to say its size
 MIME = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 # The format Pillow may open each extension as: a file is never opened as something else
 FORMATS = {".png": "PNG", ".webp": "WEBP", ".jpg": "JPEG", ".jpeg": "JPEG"}
@@ -65,11 +67,41 @@ def _read(path: Path) -> bytes:
         raise ProjectError("no pude leer la imagen") from None
 
 
+def _webp_pixels(data: bytes) -> int | None:
+    """Width x height that the RIFF header of a WebP declares, read from its first 30 bytes, or
+    `None` if the header is none of the three kinds (`VP8 ` lossy, `VP8L` lossless, `VP8X`
+    extended). Pillow reserves the whole canvas when it opens a WebP, before anyone looks at the
+    pixels: a file of 32 bytes that says 16384 x 16384 made it ask for 2 GB (001.30, point 3)."""
+    head = data[:WEBP_HEADER_BYTES]
+    if len(head) < 21 or head[:4] != b"RIFF" or head[8:12] != b"WEBP":
+        return None
+    kind = head[12:16]
+    if kind == b"VP8 " and len(head) >= 30 and head[23:26] == b"\x9d\x01\x2a":
+        # 14 bits each; the 2 bits above are a scale hint
+        return (int.from_bytes(head[26:28], "little") & 0x3FFF) * (
+            int.from_bytes(head[28:30], "little") & 0x3FFF
+        )
+    if kind == b"VP8L" and len(head) >= 25 and head[20] == 0x2F:
+        bits = int.from_bytes(head[21:25], "little")  # width-1 and height-1, 14 bits each
+        return ((bits & 0x3FFF) + 1) * (((bits >> 14) & 0x3FFF) + 1)
+    if kind == b"VP8X" and len(head) >= 30:  # canvas width-1 and height-1, 24 bits each
+        width = int.from_bytes(head[24:27], "little") + 1
+        return width * (int.from_bytes(head[27:30], "little") + 1)
+    return None
+
+
 def _opens(data: bytes, image_format: str) -> None:
     """ProjectError unless Pillow opens `data` as `image_format` (the one of the extension and no
     other), the size in its header is at most `MAX_ASSET_PIXELS`, and it decodes. The size is
     asked before `load()`, so a small file that decodes to hundreds of millions of pixels is not
-    decoded. The messages are fixed: they never carry the path (001.28, point 6)."""
+    decoded; for a WebP it is asked before `Image.open` too, from the RIFF header (001.30, point
+    3). The messages are fixed: they never carry the path (001.28, point 6)."""
+    if image_format == "WEBP":
+        declared = _webp_pixels(data)
+        if declared is None:
+            raise ProjectError(BAD_IMAGE)
+        if declared > MAX_ASSET_PIXELS:
+            raise ProjectError(TOO_MANY_PIXELS)
     try:
         image = Image.open(io.BytesIO(data), formats=[image_format])
     except (OSError, ValueError, SyntaxError, Image.DecompressionBombError):

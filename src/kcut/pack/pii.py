@@ -41,7 +41,9 @@ from kcut.transcribe.model import Word
 UNMASKED = "PII sin enmascarar (privacy.mask_pii = false)"  # 001.24 point 8: lives here
 _WORD_SEPARATORS = re.compile(r"([\s_.\-]+)")  # what cuts a path into words (and `/` into folders)
 _PART_BREAK = re.compile(r"[_.\-]")  # of those, what also cuts it into parts
-_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,5}$")
+# a file extension: a dot and up to 5 letters or digits, one of them a letter (`.mp4`, `.3gp`,
+# not `.1234`), the same rule as `pii_written._FILE_EXT` (001.32, point 4)
+_EXTENSION = re.compile(r"\.(?=[A-Za-z0-9]{0,4}[A-Za-z])[A-Za-z0-9]{1,5}$")
 # a masked address with no tokens, or a stretch that is not an address with its tokens
 _Piece = tuple[str, list[Tok]]
 _CUT = "x0"  # stands for a `_` that does not join: letters and a digit cut a run of digits

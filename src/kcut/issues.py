@@ -11,6 +11,7 @@ from typing import Literal
 # Codes whose error ends in exit 5 (`GateError`) and not in exit 1: G10 (graphics.json asks for a
 # resource that is not approved) and M04 (the same for music.json).
 GATE_CODES = frozenset({"G10", "M04"})
+MAX_SHOWN = 50  # errors, and warnings, that `edl check` and `graphics check` list (001.24, 001.30)
 
 
 @dataclass(frozen=True)

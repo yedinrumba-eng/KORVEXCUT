@@ -2,9 +2,10 @@
 fonts, the images, the data and every script go inside the page, because Chromium loads it from a
 file with the network blocked (S1.6b).
 
-The page has `base.css`, the three weights of Inter as data URIs, `runtime.js`, the scripts of the
-components it uses (each one's `js_files`, in that order) and the data as JSON. The runtime starts
-when the page has loaded, after every component has registered itself.
+The page has a Content-Security-Policy (`CSP`, right after the charset), `base.css`, the three
+weights of Inter as data URIs, `runtime.js`, the scripts of the components it uses (each one's
+`js_files`, in that order) and the data as JSON. The runtime starts when the page has loaded, after
+every component has registered itself.
 """
 
 import base64
@@ -19,6 +20,12 @@ from kcut.gfx.components import page_component
 WEB = Path(__file__).resolve().parent / "web"
 FONTS = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 WEIGHTS = (600, 800, 900)
+# What the page may load (001.31, point 10): nothing, but the images and fonts that are inside it
+# as `data:`, and its own style and scripts. `page.route` does not see a WebSocket; this does.
+CSP = (
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; '
+    "font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'\">"
+)
 
 
 @cache
@@ -65,6 +72,7 @@ def build_page(data: Mapping[str, object], component_ids: list[str]) -> str:
     size = f"html,body{{width:{w}px;height:{h}px}}"
     parts = [
         '<!doctype html>\n<html>\n<head>\n<meta charset="utf-8">',
+        CSP,
         f"<style>\n{font_css()}\n</style>",
         f"<style>\n{web_text('base.css')}\n{size}\n</style>",
         '</head>\n<body>\n<div id="kc-root"></div>',

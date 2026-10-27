@@ -62,17 +62,25 @@ def build_voice(
     return track
 
 
-def require_disk_space(folder: Path, edl: Edl) -> None:
+def require_disk_space(folder: Path, edl: Edl, *, layer_bytes: int = 0) -> None:
     """ProjectError, which says how many bytes are missing, unless the disk of `folder` has room
-    for the voice track of `edl` (`frames * spf * 4` bytes of float32) and `SPARE_BYTES` more. It
+    for the voice track of `edl` (`frames * spf * 4` bytes of float32), the graphics layer that is
+    going to be captured (`layer_bytes`, 0 if there is none to make) and `SPARE_BYTES` more. It
     is asked before the mezzanines are made, so a full disk is told at the start and not half way
-    through the render (001.25, point 5)."""
-    needed = edl.frames * samples_per_frame(edl.fps) * 4 + SPARE_BYTES
+    through the render (001.25, point 5; the layer: 001.31, point 5).
+
+    The figures go before the path: `cli` cuts a message to 300 characters, and in a deep folder
+    the cut used to take the figure away (001.30, point 4). Without a layer the message is the one
+    it always was; with one it says so."""
+    needed = edl.frames * samples_per_frame(edl.fps) * 4 + layer_bytes + SPARE_BYTES
     free = shutil.disk_usage(folder).free
     if free < needed:
+        asks = "la voz del corte, la capa de gráficos y 1 GiB libre"
+        if layer_bytes <= 0:
+            asks = "la voz del corte y 1 GiB libre"
         raise ProjectError(
-            f"no hay espacio en el disco de {folder}: la voz del corte y 1 GiB libre piden "
-            f"{needed} bytes, hay {free} y faltan {needed - free} bytes"
+            f"no hay espacio en el disco: faltan {needed - free} bytes ({asks} piden {needed}, "
+            f"hay {free}) en {folder}"
         )
 
 

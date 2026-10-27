@@ -25,6 +25,7 @@ from tests.integration.render_mezz_cases import *  # noqa: F403  (001.25: 300-li
 from tests.integration.render_small_cases import *  # noqa: F403  (300-line rule)
 from tests.integration.render_small_cases import approve, mezz_files
 from tests.integration.render_step0_cases import *  # noqa: F403  (001.27: 300-line rule)
+from tests.integration.render_step0b_cases import *  # noqa: F403  (001.30: 300-line rule)
 from tests.integration.render_tail_cases import *  # noqa: F403  (001.26: 300-line rule)
 from tests.integration.view_frames_helpers import Run, project_args
 

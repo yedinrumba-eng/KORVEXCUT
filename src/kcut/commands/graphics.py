@@ -1,4 +1,5 @@
-"""kcut graphics: `check` judges `edit/graphics.json` against the EDL (spec S1.6a).
+"""kcut graphics: `check` judges `edit/graphics.json` against the EDL (spec S1.6a); `capture` and
+`still` (S1.6b, in `graphics_capture.py`) draw it with Chromium.
 
 `check` needs the EDL to be good first: with errors in the EDL it exits 1 with those errors (codes
 E) and resolves nothing else. Without `edit/graphics.json` it judges the implicit document
@@ -13,19 +14,19 @@ import argparse
 import os
 from typing import Any
 
+from kcut.commands.graphics_capture import run_capture, run_still
 from kcut.console import Out
 from kcut.edl.check import EdlCheck, check_edl_file
 from kcut.gfx.captions import shown_chunks
 from kcut.gfx.resolve import GRAPHICS_REL, ResolvedGraphics, chunk_json, resolve
 from kcut.gfx.resolve_cues import ResolvedCue
 from kcut.ingest.inventory import Notice
-from kcut.issues import Issue, exit_code, issue_json
+from kcut.issues import MAX_SHOWN, Issue, exit_code, issue_json
 from kcut.pack.pii import mask_text
 from kcut.project import Project, load_inventory, open_project
 
 NAME = "graphics"
-HELP_ES = "Revisa los gráficos del video (check)"
-MAX_SHOWN = 50  # findings of each kind that the human output lists
+HELP_ES = "Revisa (check) y dibuja (capture, still) los gráficos del video"
 
 
 def add_parser(
@@ -41,16 +42,49 @@ def add_parser(
         description="Valida edit/graphics.json contra el EDL: exit 1 si tiene errores, 5 si pide "
         "un recurso sin aprobar.",
     )
-    check.add_argument(
-        "--edl",
-        metavar="EDL",
-        default=None,
-        help="ruta del EDL, relativa al proyecto (por defecto el edit/edl-vN.json de N más alto)",
+    capture = actions.add_parser(
+        "capture",
+        parents=[parent],
+        help="captura los gráficos con Chromium, un PNG con alfa por frame",
+        description="Captura los gráficos del video con Chromium en .kcut/build/vN/gfx/ (solo "
+        "los frames que dibujan algo). Si nada cambió desde la última vez, no captura.",
     )
+    still = actions.add_parser(
+        "still",
+        parents=[parent],
+        help="un PNG de los gráficos en los frames que pidas, para verlos",
+        description="Un PNG por frame: los gráficos sobre el frame del video hecho con el "
+        "proxy (o, con --alpha, solo los gráficos con su alfa). Los subtítulos salen "
+        "enmascarados.",
+    )
+    still.add_argument("frames", nargs="+", type=int, metavar="F", help="frames de salida (0...)")
+    still.add_argument(
+        "--out",
+        metavar="DIR",
+        default=None,
+        help="carpeta de salida, relativa al proyecto (por defecto .kcut/build/vN/gfx/stills/)",
+    )
+    still.add_argument(
+        "--alpha", action="store_true", help="PNG con alfa, solo los gráficos sin el frame debajo"
+    )
+    capture.add_argument(
+        "--force", action="store_true", help="captura otra vez aunque los de la caché sirvan"
+    )
+    for action in (check, capture, still):
+        action.add_argument(
+            "--edl",
+            metavar="EDL",
+            default=None,
+            help="ruta del EDL, relativa al proyecto (por defecto el edl-vN.json de N más alto)",
+        )
     return sub
 
 
 def run(args: argparse.Namespace) -> int:
+    if args.graphics_command == "capture":
+        return run_capture(args)
+    if args.graphics_command == "still":
+        return run_still(args)
     return _check(args)
 
 
@@ -82,9 +116,10 @@ def _check(args: argparse.Namespace) -> int:
             "frames": resolved.frames,
             "cues": [_cue_json(c, resolved) for c in resolved.cues],
             "chunks": [chunk_json(c) for c in chunks],
-            "errors": [issue_json(i) for i in errors],
-            "warnings": [issue_json(i) for i in warnings]
-            + [_notice_json(n) for n in resolved.notices],
+            **_findings_json(
+                [issue_json(i) for i in errors],
+                [issue_json(i) for i in warnings] + [_notice_json(n) for n in resolved.notices],
+            ),
         }
     )
     return exit_code(resolved.issues)
@@ -104,11 +139,25 @@ def _refused(out: Out, project: Project, checked: EdlCheck, errors: list[Issue])
             "frames": None if checked.edl is None else checked.edl.frames,
             "cues": [],
             "chunks": [],
-            "errors": [issue_json(i) for i in errors],
-            "warnings": [],
+            **_findings_json([issue_json(i) for i in errors], []),
         }
     )
     return exit_code(errors)
+
+
+def _findings_json(
+    errors: list[dict[str, str]], warnings: list[dict[str, str]]
+) -> dict[str, object]:
+    """The findings as `--json` lists them, like `edl check --json` (001.30 point 1): at most
+    `MAX_SHOWN` errors and as many warnings, the totals, and whether anything was left out. A
+    file with thousands of findings costs a page, not a log."""
+    return {
+        "errors": errors[:MAX_SHOWN],
+        "warnings": warnings[:MAX_SHOWN],
+        "errors_total": len(errors),
+        "warnings_total": len(warnings),
+        "truncated": len(errors) > MAX_SHOWN or len(warnings) > MAX_SHOWN,
+    }
 
 
 def _list(out: Out, tag: str, issues: list[Issue]) -> None:

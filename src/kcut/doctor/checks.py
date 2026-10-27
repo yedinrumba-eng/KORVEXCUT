@@ -8,7 +8,7 @@ import time
 from collections.abc import Iterable
 from importlib.resources import files
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from kcut import proc
 from kcut.doctor.chain_checks import check_looks, check_soxr, check_tonemap_chain
@@ -188,8 +188,11 @@ def check_chromium() -> CheckResult:
     try:
         from playwright.sync_api import sync_playwright
 
+        from kcut.gfx.capture import launch_options  # what the capture uses (001.1, 001.15)
+
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=True, timeout=_budget_ms(start))
+            options: dict[str, Any] = {**launch_options(), "timeout": _budget_ms(start)}
+            browser = pw.chromium.launch(**options)
             try:
                 browser.new_page().set_content("<p>ok</p>", timeout=_budget_ms(start))
             finally:

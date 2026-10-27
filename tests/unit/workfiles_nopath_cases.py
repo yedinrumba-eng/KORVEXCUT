@@ -142,6 +142,8 @@ class TestWavNoPath:
 
         monkeypatch.setattr(proc, "run", lambda args, **_k: Path(args[-1]).write_bytes(b"made"))
         monkeypatch.setattr(os, "replace", replace)
+        # 001.31: a refused move of the sidecar waits (`land_sidecar`); no real 10 s in this test
+        monkeypatch.setattr(sidecar_module, "LAND_WAIT_S", 0.0)
         with pytest.raises(ProjectError) as info:
             workfiles._build(project, lambda out: ["ffmpeg", str(out)], dst, JOB, None)
         assert info.value.message_es == expected and _clean(info.value.message_es)

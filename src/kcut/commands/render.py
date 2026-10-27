@@ -1,33 +1,37 @@
 """kcut render: the cut as a video to review, with the voice as it was recorded (spec S1.5b).
 
 Order: the lock of the output, the gate of the strategy (exit 5), the check of the EDL (exit 1), the
-mezzanines, the picture (`.kcut/build/vN/video.mp4`), the voice (`voice_raw.f32`) and the mux
-(`render.mp4`). It does not add graphics, SFX, music or loudness: that is `kcut build` (S1.9b).
+graphics (S1.6b: `edit/graphics.json`, or the subtitles of the transcript if there is none; errors
+in them are exit 1 before anything is made), the mezzanines, the picture with the graphics over it
+(`.kcut/build/vN/video.mp4`), the voice (`voice_raw.f32`) and the mux (`render.mp4`). It does not
+add SFX, music or loudness: that is `kcut build` (S1.9b).
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from pathlib import Path
-from typing import NoReturn
 
 from kcut import proc
 from kcut.audio.voice_track import require_disk_space, write_voice
+from kcut.commands.refuse import refuse_edl
 from kcut.console import Out, Progress
 from kcut.edl.check import check_edl_file
 from kcut.edl.files import find_edl
 from kcut.edl.gate import strategy_approved
 from kcut.edl.model import Edl
-from kcut.errors import CheckFailed, GateError, ProjectError
+from kcut.errors import GateError
+from kcut.gfx.layer import Layer, ensure_layer, layer_bytes, raise_for_errors
+from kcut.gfx.overlay import OverlaySource
+from kcut.gfx.resolve import ResolvedGraphics, resolve
 from kcut.ingest import workfiles
+from kcut.ingest.cache_guard import build_folder
 from kcut.ingest.inventory import Inventory, Notice
 from kcut.ingest.partials import sweep_orphan_partials
-from kcut.issues import Issue
 from kcut.jsonio import refuse_directory
 from kcut.logfile import append_log
-from kcut.paths import same_path, to_rel
+from kcut.paths import to_rel
 from kcut.pipeline.mux import mux_args
 from kcut.project import Project, load_inventory, open_project
 from kcut.render.compose import compose_video
@@ -37,7 +41,6 @@ from kcut.render.mezz import MezzIndex, ensure_mezz, plan_mezz
 NAME = "render"
 HELP_ES = "Renderiza el corte (cámaras, looks, pantalla) con la voz cruda, para revisarlo"
 _MUX_TIMEOUT_S = 600.0
-_MAX_NAMED = 5  # findings of the check that are printed when a render is refused
 # what the render writes in `.kcut/build/vN/`, and the partial files it writes them through
 _DESTINATIONS = (
     "video.mp4",
@@ -62,7 +65,7 @@ def add_parser(
     sub.add_argument(
         "--no-graphics",
         action="store_true",
-        help="sin la capa de gráficos (hasta S1.6b no cambia nada: aún no hay gráficos)",
+        help="sin la capa de gráficos: ni los de edit/graphics.json ni los subtítulos",
     )
     return sub
 
@@ -84,20 +87,27 @@ def run(args: argparse.Namespace) -> int:
         checked = check_edl_file(project, inventory, rel)
         errors = [issue for issue in checked.issues if issue.level == "error"]
         if errors or checked.edl is None:
-            _refuse(out, rel, errors)
+            refuse_edl(out, rel, errors)
         edl = checked.edl
-        folder = _build_folder(project, version)
+        folder = build_folder(project, version)
         folder.mkdir(parents=True, exist_ok=True)
         for name in _DESTINATIONS:  # a folder there is told now, not after minutes of render
             refuse_directory(folder / name)
         swept = sweep_orphan_partials(project)  # what a render killed by force left (001.27)
         if swept and log is not None:
             append_log(log, f"[orphan_partials] {swept} archivos parciales huérfanos borrados\n")
-        require_disk_space(folder, edl)
+        resolved = None
+        if not args.no_graphics:
+            resolved = _graphics(out, project, edl, version, inventory, log)
+        # the voice, and the layer of graphics if there is one to capture (001.31, point 5)
+        need = 0 if resolved is None else layer_bytes(project, resolved, folder, force=False)
+        require_disk_space(folder, edl, layer_bytes=need)
+        layer = None if resolved is None else _layer(project, resolved, folder, version, notices)
         index = _mezzanines(project, edl, inventory, version, log, notices)
         video, raw, render = folder / "video.mp4", folder / "voice_raw.f32", folder / "render.mp4"
-        frames = _picture(project, edl, inventory, index, video, version, log)
-        _build_folder(project, version)  # looked at again before each write (001.27, point 4)
+        overlay = None if layer is None else OverlaySource(layer.index_path, edl.out_w, edl.out_h)
+        frames = _picture(project, edl, inventory, index, video, version, log, overlay)
+        build_folder(project, version)  # looked at again before each write (001.27, point 4)
         workfiles._assert_in_cache(project, raw)
         write_voice(project, edl, inventory, raw, log)
         _mux(project, video, raw, render, version, log)
@@ -119,41 +129,37 @@ def run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _refuse(out: Out, rel: str, errors: list[Issue]) -> NoReturn:
-    """The EDL has errors: print the first ones and stop with exit 1, before any frame is made."""
-    for issue in errors[:_MAX_NAMED]:
-        out.line("ERROR", f"{issue.code} {issue.path}: {issue.message_es}")
-    named = ", ".join(sorted({issue.code for issue in errors}))
-    raise CheckFailed(
-        f"{rel} tiene {len(errors)} errores ({named}); corre kcut edl check y corrígelos"
-    )
+def _graphics(
+    out: Out,
+    project: Project,
+    edl: Edl,
+    version: int,
+    inventory: Inventory,
+    log: Path | None,
+) -> ResolvedGraphics:
+    """What is drawn over the picture: `edit/graphics.json`, or the implicit document if it is
+    not there (subtitles from the transcript, 001.15 point 40). Errors in it are exit 1 (5 for a
+    G10) before anything is rendered; its warnings are printed."""
+    resolved = resolve(project, edl, version, inventory=inventory, log=log)
+    raise_for_errors(out, resolved)
+    for issue in resolved.issues:
+        where = f" {issue.path}" if issue.path else ""
+        out.warn(f"{issue.code}{where}: {issue.message_es}")
+    return resolved
 
 
-def _build_folder(project: Project, version: int) -> Path:
-    """`.kcut/build/vN`, after it was seen to be a real folder of the cache and not a symlink or
-    a junction to somewhere else, even somewhere inside `.kcut/` (`build/v7 -> .kcut/` would make
-    the render write `video.mp4` in the root of the cache): it has to resolve to itself. A
-    ProjectError before anything is written there (001.26, point 10), and a file where the folder
-    goes is one too (001.27, point 3).
-
-    The render calls it again before each write into the folder (the picture, the voice and the
-    mux: 001.27, point 4), because the mezzanines take minutes and the folder can be changed for
-    a link in the meantime."""
-    folder = project.layout.build_dir(version)
-    workfiles._assert_in_cache(project, folder)
-    if os.path.lexists(folder):
-        itself = project.layout.build.resolve() / folder.name
-        linked = os.path.islink(folder) or os.path.isjunction(folder)
-        if linked or not same_path(folder.resolve(), itself):
-            raise ProjectError(
-                f"{folder} es un enlace (symlink o junction) o no resuelve a sí misma: "
-                "kcut no renderiza ahí; reemplázala por una carpeta de verdad"
-            )
-        if not folder.is_dir():
-            raise ProjectError(
-                f"{folder} es un archivo; kcut espera una carpeta ahí: bórralo o renómbralo"
-            )
-    return folder
+def _layer(
+    project: Project,
+    resolved: ResolvedGraphics,
+    folder: Path,
+    version: int,
+    notices: list[Notice],
+) -> Layer | None:
+    """The PNGs of the graphics: captured with Chromium, or those of the cache if the page did not
+    change. `None` if there is nothing to draw (Chromium is not started then)."""
+    notices.extend(resolved.notices)
+    build_folder(project, version)  # looked at again before the first write (001.27, point 4)
+    return ensure_layer(project, resolved, folder, force=False, notices=notices)
 
 
 def _mezzanines(
@@ -180,9 +186,11 @@ def _picture(
     video: Path,
     version: int,
     log: Path | None,
+    overlay: OverlaySource | None = None,
 ) -> int:
-    """The picture to `video.partial.mp4` and then to `video.mp4`; the partial is never left."""
-    _build_folder(project, version)  # looked at again before the first write (001.27, point 4)
+    """The picture to `video.partial.mp4` and then to `video.mp4`, with the graphics over it if
+    there is an `overlay`; the partial is never left."""
+    build_folder(project, version)  # looked at again before the first write (001.27, point 4)
     partial = video.with_name("video.partial.mp4")
     for path in (partial, video):
         workfiles._assert_in_cache(project, path)
@@ -190,7 +198,7 @@ def _picture(
     progress = Progress(f"render v{version}", edl.frames, "frames")
     try:
         prepare_partial(partial)
-        frames = compose_video(project, edl, inventory, index, partial, None, progress, log=log)
+        frames = compose_video(project, edl, inventory, index, partial, overlay, progress, log=log)
         progress.close()
         atomic_replace(partial, video)
     finally:
@@ -202,7 +210,7 @@ def _mux(
     project: Project, video: Path, raw: Path, render: Path, version: int, log: Path | None
 ) -> None:
     """The picture copied and the raw voice as AAC 192k stereo, to `render.mp4`."""
-    _build_folder(project, version)  # looked at again before the first write (001.27, point 4)
+    build_folder(project, version)  # looked at again before the first write (001.27, point 4)
     partial = render.with_name("render.partial.mp4")
     for path in (partial, render):
         workfiles._assert_in_cache(project, path)

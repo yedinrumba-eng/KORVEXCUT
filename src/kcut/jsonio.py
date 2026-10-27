@@ -73,7 +73,13 @@ def write_json_atomic(path: Path, obj: object) -> None:
     write_text_atomic(path, json.dumps(obj, ensure_ascii=False, indent=1, allow_nan=False) + "\n")
 
 
-def write_json_exclusive(path: Path, obj: object, label: str | None = None) -> None:
+def write_json_exclusive(
+    path: Path,
+    obj: object,
+    label: str | None = None,
+    *,
+    on_refused: Callable[[Path, Path], None] | None = None,
+) -> None:
     """Write `obj` as indented UTF-8 JSON through `<name>.<pid>.tmp` and `os.replace`, with a
     temporary file that is created new (spec 001.27, point 5; moved here from `mezz_files`).
 
@@ -84,7 +90,13 @@ def write_json_exclusive(path: Path, obj: object, label: str | None = None) -> N
 
     `label` is the phrase that names the file in the messages (`el sidecar del wav48 de a1`): if it
     comes, the messages have it where they had the path, and the system's text (`strerror`, or the
-    class of the error) where they had `str(exc)`, which carries the path too (001.28, point 2)."""
+    class of the error) where they had `str(exc)`, which carries the path too (001.28, point 2).
+
+    `on_refused(tmp, path)` is what is done when the move is refused with a `PermissionError`
+    (another process has `path` open, on Windows): it either gets the move done, or leaves the
+    `path` that is there as the good one, or raises `PermissionError` again, which is the error of
+    a file that a player has open. Without it the first refusal is that error (001.31, point 1;
+    `ingest.sidecar.land_sidecar` is the one that gives it)."""
     refuse_directory(path, label)
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     try:
@@ -92,7 +104,12 @@ def write_json_exclusive(path: Path, obj: object, label: str | None = None) -> N
         text = json.dumps(obj, ensure_ascii=False, indent=1, allow_nan=False) + "\n"
         with tmp.open("x", encoding="utf-8", newline="\n") as handle:
             handle.write(text)
-        os.replace(tmp, path)
+        try:
+            os.replace(tmp, path)
+        except PermissionError:
+            if on_refused is None:
+                raise
+            on_refused(tmp, path)
     except PermissionError:
         named = label or f"el archivo {path}"
         raise ProjectError(f"cierra {named} en el reproductor y repite") from None

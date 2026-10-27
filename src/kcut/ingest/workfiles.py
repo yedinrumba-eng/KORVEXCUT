@@ -19,10 +19,10 @@ from kcut.ingest.inventory import Clip, Notice
 from kcut.ingest.probe import VideoInfo
 from kcut.ingest.sidecar import SidecarState as SidecarState
 from kcut.ingest.sidecar import is_fresh as is_fresh
+from kcut.ingest.sidecar import land_sidecar, wait_to_land
 from kcut.ingest.sidecar import sidecar_path as sidecar_path
 from kcut.ingest.sidecar import sidecar_state as sidecar_state
-from kcut.ingest.sidecar import wait_to_land
-from kcut.jsonio import refuse_directory, write_json_exclusive
+from kcut.jsonio import refuse_directory
 from kcut.paths import resolve_in_project, same_path
 from kcut.project import Project
 from kcut.timebase import rdiv
@@ -36,9 +36,7 @@ _TIMEOUT_BASE_S = 60.0
 
 # the guard lives in `cache_guard.py` (001.26, 300-line rule); this is the name the code uses
 _assert_in_cache = assert_in_cache
-# the sidecar and the freshness of a work file live in `sidecar.py` (001.27, 300-line rule); the
-# names imported above (`sidecar_path`, `sidecar_state`, `is_fresh`, `SidecarState`) are the ones
-# the rest of the code calls
+# the sidecar and the freshness of a work file live in `sidecar.py` (001.27, 300-line rule)
 
 
 def max_job_seconds(project: Project) -> float:
@@ -61,6 +59,12 @@ def work_label(dst: Path) -> str:
     never its name. The name has the slug of the original clip, which may hold a phone number
     (001.28, point 2). The clip is what comes before the first `_` of the name."""
     return f"{dst.parent.name} de {dst.name.split('_', 1)[0]}"
+
+
+def _label_of(target: Path, work_file: Path) -> str:
+    """`work_label(work_file)`, or `el sidecar del <that>` if `target` is its sidecar."""
+    label = work_label(work_file)
+    return label if target == work_file else f"el sidecar del {label}"
 
 
 def wav_params(sr: int) -> dict[str, Any]:
@@ -109,13 +113,14 @@ def stage_wav16(
 
 def adopt(project: Project, src: Path, dst: Path, *, copy: bool = False) -> None:
     """Give a work file (and its sidecar) its final name: move it, or copy it when another
-    clip with identical content uses the same source. Both ends must lie inside `.kcut/`."""
+    clip with identical content uses the same source. Both ends must lie inside `.kcut/`; a message
+    names a file by class and clip, never by path (001.31, point 8)."""
     pairs = [(src, dst)]
     if sidecar_path(src).is_file():
         pairs.append((sidecar_path(src), sidecar_path(dst)))
     for source, target in pairs:  # check everything before touching the disk
-        _assert_in_cache(project, source)
-        _assert_in_cache(project, target)
+        _assert_in_cache(project, source, label=_label_of(source, src))
+        _assert_in_cache(project, target, label=_label_of(target, dst))
     if src == dst:
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +134,7 @@ def adopt(project: Project, src: Path, dst: Path, *, copy: bool = False) -> None
 def discard(project: Project, path: Path) -> None:
     """Delete a work file and its sidecar if they exist (only inside `.kcut/`)."""
     for target in (path, sidecar_path(path)):
-        _assert_in_cache(project, target)
+        _assert_in_cache(project, target, label=_label_of(target, path))
     path.unlink(missing_ok=True)
     sidecar_path(path).unlink(missing_ok=True)
 
@@ -233,11 +238,13 @@ def _build(
     The partial has the pid, so two renders that make the same file do not write the same one and
     each deletes only its own. If `dst` is fresh when the partial is done (the other one came
     first) it is used as it is, and the sidecar is the other's (001.26, point 3). The sidecar goes
-    through `<sidecar>.<pid>.tmp`, created new (`write_json_exclusive`, 001.27, point 5)."""
+    through `<sidecar>.<pid>.tmp`, created new, and is moved like the file, waiting if the other
+    render has it open (`land_sidecar`, 001.27 point 5, 001.31 point 1)."""
     qhash, params, timeout_s = job
     partial = dst.with_name(f"{dst.stem}.{os.getpid()}.partial{dst.suffix}")
+    label = work_label(dst)  # messages name the class and the clip, not the slug (001.30)
     for target in (dst, partial, sidecar_path(dst)):
-        _assert_in_cache(project, target)  # before touching the disk
+        _assert_in_cache(project, target, label=label)  # before touching the disk
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         partial.unlink(missing_ok=True)
@@ -248,8 +255,12 @@ def _build(
             return
     finally:
         partial.unlink(missing_ok=True)
-    sidecar = {"qhash": qhash, "params": params}
-    write_json_exclusive(sidecar_path(dst), sidecar, label=f"el sidecar del {work_label(dst)}")
+    land_sidecar(
+        sidecar_path(dst),
+        {"qhash": qhash, "params": params},
+        lambda: True if is_fresh(dst, qhash, params) else None,
+        label=f"el sidecar del {label}",
+    )
 
 
 def _land(partial: Path, dst: Path, qhash: str, params: dict[str, Any]) -> bool:

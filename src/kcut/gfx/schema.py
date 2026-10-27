@@ -17,6 +17,7 @@ from kcut.schema_util import UNKNOWN_KEY, join_path
 
 SCHEMA = "kcut.graphics/1"
 MAX_CUES = 500  # more are not looked at: each one is a `div` in Chromium (001.28, point 3)
+MAX_HIDE = 500  # same for `captions.hide`: `build_chunks` is words x windows (001.30, point 1)
 _ID = re.compile(r"[a-z0-9-]{1,32}")
 _TOP = frozenset({"schema", "captions", "cues"})
 _CAPTIONS = frozenset({"enabled", "hide"})
@@ -113,6 +114,10 @@ def _captions(raw: object, issues: list[Issue]) -> tuple[bool | None, tuple[Wind
     listed = raw.get("hide", [])
     if not isinstance(listed, list):
         issues.append(_g01("captions.hide", "debe ser una lista"))
+        return enabled, ()
+    if len(listed) > MAX_HIDE:  # one issue, and no window is looked at
+        message = f"hay más de {MAX_HIDE} ventanas en captions.hide; kcut no las revisa"
+        issues.append(_g01("captions.hide", message))
         return enabled, ()
     for i, item in enumerate(listed):
         where = f"captions.hide[{i}]"

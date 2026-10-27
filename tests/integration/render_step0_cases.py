@@ -21,6 +21,7 @@ import pytest
 from kcut.commands import render as render_command
 from kcut.config.load import parse_config
 from kcut.errors import ProjectError
+from kcut.ingest.cache_guard import build_folder
 from kcut.paths import Layout
 from kcut.project import Project
 from tests.conftest import run_kcut
@@ -193,7 +194,7 @@ class TestHardlinkStaleRender:
 
 @pytest.mark.skipif(sys.platform != "win32", reason="the prefix is how Windows resolves a path")
 class TestBuildFolderExtendedPrefix:
-    """Row 22 (001.28 point 1): `_build_folder` compares the folder with where it should resolve.
+    """Row 22 (001.28 point 1): `build_folder` compares the folder with where it should resolve.
     With the extended-length prefix on one side only (what `Path.resolve` does on a path that
     another process is creating at that moment) it refused its own folder as "not itself"."""
 
@@ -219,7 +220,8 @@ class TestBuildFolderExtendedPrefix:
     ) -> None:
         project = self._project(tmp_path)
         self._prefixed(monkeypatch, lambda out: name is None or out.name == name)
-        assert render_command._build_folder(project, 1) == project.layout.build_dir(1)
+        # 001.31: `_build_folder` of `commands/render.py` is `build_folder` of `cache_guard`
+        assert build_folder(project, 1) == project.layout.build_dir(1)
 
     def test_extended_prefix_build_folder_still_refuses_a_link_to_the_cache(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -231,6 +233,6 @@ class TestBuildFolderExtendedPrefix:
         try:
             self._prefixed(monkeypatch, lambda _out: True)
             with pytest.raises(ProjectError, match="enlace"):
-                render_command._build_folder(project, 1)
+                build_folder(project, 1)  # 001.31: it was `render_command._build_folder`
         finally:
             remove_dir_link(folder)

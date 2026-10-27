@@ -20,8 +20,8 @@ from kcut.ff.args import mezz_args
 from kcut.ff.color import CHAIN_VERSION
 from kcut.ingest import workfiles
 from kcut.ingest.inventory import Clip
-from kcut.ingest.sidecar import is_lone_file, wait_to_land
-from kcut.jsonio import MAX_SIDECAR_BYTES, read_json, refuse_directory, write_json_exclusive
+from kcut.ingest.sidecar import is_lone_file, land_sidecar, wait_to_land
+from kcut.jsonio import MAX_SIDECAR_BYTES, read_json, refuse_directory
 from kcut.paths import resolve_in_project
 from kcut.project import Project
 from kcut.render.lock import discard_partial, prepare_partial
@@ -181,8 +181,11 @@ def build_mezz(project: Project, job: MezzJob, clip: Clip, fps: int, log: Path |
     src = resolve_in_project(project.root, clip.file)
     partial = dst.with_name(f"{dst.stem}.{os.getpid()}.partial{dst.suffix}")
     sidecar = workfiles.sidecar_path(dst)
+    # `mezz de a1`, not the path (001.31, point 8); from the name in the plan, as `dst` is where a
+    # link in its place leads
+    label = workfiles.work_label(Path(job.path))
     for target in (dst, partial, sidecar):
-        workfiles._assert_in_cache(project, target)  # before touching the disk
+        workfiles._assert_in_cache(project, target, label=label)  # before touching the disk
     dst.parent.mkdir(parents=True, exist_ok=True)
     count = job.end_f - job.start_f
     args = mezz_args(proc.tool_path("ffmpeg"), src, partial, job.chain, fps, job.start_f, count)
@@ -205,7 +208,13 @@ def build_mezz(project: Project, job: MezzJob, clip: Clip, fps: int, log: Path |
         discard_partial(partial)
     params = params_of(job, job.start_f, job.end_f, fps)
     data = {"qhash": clip.qhash, "params": params, "size_bytes": size, "frames": made}
-    write_json_exclusive(sidecar, data)  # through `<sidecar>.<pid>.tmp`, created new (001.27)
+    # through `<sidecar>.<pid>.tmp`, created new (001.27), and waiting if the other render has the
+    # sidecar open: if the one that is there is fresh for the job, its entry is the one used
+    seen = land_sidecar(
+        sidecar, data, lambda: _usable(dst, job.start_f, job.end_f, job, clip, fps)[0]
+    )
+    if seen is not None:
+        return seen
     return MezzEntry(dst, job.start_f, job.start_f + made, job.w, job.h)
 
 

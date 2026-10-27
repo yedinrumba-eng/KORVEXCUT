@@ -1,7 +1,8 @@
 """The sidecar of a work file and what it says about the file: is it usable (spec 0.9, 001.4,
 001.27 point 8). Split from `workfiles.py` by the 300-line rule; `workfiles` still names all of it
 (`workfiles.sidecar_state`, `workfiles.is_fresh`, ...), which is what the rest of the code calls.
-Also here, because the two landings share it (001.29): `wait_to_land`, the wait of a refused move.
+Also here, because the landings share them (001.29, 001.31): `wait_to_land`, the wait of a refused
+move, and `land_sidecar`, which puts a sidecar in its place with it.
 """
 
 import os
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from kcut.errors import ProjectError
-from kcut.jsonio import MAX_SIDECAR_BYTES, read_json
+from kcut.jsonio import MAX_SIDECAR_BYTES, read_json, write_json_exclusive
 from kcut.paths import lone_file_reason
 
 SidecarState = Literal["fresh", "stale", "missing", "corrupt"]
@@ -88,3 +89,28 @@ def wait_to_land[Found](partial: Path, dst: Path, look: Callable[[], Found | Non
             time.sleep(LAND_POLL_S)
         else:
             return None
+
+
+def land_sidecar[Found](
+    path: Path, obj: object, look: Callable[[], Found | None], *, label: str | None = None
+) -> Found | None:
+    """Write `obj` as the sidecar at `path` (`<sidecar>.<pid>.tmp` created new and moved over it,
+    as `write_json_exclusive` does) and wait, as `wait_to_land` does, if the move is refused (spec
+    001.31, point 1).
+
+    The sidecar of a work file or of a mezzanine is moved like the file itself, and for the same
+    reason: the other render that makes the same file has it open to read it, to see if the file is
+    fresh, and Windows refuses to replace a file that is open. `look()` is the check of freshness
+    of the caller, as for `wait_to_land`: if the sidecar that is there is already the good one (the
+    other render put it) `look()` finds it, that is what is returned and the temporary is deleted.
+    `None` if the move was done. If the time is over and the sidecar that is there is not the
+    good one, the error is the one `write_json_exclusive` gives for a file that is open: `cierra
+    {label or el archivo <path>} en el reproductor y repite`."""
+    found: Found | None = None
+
+    def wait(tmp: Path, dst: Path) -> None:
+        nonlocal found
+        found = wait_to_land(tmp, dst, look)
+
+    write_json_exclusive(path, obj, label, on_refused=wait)
+    return found

@@ -100,9 +100,9 @@ class TestPlainPath:
         seen: list[str] = []
         real = workfiles._assert_in_cache
 
-        def spy(project: Project, path: Path) -> Path:
+        def spy(project: Project, path: Path, **kwargs: Any) -> Path:  # 001.31: and `label=`
             seen.append(path.name)
-            return real(project, path)
+            return real(project, path, **kwargs)
 
         monkeypatch.setattr(workfiles, "_assert_in_cache", spy)
         _Fake(monkeypatch, made=90)
@@ -115,7 +115,7 @@ class TestPlainPath:
     ) -> None:
         calls: list[Path] = []
 
-        def no(_project: Project, path: Path) -> Path:
+        def no(_project: Project, path: Path, **_kwargs: Any) -> Path:  # 001.31: and `label=`
             calls.append(path)
             raise ProjectError("queda fuera de .kcut/")
 

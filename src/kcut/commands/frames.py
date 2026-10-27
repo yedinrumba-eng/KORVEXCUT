@@ -18,7 +18,7 @@ import numpy as np
 from numpy.typing import NDArray
 from PIL import Image, ImageDraw
 
-from kcut.commands.view import png_bytes, proxy_of
+from kcut.commands.view import png_bytes
 from kcut.console import Out
 from kcut.errors import UsageError
 from kcut.ff.reader import grab, proxy_frame_count, proxy_index
@@ -27,6 +27,7 @@ from kcut.ingest.inventory import Clip
 from kcut.jsonio import write_bytes_atomic
 from kcut.paths import to_rel
 from kcut.project import Project, assert_writable, load_inventory, open_project, under_kcut
+from kcut.render.proxy_file import proxy_of
 from kcut.schema_util import describe_value
 from kcut.timebase import fmt_s, rdiv
 from kcut.timeparse import parse_time

@@ -12,9 +12,14 @@ from tests.unit.pii_cases_v6 import (  # 001.24, 001.25, 001.26
     TestPiiPathEmailV4,
 )
 from tests.unit.pii_cases_v7 import TestPiiPathEmailV5, TestPiiPathEmailV6  # 001.27, 001.28
+from tests.unit.pii_cases_v8 import TestPiiPathEmailV7  # 001.30
+from tests.unit.pii_cases_v9 import TestPiiPathEmailV8  # 001.31
+from tests.unit.pii_cases_v10 import TestPiiPathEmailV9  # 001.32
+from tests.unit.pii_cases_v11 import TestPiiPathDottedPhone  # 001.32
 
 __all__ = [
     "TestPiiPathContiguous",
+    "TestPiiPathDottedPhone",
     "TestPiiPathEmail",
     "TestPiiPathEmailNoExt",
     "TestPiiPathEmailV2",
@@ -22,6 +27,9 @@ __all__ = [
     "TestPiiPathEmailV4",
     "TestPiiPathEmailV5",
     "TestPiiPathEmailV6",
+    "TestPiiPathEmailV7",
+    "TestPiiPathEmailV8",
+    "TestPiiPathEmailV9",
     "TestPiiPathJoiners",
     "TestPiiPathUnderscoreV2",
 ]

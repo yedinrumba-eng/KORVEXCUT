@@ -16,7 +16,7 @@ from kcut.edl.check import EdlCheck, check_edl_file, clip_audio_frames
 from kcut.edl.gate import GateStatus, strategy_approved
 from kcut.errors import UsageError
 from kcut.ingest.inventory import Clip, Inventory
-from kcut.issues import Issue, exit_code, issue_json
+from kcut.issues import MAX_SHOWN, Issue, exit_code, issue_json
 from kcut.project import Project, load_inventory, open_project
 from kcut.schema_util import describe_value
 from kcut.timebase import fmt_tc, ms_to_f_round
@@ -24,7 +24,6 @@ from kcut.timebase import fmt_tc, ms_to_f_round
 NAME = "edl"
 HELP_ES = "Revisa el EDL (check) o imprime su bloque sources (sources)"
 _NOT_MEDIA = ("imagen", "doc", "desconocido")
-MAX_SHOWN = 50  # errors, and warnings, that `check` lists
 
 
 def add_parser(

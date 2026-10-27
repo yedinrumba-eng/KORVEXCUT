@@ -91,6 +91,21 @@ def test_page_build_the_body_is_w_by_h_and_transparent() -> None:
     assert "<!doctype html>" in page and '<meta charset="utf-8">' in page
 
 
+CSP = (
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; '
+    "font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'\">"
+)
+
+
+def test_page_build_gfx_csp_the_head_has_the_policy_right_after_the_charset() -> None:
+    """001.31 point 10: `default-src 'none'`, and only what the page carries inside it."""
+    page = build_page(DATA, ["label", "title"])
+    assert f'<meta charset="utf-8">\n{CSP}\n<style>' in page
+    assert page.count("Content-Security-Policy") == 1
+    assert page.index(CSP) < page.index("<script")  # the policy comes before any script
+    assert "connect-src" not in CSP and "unsafe-eval" not in CSP  # nothing opens, nothing evals
+
+
 def test_page_build_the_runtime_comes_first_and_then_each_component_once_in_order() -> None:
     page = build_page(DATA, ["title", "label", "title"])
     runtime, title, label = (
