@@ -26,7 +26,8 @@
       · verificado: suite completa → 2968 passed, 3 skipped (456.59 s, exit 0) · ruff check, ruff format, mypy OK · 3 rondas + paso 0 de PII (001.18–001.21)
 - [x] **S1.5a** — (parte a de S1.5, 001.15) EDL en frames: modelo, validación, `kcut edl check`, `kcut edl sources`, `kept_words`, geometría
       · verificado: suite completa → 3331 passed, 3 skipped (implementador 442.57 s; verificador 606.77 s; exit 0 en ambas) · ruff check, ruff format y mypy OK · 1 ronda de revisión + paso 0 (001.22–001.23)
-- [ ] **S1.5b** — (parte b de S1.5, 001.15) `kcut render` base (cámaras, insertos, looks, mezzanines por tramo) · paso 0 = spec 001.24
+- [x] **S1.5b** — (parte b de S1.5, 001.15) `kcut render` base (cámaras, insertos, looks, frame fx, tarjetas, mezzanines por tramo, voz exacta, lock, mux A/V) · paso 0 = spec 001.24
+      · verificado: suite completa → 3943 passed, 3 skipped (3025.40 s; exit 0) · criterios S1.5b 1–59 exit 0 · ruff check, ruff format y mypy OK · 3 rondas de revisión (parches 001.25–001.27) + paso 0 (001.24)
 - [ ] **S1.6a** — (parte a de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
 - [ ] **S1.6b** — (parte b de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
 - [ ] **S1.7** — Componentes de lucimiento (pasos, sticker, holograma, globo)
@@ -57,6 +58,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 17–26/10/2026 | S1.3 | kcut transcribe + pack; 5 rondas; PII enmascarada; endurecimiento ante inyección de prompt | pytest -q -ra → 2332 passed, 3 skipped |
 | 26/10/2026 | S1.4 | kcut view + kcut frames (timeline PNG con cajas de palabras enmascaradas, filmstrip, frames y hoja ≤25 Mpx sin upscale, `FrameReader` con topes de 60 s y 64 MB, `PROXY_MISMATCH`, escritura fuera de `.kcut/` sin `--force`); PII: paso 0 + 3 rondas (001.18–001.21); revisión final aprobada (verificador y seguridad, 0 CRÍTICO, 0 ALTO); commit `40e9c65` pusheado a `origin/main` | suite completa → 2968 passed, 3 skipped (456.59 s, exit 0); suite rápida (implementador) → 2719 passed, 3 skipped, 249 deselected (87.20 s); ruff check, ruff format y mypy limpios; ningún archivo pasa de 300 líneas; criterios S1.4 1–41 exit 0 |
 | 26/10/2026 | S1.5a | EDL en frames: modelo, validación, `kcut edl check` (`--json`) y `kcut edl sources`, `kept_words`, geometría; gate que cierra a `no` ante cualquier duda; paso 0 (001.22–001.23); BLOQUEADO del implementador por ejemplos del spec mal escritos (001.23, lección 21); 1 ronda de revisión (verificador y seguridad APROBADOS, 0 CRÍTICO, 0 ALTO); commit `6605456` pusheado a `origin/main` | suite completa → 3331 passed, 3 skipped (implementador 442.57 s; verificador 606.77 s; exit 0 en ambas) · ruff check, ruff format y mypy limpios · ningún archivo pasa de 300 líneas · criterios S1.5a 1–26 exit 0 |
+| 27/10/2026 | S1.5b | `kcut render` base: cámaras e insertos, looks, frame fx y tarjetas de pantalla; mezzanines por tramo con sidecar de frames reales, parciales con pid y aterrizaje seguro entre procesos; pista de voz exacta a la muestra desde el wav48, con fades; lock por versión del build y mux A/V a `render.mp4`; guardas de destino y de enlaces en `.kcut/build/vN`; prefijo `\\?\` quitado en la guarda de caché; paso 0 de 001.24 (deuda 33) incluido; 3 rondas de revisión (ronda 1: 1 ALTO del verificador y 2 ALTO de seguridad; ronda 2: 2 ALTO del verificador, seguridad aprobó; ronda 3: 0 CRÍTICO y 0 ALTO, aprobaron los dos); los BAJO de la ronda 3 van al paso 0 de S1.6a (001.27, puntos 1–9); commit `1d8cf00` pusheado a `origin/main`, que quedó en `a46223d` (specs 001.24–001.27: `5076880`, `6ee21f8`, `7651209`, `a46223d`) | suite completa → 3943 passed, 3 skipped in 3025.40s (0:50:25), exit 0 (los 3 skipped son por falta de privilegio para symlinks en Windows); ruff check src tests → All checks passed!; ruff format --check src tests → 313 files already formatted; mypy → Success: no issues found in 124 source files; tope de 300 líneas → `[]`; criterios S1.5b 1–59 exit 0; repros de concurrencia: stagger_row39 8/8 y wav48_race 5/5 con `[0, 0]`; mezzanine corto 3/3 exit 0 |
 
 ---
 
@@ -341,7 +343,7 @@ En Linux o WSL, `os.rename` sobrescribe en silencio, así que `write_bytes_atomi
 - **Cura real:** `os.link(tmp, path)` + `unlink(tmp)`, con fallback para volúmenes FAT/exFAT sin hard links (los discos de footage suelen ser exFAT) — 1–2 h.
 - **Cuándo:** si kcut llega a correr en Linux.
 
-### 33. Hallazgos de la revisión de S1.5a 🟡
+### 33. Hallazgos de la revisión de S1.5a ✅ pagada
 
 Lo que falta; todo va al paso 0 de S1.5b (spec 001.24):
 
@@ -362,6 +364,45 @@ Lo que falta; todo va al paso 0 de S1.5b (spec 001.24):
 - **Mitigado hoy por:** nada llega todavía al video final: `render` (S1.5b) no existe, así que nada consume el gate. El DoS y la inundación de la salida necesitan un EDL plantado.
 - **Cura real:** spec 001.24 (paso 0 de S1.5b).
 - **Cuándo:** ahora (paso 0 de S1.5b).
+- **Pagada 27/10/2026** (paso 0 de S1.5b, 001.24, commit `1d8cf00`).
+
+### 34. La consola de kcut muestra nombres crudos 🟡
+
+`kcut ingest` imprime los nombres de `crudo/` tal cual (por ejemplo `crudo/<nombre con un teléfono>.mp4`), y varios mensajes llevan slugs con dígitos. El plugin de spec 002 va a leer esa salida.
+
+- **Mitigado hoy por:** nada; el plugin todavía no existe.
+- **Cura real:** decidir el enmascarado de la consola en el Gate 1 de spec 002, con Yedin (spec 001.27 punto 13) — ~2-4 h.
+- **Cuándo:** Gate 1 de spec 002.
+
+### 35. `require_disk_space` cuenta solo la voz + 1 GiB ⚪
+
+`require_disk_space` cuenta solo la pista de voz + 1 GiB; los mezzanines y el video no entran en el cálculo.
+
+- **Mitigado hoy por:** si el disco se llena durante los mezzanines o el video, el render sale con `ToolError` y borra su parcial: es una falla segura.
+- **Cura real:** contar también los mezzanines y el video — ~1 h.
+- **Cuándo:** S1.9a (`kcut build`), cuando el pipeline completo calcule su presupuesto de disco.
+
+### 36. `frame_count` duplicado ⚪
+
+`render/mezz_files.frame_count` repite la lógica de `ff/reader.proxy_frame_count`.
+
+- **Mitigado hoy por:** los dos tienen test y dan lo mismo.
+- **Cura real:** una sola función en `ff/reader.py` que usen los dos — ~0.5 h.
+- **Cuándo:** la próxima vez que se toque `ff/reader.py` o `mezz_files.py`.
+
+### 37. `VoiceIndex.overlapping` lento ante un EDL hostil ⚪
+
+`VoiceIndex.overlapping` recorre todos los tramos de voz por cada consulta.
+
+- **Mitigado hoy por:** los topes de 10 000 clips y 10 000 spans, que dan E01 (spec 001.24 punto 4). Un reel real tiene menos de 500.
+- **Cura real:** índice ordenado con `bisect` — ~1 h.
+- **Cuándo:** S1.8a, la capa de audio.
+
+### 38. `voice_blocks` es O(bloques × clips) ⚪
+
+- **Mitigado hoy por:** los mismos topes de la 37.
+- **Cura real:** barrido con los clips ordenados — ~1 h.
+- **Cuándo:** S1.8a.
 
 ---
 
@@ -472,6 +513,36 @@ Lo que falta; todo va al paso 0 de S1.5b (spec 001.24):
 - **Causa real:** el coordinador escribió ejemplos para `MIN_SIDE = 2` que ningún par de grupos podía alcanzar, sin comprobarlos contra el mecanismo.
 - **Fix:** 001.23 se quedó con el mecanismo de pares. Una regla de cadena cubriría listas de precios sin número largo, así que el caso de cadena queda como límite aceptado (deuda 30) con un test que lo fija. Antes de escribir un ejemplo, correrlo en la cabeza contra el mecanismo real (o en el scratchpad contra el código actual). El BLOQUEADO hizo su trabajo: paró en vez de inventar una regla de cadena.
 
+### 22. El mezzanine corto daba un falso positivo
+- **Síntoma:** en la ronda 2, el render de un mezzanine corto fallaba: un clip de teléfono cuyo video termina ~50 ms antes que el audio pedía frames que el EDL ni lee.
+- **Por qué engañaba:** la suite estaba verde porque los clips sintéticos tenían el video y el audio del mismo largo.
+- **Causa real:** la comparación era contra el rango CON margen (`end_f`), no contra el último frame que el EDL lee de verdad.
+- **Fix:** 001.26: comparar contra `need_end_f` (último frame que el EDL lee + 1); el sidecar guarda los frames reales.
+
+### 23. En Windows, `os.replace` choca con un archivo que otro proceso lee
+- **Síntoma:** dos renders a la vez chocaban 3 de cada 8 veces con `PermissionError`.
+- **Por qué engañaba:** los tests corrían un render a la vez, así que nunca había otro proceso con el archivo abierto. Además, el mensaje de error culpaba a "el reproductor", que no existía: parecía un problema del usuario y era una carrera entre dos procesos.
+- **Causa real:** ffmpeg abre los archivos sin `FILE_SHARE_DELETE`, así que `os.replace` sobre un archivo que otro proceso está leyendo falla.
+- **Fix:** parcial con pid por proceso; si el destino ya está fresco, gana ese.
+
+### 24. El prefijo `\\?\` de `ntpath.realpath` daba falsa alarma
+- **Síntoma:** con un archivo a mitad de reemplazo, la guarda "está dentro de `.kcut/`" daba falsa alarma.
+- **Por qué engañaba:** el parche de la ronda 2 fue un reintento, que tapaba el síntoma.
+- **Causa real:** con un archivo a mitad de reemplazo, `ntpath.realpath` deja el prefijo `\\?\`.
+- **Fix:** 001.26: quitar el prefijo en `ingest/cache_guard.py` y borrar el reintento.
+
+### 25. pytest-xdist no acelera la suite de kcut
+- **Síntoma:** midió 770.86 s con xdist contra 766.53 s sin xdist (ninguna ganancia) y dio 20 fallos.
+- **Por qué engañaba:** paralelizar la suite parecía una ganancia segura. Pero la CPU ya estaba saturada por ffmpeg/x264 en los tests de integración, y los 20 fallos parecían bugs reales cuando eran del entorno.
+- **Causa real:** ffmpeg/x264 ya saturan la CPU; los fallos por tiempos y por cp1252 vienen de que los workers arrancan sin `-X utf8`.
+- **Fix:** se quitó de `pyproject.toml` y se desinstaló.
+
+### 26. Tests que nunca corrían tras partir un módulo
+- **Síntoma:** los 3 tests de la fila S1.5b-36 no corrieron en ninguna suite, y la suite seguía verde.
+- **Por qué engañaba:** la suite seguía verde; nada fallaba, porque esos tests nunca se ejecutaban.
+- **Causa real:** al partir el módulo en `*_cases.py` con `import *`, la clase no estaba en `__all__`, así que no se traía ni la recogía pytest.
+- **Fix:** se agregaron al `__all__`. Al partir un módulo, comparar el número de tests recogidos antes y después.
+
 ---
 
 ## Descartado y por qué
@@ -485,3 +556,4 @@ Lo que falta; todo va al paso 0 de S1.5b (spec 001.24):
 | `cv2.CascadeClassifier` | Eliminado en OpenCV 5 | 14/10/2026 |
 | Descargar assets sin aprobación | Toda descarga necesita OK explícito; logos de marcas ajenas solo del kit oficial | 15/10/2026 |
 | Rastreo de manos y detección de caras (F2: `piloto/track.py`, YuNet/MediaPipe, blur automático de caras) | Yedin, 26/10/2026: "no lo usaremos, todo el que vaya a pertenecer será parte del video, tenemos que hacer muchos procesos básicos y ya". Quien sale en cámara forma parte del video (consentimiento en la entrevista); los componentes van sin rastreo y se posicionan a mano | 26/10/2026 |
+| pytest-xdist para paralelizar la suite | Midió 770.86 s contra 766.53 s sin xdist: ninguna ganancia, porque ffmpeg/x264 ya saturan la CPU. Además dio 20 fallos, por tiempos y por cp1252 (los workers arrancan sin `-X utf8`). Se quitó de `pyproject.toml` y se desinstaló | 27/10/2026 |
