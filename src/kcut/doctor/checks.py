@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 from kcut import proc
-from kcut.doctor.chain_checks import check_soxr, check_tonemap_chain
+from kcut.doctor.chain_checks import check_looks, check_soxr, check_tonemap_chain
 from kcut.doctor.ffmpeg_caps import parse_encoders, parse_filters, parse_version
 from kcut.doctor.result import CheckResult as CheckResult
 from kcut.errors import KcutError
@@ -77,6 +77,7 @@ def run_all(model_name: str) -> list[CheckResult]:
         check_encoders(),
         check_tonemap_chain(),
         check_soxr(),
+        check_looks(),
         check_libs(),
         check_whisper_model(model_name),
         check_chromium(),

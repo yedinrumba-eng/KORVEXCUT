@@ -2,6 +2,7 @@
 
 import os
 import re
+import stat
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -210,6 +211,21 @@ def _clean_parts(rel: str) -> list[str]:
     if not clean:
         raise ProjectError(f"la ruta {quoted(rel)} no apunta a ningún archivo del proyecto")
     return clean
+
+
+def lone_file_reason(info: os.stat_result) -> str | None:
+    """Why a file that kcut is about to write in place is not safe to write, or None if it is.
+
+    `info` is the `os.fstat` of the handle that is already open (never a `stat` of the name: the
+    name can change between looking and opening). Only a regular file with a single link is
+    written: another link is the same file under another name, perhaps one in `crudo/` (spec
+    001.25, point 2; the same rule as the logs, 001.6). Used by every writer in place under
+    `.kcut/`: the logs and the locks."""
+    if not stat.S_ISREG(info.st_mode):
+        return "no es un archivo regular (enlace o carpeta)"
+    if info.st_nlink != 1:
+        return f"tiene {info.st_nlink} enlaces duros"
+    return None
 
 
 def is_inside(root: Path, target: Path) -> bool:

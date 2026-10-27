@@ -22,7 +22,7 @@ from kcut.errors import ProjectError
 from kcut.ingest.inventory import Clip, Inventory, Notice
 from kcut.jsonio import write_text_atomic
 from kcut.pack.assemble import HOP_MS, ClipParts, assemble_clip, displayed_alts
-from kcut.pack.pii import mask_text
+from kcut.pack.pii import UNMASKED, mask_text
 from kcut.pack.votes import tally
 from kcut.pack.writer import UNTRANSCRIBED, MdClip, TsvRow, render_md, render_tsv, voting_status
 from kcut.paths import resolve_in_project
@@ -36,7 +36,6 @@ HELP_ES = "Empaqueta las transcripciones en edit/transcripcion.md y edit/palabra
 MD_NAME = "transcripcion.md"
 TSV_NAME = "palabras.tsv"
 _NOT_VOICE = ("imagen", "doc", "desconocido")
-UNMASKED = "PII sin enmascarar (privacy.mask_pii = false)"
 _WAV_SCALE = np.float32(32768.0)
 
 

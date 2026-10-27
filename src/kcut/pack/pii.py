@@ -23,15 +23,27 @@ import re
 from collections.abc import Sequence
 from dataclasses import replace
 
-from kcut.pack.pii_email import TLDS, mask_written, masked_address, split_written, spoken_groups
+from kcut.pack.pii_email import spoken_groups
 from kcut.pack.pii_numbers import compose, mask_lettered, mask_run, number_runs
 from kcut.pack.pii_tokens import Tok, classify, tokenize
 from kcut.pack.pii_vocab import bridge_tokens
+from kcut.pack.pii_written import (
+    TLDS,
+    Written,
+    last_at_is_open,
+    mask_bare_domains,
+    mask_written,
+    masked_address,
+    split_written,
+)
 from kcut.transcribe.model import Word
 
+UNMASKED = "PII sin enmascarar (privacy.mask_pii = false)"  # 001.24 point 8: lives here
 _WORD_SEPARATORS = re.compile(r"([\s_.\-]+)")  # what cuts a path into words (and `/` into folders)
 _PART_BREAK = re.compile(r"[_.\-]")  # of those, what also cuts it into parts
 _EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,5}$")
+# a masked address with no tokens, or a stretch that is not an address with its tokens
+_Piece = tuple[str, list[Tok]]
 _CUT = "x0"  # stands for a `_` that does not join: letters and a digit cut a run of digits
 _DATE = re.compile(r"(?:19|20)\d{6}")  # YYYYMMDD: the one group a `_` does not join (001.21)
 
@@ -62,8 +74,7 @@ def mask_pii_spans(
         changed[group[0].at] = masked_address(group[0].text, tld)
         changed.update({tok.at: "" for tok in group[1:]})
         taken.update(tok.at for tok in group)
-    heads: dict[int, tuple[str, str]] = {}  # word -> (masked address, what follows it), 001.22
-    tails: dict[int, list[Tok]] = {}  # word -> the tokens of what follows the address
+    layouts: dict[int, list[_Piece]] = {}  # word -> what is not an address, and the addresses
     next_uid = len(toks)
     for tok in toks:
         if tok.at not in taken and tok.piece == 0 and "@" in tok.text:
@@ -71,17 +82,15 @@ def mask_pii_spans(
             if split is None:
                 continue
             taken.add(tok.at)
-            if split[1]:  # `juan@gmail.com;8095551234`: the number goes through the numbers pass
-                heads[tok.at] = split
-                tails[tok.at] = _tail_tokens(words[tok.at], tok.at, split[1], next_uid)
-                next_uid += len(tails[tok.at])
+            if any(split.gaps):  # 001.24 point 1: every stretch around the addresses is numbers
+                layouts[tok.at], next_uid = _pieces(words[tok.at], tok.at, split, next_uid)
             else:
-                changed[tok.at] = split[0]
+                changed[tok.at] = "".join(split.addresses)
     rest: list[Tok] = []
     for tok in toks:
-        if tok.at in tails:
+        if tok.at in layouts:
             if tok.piece == 0:
-                rest.extend(tails[tok.at])
+                rest.extend(item for _, group in layouts[tok.at] for item in group)
         elif tok.at not in taken:
             rest.append(tok)
     classify(rest, bridge_tokens(fillers))
@@ -92,28 +101,49 @@ def mask_pii_spans(
         inside.update(tok.at for tok in run)
     by_word: dict[int, list[Tok]] = {}
     for tok in rest:
-        by_word.setdefault(tok.at, []).append(tok)
+        if tok.at not in layouts:
+            by_word.setdefault(tok.at, []).append(tok)
     for tok in rest:
-        lettered = mask_lettered(tok)
+        lettered = None if tok.at in layouts else mask_lettered(tok)
         if lettered is not None:
             changed[tok.at] = lettered
-    for at in {tok.at for tok in rest if tok.uid in cores}:
+    for at in {tok.at for tok in rest if tok.uid in cores and tok.at not in layouts}:
         changed[at] = compose(by_word[at], cores)
-    for at, (head, tail) in heads.items():  # the masked address, then what follows it as it ended
-        changed[at] = head + changed.get(at, tail)
+    for at, pieces in layouts.items():  # each address masked, each stretch around it as it ended
+        changed[at] = "".join(_piece_text(raw, group, cores) for raw, group in pieces)
     for at, text in changed.items():
         shown[at] = replace(words[at], text=text)
     ids = {words[at].id for at in changed} | {words[at].id for at in taken}
     return shown, ids, ids | {words[at].id for at in inside}
 
 
-def _tail_tokens(word: Word, at: int, tail: str, first_uid: int) -> list[Tok]:
-    """The tokens of `tail`, the text that follows the address in `word` (001.22, point 6), as
-    tokens of the word at `at`. Their uids start at `first_uid`, past those of the words."""
-    toks = tokenize([replace(word, text=tail)], [0])
-    for n, tok in enumerate(toks):
-        tok.at, tok.uid = at, first_uid + n
-    return toks
+def _pieces(word: Word, at: int, split: Written, first_uid: int) -> tuple[list[_Piece], int]:
+    """The word at `at` as a list of pieces in order: each address (already masked) and each
+    stretch around them that is not empty, as tokens of that word (001.24, point 1). Their uids
+    start at `first_uid`, past those of the words; the next free uid comes back too."""
+    pieces: list[_Piece] = []
+    uid = first_uid
+    for gap, address in zip(split.gaps, (*split.addresses, ""), strict=True):
+        if gap:
+            group = tokenize([replace(word, text=gap)], [0])
+            for tok in group:
+                tok.at, tok.uid = at, uid
+                uid += 1
+            pieces.append((gap, group))
+        if address:
+            pieces.append((address, []))
+    return pieces, uid
+
+
+def _piece_text(raw: str, group: list[Tok], cores: dict[int, str]) -> str:
+    """One piece of a word with a written address after the numbers pass: the address as it is,
+    a stretch with its masked numbers, or as it was if nothing in it was masked."""
+    if not group:
+        return raw
+    if any(tok.uid in cores for tok in group):
+        return compose(group, cores)
+    lettered = mask_lettered(group[0]) if len(group) == 1 else None
+    return raw if lettered is None else lettered
 
 
 def mask_text(text: str, fillers: Sequence[str] = (), *, parts: bool = True) -> str:
@@ -125,8 +155,9 @@ def mask_text(text: str, fillers: Sequence[str] = (), *, parts: bool = True) -> 
     number that separators cut into parts is masked too: `809-555-1234.mp4`, `Maria_809_555_1234`
     (001.18, point 4); `_` always joins, except next to a date of 8 digits: `amex_3782_822463_10005`
     is a card, `VID_20261025_143015` is not (001.21, point 3). An address written in a name is
-    masked first, on the whole folder or file name (001.21, point 4). Without `parts` (a project
-    name, an error) the words are read whole.
+    masked first, on the whole folder or file name (001.21, point 4); an `@` left with only a
+    word of letters after it (`pedro@gmail`) is masked too (001.25, point 15). Without `parts` (a
+    project name, an error) the words are read whole.
     """
     if not parts:
         return _mask_phrase(text, fillers)
@@ -147,8 +178,8 @@ def _address_cut_as_extension(name: str, ext: str) -> bool:
         "@" in name
         and bool(ext)
         and ext[1:].lower() in TLDS
-        and mask_written(name) is None
-        and mask_written(name + ext) is not None
+        and last_at_is_open(name)
+        and not last_at_is_open(name + ext)
     )
 
 
@@ -164,6 +195,7 @@ def _mask_segment(segment: str, fillers: Sequence[str]) -> str:
     written = mask_written(segment)
     if written is not None:
         segment = written
+    segment = mask_bare_domains(segment)  # `pedro@gmail` that the extension left without its TLD
     pieces = _WORD_SEPARATORS.split(segment)
     words, seps = pieces[::2], pieces[1::2]
     first = list(words)

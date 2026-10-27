@@ -11,6 +11,7 @@ import pytest
 from kcut import proc
 from kcut.errors import MissingDependency, ToolError
 from tests.fixtures.spawned import spy_on_popen
+from tests.unit.proc_paths_cases import *  # noqa: F403  (001.25: 300-line rule)
 
 # The venv python.exe on Windows is a launcher that runs the base interpreter as its own child:
 # killing the launcher would leave that child sleeping. The base interpreter is one process.

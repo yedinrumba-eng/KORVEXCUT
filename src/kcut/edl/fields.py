@@ -3,10 +3,12 @@ remap that disagrees with `src_f` (E18). Pure; called by `edl.ranges` for each s
 """
 
 from kcut.edl.model import BrollSpan, CamSpan, ScreenSpan, Span
+from kcut.edl.shown import shown_number
 from kcut.issues import Issue
 
 CARD_SIDE_MARGIN = 16  # a card is at most `W - 16` wide...
 CARD_TOP_MARGIN = 120  # ...and `H - 120` tall
+CARD_MAX_ASPECT = 8  # the long side of a card is at most this many times the short one (001.25)
 
 
 def check_fields(span: Span, path: str, out_w: int, out_h: int) -> list[Issue]:
@@ -47,14 +49,21 @@ def _screen(issues: list[Issue], span: ScreenSpan, path: str, out_w: int, out_h:
         _within(issues, where, "crop[1]", key.crop[1], 0.0, 1.0)
         _within(issues, where, "crop[2]", key.crop[2], 0.05, 1.0)
         width, height = key.card
+        card = f"{shown_number(width)}x{shown_number(height)}"
         if width < 1 or height < 1:
             issues.append(
                 Issue("E13", "error", f"{where}.card", "la tarjeta tiene que medir 1 px o más")
             )
         elif width > out_w - CARD_SIDE_MARGIN or height > out_h - CARD_TOP_MARGIN:
             found = (
-                f"la tarjeta de {width}x{height} no cabe: como mucho "
+                f"la tarjeta de {card} no cabe: como mucho "
                 f"{out_w - CARD_SIDE_MARGIN}x{out_h - CARD_TOP_MARGIN}"
+            )
+            issues.append(Issue("E13", "error", f"{where}.card", found))
+        elif max(width, height) > CARD_MAX_ASPECT * min(width, height):
+            found = (
+                f"la tarjeta de {card} es demasiado alargada: "
+                f"el lado largo es como mucho {CARD_MAX_ASPECT} veces el corto"
             )
             issues.append(Issue("E13", "error", f"{where}.card", found))
     for i, point in enumerate(span.remap):
@@ -63,8 +72,8 @@ def _screen(issues: list[Issue], span: ScreenSpan, path: str, out_w: int, out_h:
     _order(issues, f"{path}.remap", [p.at_f for p in span.remap], span.dur_f, required=False)
     if span.remap and span.src_f != span.remap[0].src_f:
         found = (
-            f"src_f ({span.src_f}) no es el de remap[0] ({span.remap[0].src_f}); "
-            "con remap manda remap"
+            f"src_f ({shown_number(span.src_f)}) no es el de remap[0] "
+            f"({shown_number(span.remap[0].src_f)}); con remap manda remap"
         )
         issues.append(Issue("E18", "error", f"{path}.src_f", found))
 
@@ -82,8 +91,14 @@ def _order(
         issues.append(Issue("E15", "error", f"{path}[0]", "la primera tiene que estar en at_f = 0"))
     for i, at_f in enumerate(starts):
         if i and at_f <= starts[i - 1]:
-            found = f"at_f ({at_f}) tiene que ser mayor que el de la anterior ({starts[i - 1]})"
+            found = (
+                f"at_f ({shown_number(at_f)}) tiene que ser mayor que el de la anterior "
+                f"({shown_number(starts[i - 1])})"
+            )
             issues.append(Issue("E15", "error", f"{path}[{i}]", found))
         if at_f < 0 or at_f >= dur_f:
-            found = f"at_f ({at_f}) cae fuera del tramo (de 0 a {dur_f - 1})"
+            found = (
+                f"at_f ({shown_number(at_f)}) cae fuera del tramo "
+                f"(de 0 a {shown_number(dur_f - 1)})"
+            )
             issues.append(Issue("E15", "error", f"{path}[{i}]", found))

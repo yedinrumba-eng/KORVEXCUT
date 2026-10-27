@@ -111,7 +111,9 @@ def check(
 ) -> list[Issue]:
     """Parse `doc` (the example if none) and validate it against the fake project."""
     edl = parsed(doc)
-    return validate(edl, inv or inventory(), config(), version, audio or audio_f())
+    # 001.24 point 9: `{}` is a real answer (no source has a known length), not "use the default"
+    known = audio if audio is not None else audio_f()
+    return validate(edl, inv or inventory(), config(), version, known)
 
 
 def parsed(doc: Doc | None = None) -> Edl:

@@ -3,7 +3,8 @@
 One `.mov` made with ffmpeg lavfi: the video input carries `-itsoffset 0.5`, so the first frame of
 video is at 0.5 s of the container and the audio starts at 0. A white flash fills the video's own
 frame 30, which is the instant 1.5 s of the source clock, i.e. frame 45 at 30 fps (index 30 of the
-proxy, whose first frame is frame 15 of the clock).
+proxy, whose first frame is frame 15 of the clock). Since S1.5b the audio also has a 2 kHz beep
+of 0.1 s at that same instant, to see the picture and the sound meet after a render (row 14).
 """
 
 from pathlib import Path
@@ -14,6 +15,9 @@ VIDEO_DELAY_S = 0.5
 FLASH_VIDEO_FRAME = 30  # the flash, counting from the first frame of video
 FLASH_CLOCK_FRAME = 45  # the same instant, counting from the start of the container at 30 fps
 _FLASH = "drawbox=x=0:y=0:w=iw:h=ih:color=white:t=fill:enable='eq(n,{n})'"
+# S1.5b row 14: a 2 kHz beep of 0.1 s at the instant of the flash (1.5 s of the source clock)
+BEEP_CLOCK_S = 1.5
+BEEP = f"0.6*sin(2*PI*2000*t)*between(t,{BEEP_CLOCK_S},{BEEP_CLOCK_S + 0.1})"
 
 
 def make_late_video(dst: Path) -> None:
@@ -24,7 +28,7 @@ def make_late_video(dst: Path) -> None:
         [
             *("-itsoffset", str(VIDEO_DELAY_S)),
             *("-f", "lavfi", "-i", f"testsrc2=s=320x568:r=30:d=4.5,{flash},format=yuv420p"),
-            *("-f", "lavfi", "-i", f"aevalsrc='{tones_expr(0.0)}':s=44100:d=5"),
+            *("-f", "lavfi", "-i", f"aevalsrc='{tones_expr(0.0)}+{BEEP}':s=44100:d=5"),
             *("-map", "0:v", "-map", "1:a"),
             *("-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-pix_fmt", "yuv420p"),
             *("-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"),
@@ -38,18 +42,20 @@ def make_late_video(dst: Path) -> None:
 SHORT_VIDEO_FRAMES = 90  # 3 s at 30 fps: the proxy of `make_short_video` has frames 0..89
 
 
-def make_short_video(dst: Path) -> None:
-    """A 5 s `.mov` whose video is only 3 s long and starts with the audio: the container says
-    150 frames, the video holds 90 (S1.4-23: the proxy, not the container, says what is real)."""
+def make_short_video(dst: Path, video_s: float = 3, audio_s: float = 5) -> None:
+    """A 5 s `.mov` whose video is only `video_s` s long (3 by default) and starts with the audio:
+    the container says 150 frames, the video holds 90 (S1.4-23: the proxy, not the container, says
+    what is real). With `video_s=4` the video is 1 s shorter than the audio (S1.5b row 38); with
+    `video_s=4, audio_s=4.05` only 50 ms shorter, like a phone clip (001.26, rows 48 and 49)."""
     _ffmpeg(
         [
-            *("-f", "lavfi", "-i", "testsrc2=s=320x568:r=30:d=3,format=yuv420p"),
-            *("-f", "lavfi", "-i", f"aevalsrc='{tones_expr(0.0)}':s=44100:d=5"),
+            *("-f", "lavfi", "-i", f"testsrc2=s=320x568:r=30:d={video_s},format=yuv420p"),
+            *("-f", "lavfi", "-i", f"aevalsrc='{tones_expr(0.0)}':s=44100:d={audio_s}"),
             *("-map", "0:v", "-map", "1:a"),
             *("-c:v", "libx264", "-preset", "ultrafast", "-crf", "22", "-pix_fmt", "yuv420p"),
             *("-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"),
             *("-c:a", "aac", "-b:a", "128k"),
-            *("-t", "5"),
+            *("-t", str(audio_s)),
             str(dst),
         ]
     )

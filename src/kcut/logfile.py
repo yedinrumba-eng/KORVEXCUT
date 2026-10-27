@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Protocol
 
 from kcut.console import safe_text
-from kcut.paths import is_inside
+from kcut.paths import is_inside, lone_file_reason
 
 _LOG_LOCKS: dict[str, threading.Lock] = {}
 _LOG_LOCKS_GUARD = threading.Lock()
@@ -114,10 +114,9 @@ def unsafe_reason(log: Path) -> str | None:
     except OSError as exc:
         return str(exc)
     if info is not None:
-        if not stat.S_ISREG(info.st_mode):
-            return "no es un archivo regular (enlace o carpeta)"
-        if info.st_nlink != 1:
-            return f"tiene {info.st_nlink} enlaces duros"
+        reason = lone_file_reason(info)
+        if reason is not None:
+            return reason
     if _LOG_ROOT is not None and not is_inside(_LOG_ROOT, log.resolve()):
         return "queda fuera de .kcut/"
     return None
@@ -206,10 +205,11 @@ def _open_checked(log: Path) -> tuple[int | None, str]:
     except OSError as exc:
         _close(fd)
         return None, str(exc)
-    if stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+    reason = lone_file_reason(info)
+    if reason is None:
         return fd, ""
     _close(fd)
-    return None, f"tiene {info.st_nlink} enlaces duros"
+    return None, reason
 
 
 def _close(fd: int) -> None:

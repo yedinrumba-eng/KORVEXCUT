@@ -77,50 +77,6 @@ def shift_f(inv: Inventory, voice_src: str, cam_src: str, fps: int) -> int:
     return ms_to_f_round(voice - cam, fps)
 
 
-def span_source_frames(edl: Edl, span: Span, inv: Inventory) -> list[int]:
-    """One source frame for each output frame of the span, in order.
-
-    A synchronized camera: `c.in_f + (k - c.at_f) + shift_f(...)` with `c` the voice clip at `k`.
-    A free camera or a b-roll: `src_f + (k - at_f)`. A screen insert with `remap`: from the last
-    point with `at_f <= r`, `p.src_f + floor((r - p.at_f) * p.speed)` (exact: the speed is read as
-    the decimal it was written, `0.29 * 100` is 29 and not 28.999...); without it, `src_f + r`.
-    A color span reads nothing.
-    """
-    if isinstance(span, ColorSpan):
-        return []
-    if isinstance(span, ScreenSpan) and span.remap:
-        return _remapped(span.remap, span.dur_f)
-    if isinstance(span, CamSpan) and span.src_f is None:
-        return _synchronized(edl, span, inv)
-    base = _start(span)
-    return [base + r for r in range(span.dur_f)]
-
-
-def span_source_bounds(edl: Edl, span: Span, inv: Inventory) -> list[tuple[int, int]]:
-    """The first and the last source frame (both included) of each stretch of the span that reads
-    in order: what `span_source_frames` reaches, without making the list. Used by E12, so a span of
-    a billion frames costs as little as one of ten. A synchronized camera has one stretch per
-    voice clip of its group the span crosses; a remap one per point."""
-    if isinstance(span, ColorSpan) or span.dur_f <= 0:
-        return []
-    if isinstance(span, ScreenSpan) and span.remap:
-        return _remap_bounds(span.remap, span.dur_f)
-    if isinstance(span, CamSpan) and span.src_f is None:
-        return _synchronized_bounds(edl, span, inv)
-    base = _start(span)
-    return [(base, base + span.dur_f - 1)]
-
-
-def source_to_output(edl: Edl, src: str, f: int) -> list[int]:
-    """The output frames where frame `f` of `src` is heard: one per voice clip of `src` that
-    holds it (usually zero or one), in the order of the clips."""
-    return [
-        clip.at_f + (f - clip.in_f)
-        for clip in edl.clips
-        if isinstance(clip, VoiceClip) and clip.src == src and clip.in_f <= f < clip.out_f
-    ]
-
-
 class VoiceIndex:
     """The clips of an EDL in time order, to find those that overlap a stretch without scanning
     them all (validation looks at every span)."""
@@ -144,6 +100,57 @@ class VoiceIndex:
         return found
 
 
+def span_source_frames(
+    edl: Edl, span: Span, inv: Inventory, index: VoiceIndex | None = None
+) -> list[int]:
+    """One source frame for each output frame of the span, in order. `index` is the `VoiceIndex`
+    of the EDL if the caller has one (it is made once for all the spans: 001.24, point 4).
+
+    A synchronized camera: `c.in_f + (k - c.at_f) + shift_f(...)` with `c` the voice clip at `k`.
+    A free camera or a b-roll: `src_f + (k - at_f)`. A screen insert with `remap`: from the last
+    point with `at_f <= r`, `p.src_f + floor((r - p.at_f) * p.speed)` (exact: the speed is read as
+    the decimal it was written, `0.29 * 100` is 29 and not 28.999...); without it, `src_f + r`.
+    A color span reads nothing.
+    """
+    if isinstance(span, ColorSpan):
+        return []
+    if isinstance(span, ScreenSpan) and span.remap:
+        return _remapped(span.remap, span.dur_f)
+    if isinstance(span, CamSpan) and span.src_f is None:
+        return _synchronized(edl, span, inv, index if index is not None else VoiceIndex(edl))
+    base = _start(span)
+    return [base + r for r in range(span.dur_f)]
+
+
+def span_source_bounds(
+    edl: Edl, span: Span, inv: Inventory, index: VoiceIndex | None = None
+) -> list[tuple[int, int]]:
+    """The first and the last source frame (both included) of each stretch of the span that reads
+    in order: what `span_source_frames` reaches, without making the list. Used by E12, so a span of
+    a billion frames costs as little as one of ten. A synchronized camera has one stretch per
+    voice clip of its group the span crosses; a remap one per point. `index` is the `VoiceIndex`
+    of the EDL if the caller has one: made again for each span, a check of thousands of them would
+    sort the clips thousands of times (001.24, point 4)."""
+    if isinstance(span, ColorSpan) or span.dur_f <= 0:
+        return []
+    if isinstance(span, ScreenSpan) and span.remap:
+        return _remap_bounds(span.remap, span.dur_f)
+    if isinstance(span, CamSpan) and span.src_f is None:
+        return _synchronized_bounds(edl, span, inv, index if index is not None else VoiceIndex(edl))
+    base = _start(span)
+    return [(base, base + span.dur_f - 1)]
+
+
+def source_to_output(edl: Edl, src: str, f: int) -> list[int]:
+    """The output frames where frame `f` of `src` is heard: one per voice clip of `src` that
+    holds it (usually zero or one), in the order of the clips."""
+    return [
+        clip.at_f + (f - clip.in_f)
+        for clip in edl.clips
+        if isinstance(clip, VoiceClip) and clip.src == src and clip.in_f <= f < clip.out_f
+    ]
+
+
 def _start(span: CamSpan | BrollSpan | ScreenSpan) -> int:
     """The source frame a span that is not synchronized starts from."""
     if span.src_f is None:
@@ -151,26 +158,39 @@ def _start(span: CamSpan | BrollSpan | ScreenSpan) -> int:
     return span.src_f
 
 
-def _synchronized(edl: Edl, span: CamSpan, inv: Inventory) -> list[int]:
+def _synchronized(edl: Edl, span: CamSpan, inv: Inventory, index: VoiceIndex) -> list[int]:
+    """The source frames of a synchronized camera: for each voice clip the span crosses, the
+    frames of the clip it covers, in order. A frame with no voice is a ProjectError."""
     shifts: dict[str, int] = {}
     frames: list[int] = []
-    for k in range(span.at_f, span.at_f + span.dur_f):
-        clip = voice_at(edl, k)
-        if clip is None:
-            raise ProjectError(
-                f"el frame {k} de salida no tiene voz: un cam sincronizado la necesita"
-            )
+    cursor, end = span.at_f, span.at_f + span.dur_f
+    for _, clip in index.overlapping(span.at_f, end):
+        if not isinstance(clip, VoiceClip) or cursor >= end:
+            continue
+        low, high = max(cursor, clip.at_f), min(end, clip.at_f + clip.dur_f)
+        if low >= high:
+            continue
+        if low > cursor:
+            break  # a hole: the frame at `cursor` has no voice
         if clip.src not in shifts:
             shifts[clip.src] = shift_f(inv, clip.src, span.src, edl.fps)
-        frames.append(clip.in_f + (k - clip.at_f) + shifts[clip.src])
+        base = clip.in_f - clip.at_f + shifts[clip.src]
+        frames.extend(base + k for k in range(low, high))
+        cursor = high
+    if cursor < end:
+        raise ProjectError(
+            f"el frame {cursor} de salida no tiene voz: un cam sincronizado la necesita"
+        )
     return frames
 
 
-def _synchronized_bounds(edl: Edl, span: CamSpan, inv: Inventory) -> list[tuple[int, int]]:
+def _synchronized_bounds(
+    edl: Edl, span: CamSpan, inv: Inventory, index: VoiceIndex
+) -> list[tuple[int, int]]:
     group = group_of(inv, span.src)
     start, end = span.at_f, span.at_f + span.dur_f
     bounds: list[tuple[int, int]] = []
-    for _, clip in VoiceIndex(edl).overlapping(start, end):
+    for _, clip in index.overlapping(start, end):
         if not isinstance(clip, VoiceClip) or clip.src not in group:
             continue
         low, high = max(start, clip.at_f), min(end, clip.at_f + clip.dur_f) - 1

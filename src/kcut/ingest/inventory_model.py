@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from functools import cached_property
 
 from kcut.ingest.classify import ClipClass
 from kcut.ingest.probe import VideoInfo
@@ -103,8 +104,11 @@ class Inventory:
     id_high: Mapping[str, int] = field(default_factory=dict)
     schema: str = SCHEMA
 
+    @cached_property
+    def _clips_by_id(self) -> dict[str, Clip]:
+        """Every clip under its id, made once: a check looks up thousands of them (001.24,
+        point 4). With a repeated id (the loader refuses it) the first clip is the one kept."""
+        return {clip.id: clip for clip in reversed(self.clips)}
+
     def by_id(self, clip_id: str) -> Clip | None:
-        for clip in self.clips:
-            if clip.id == clip_id:
-                return clip
-        return None
+        return self._clips_by_id.get(clip_id)

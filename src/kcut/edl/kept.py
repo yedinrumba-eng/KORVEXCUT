@@ -6,15 +6,14 @@ need what was said). `shown` has what Claude reads: with `privacy.mask_pii` the 
 `transcripcion.md`. Everything that reaches Claude from the EDL takes its text from `shown`.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from kcut.commands.pack import UNMASKED
 from kcut.edl.model import Edl, VoiceClip
 from kcut.edl.words import KeptWord, map_words
 from kcut.ingest.inventory import Inventory, Notice
 from kcut.pack.assemble import cover
-from kcut.pack.pii import mask_pii
+from kcut.pack.pii import UNMASKED, mask_pii
 from kcut.project import Project
 from kcut.transcribe.loaded import LoadedWords, load_corrected
 from kcut.transcribe.model import Word
@@ -22,10 +21,11 @@ from kcut.transcribe.model import Word
 
 @dataclass(frozen=True)
 class KeptWords:
-    """`words` (raw), `shown` (id -> the text for Claude; `""` for a word an address swallowed),
-    `missing` (voice sources with no transcript) and whether `shown` is masked."""
+    """`words` (raw, so not in the `repr`: 001.24 point 11), `shown` (id -> the text for Claude;
+    `""` for a word an address swallowed), `missing` (voice sources with no transcript) and
+    whether `shown` is masked."""
 
-    words: list[KeptWord]
+    words: list[KeptWord] = field(repr=False)
     shown: dict[str, str]
     missing: tuple[str, ...]
     masked: bool

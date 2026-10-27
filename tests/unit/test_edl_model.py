@@ -14,6 +14,7 @@ from kcut.edl.model import BrollSpan, CamSpan, ColorSpan, GapClip, ScreenSpan, V
 from kcut.edl.parse import parse_edl
 from kcut.errors import ProjectError
 from kcut.project import open_project
+from tests.unit.edl_cases_limits import *  # noqa: F403  (001.24: 300-line rule)
 from tests.unit.edl_fakes import Doc, edit, example_doc, parsed
 
 
@@ -153,7 +154,9 @@ class TestSchemaErrorsAreE01:
 
         edl, issues = parse_edl(edit(change))
         assert edl is None and issues[0].path == "sources" and "a1" in issues[0].message_es
-        assert _issues(edit(lambda d: d.pop("sources"))) == [("E01", "sources")]
+        # 001.24 point 7: no `sources` block is `{}` (E04 names each source used), not an E01
+        no_block, issues = parse_edl(edit(lambda d: d.pop("sources")))
+        assert issues == [] and no_block is not None and no_block.sources == {}
         assert _issues(edit(lambda d: d["sources"].update(a1={"hash": "x"}))) == [
             ("E01", "sources")
         ]
@@ -167,7 +170,10 @@ class TestSchemaErrorsAreE01:
         doc = copy.deepcopy(example_doc())
         doc["clips"][1]["in_f"] = 10**400
         edl, issues = parse_edl(doc)
-        assert edl is not None and issues == []  # a whole number: ranges judges it
+        # 001.24 point 5: a whole number of 10**15 or more is an E01 (it was ranges' to judge, and
+        # the sums of two of them grew past what `str()` of an integer allows: exit 10)
+        assert edl is None and [(i.code, i.path) for i in issues] == [("E01", "clips[1].in_f")]
+        assert "401 dígitos" in issues[0].message_es
 
 
 class TestReservedCodes:

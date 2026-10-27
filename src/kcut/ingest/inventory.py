@@ -163,8 +163,8 @@ def _video(d: dict[str, Any], path: str) -> VideoInfo:
         codec=req_str(d, "codec", path),
         w=req_int(d, "w", path, 0),
         h=req_int(d, "h", path, 0),
-        display_w=req_int(d, "display_w", path, 0),
-        display_h=req_int(d, "display_h", path, 0),
+        display_w=req_int(d, "display_w", path, 1),  # 001.24, point 12: 0 is no picture
+        display_h=req_int(d, "display_h", path, 1),
         rotation=req_int(d, "rotation", path),
         fps_r=req_str(d, "fps_r", path),
         fps_avg=req_str(d, "fps_avg", path),

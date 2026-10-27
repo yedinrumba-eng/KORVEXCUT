@@ -6,11 +6,19 @@ Collected from `test_pii_pack.py`.
 import pytest
 
 from kcut.pack.pii import mask_text
+from tests.unit.pii_cases_v6 import (  # 001.24, 001.25, 001.26
+    TestPiiPathEmailV2,
+    TestPiiPathEmailV3,
+    TestPiiPathEmailV4,
+)
 
 __all__ = [
     "TestPiiPathContiguous",
     "TestPiiPathEmail",
     "TestPiiPathEmailNoExt",
+    "TestPiiPathEmailV2",
+    "TestPiiPathEmailV3",
+    "TestPiiPathEmailV4",
     "TestPiiPathJoiners",
     "TestPiiPathUnderscoreV2",
 ]
@@ -217,7 +225,9 @@ class TestPiiPathEmailNoExt:
 
     def test_path_email_no_ext_only_the_last_part_gets_its_extension_back(self) -> None:
         assert mask_text("juan@gmail.com/clip.mp4") == "j***@***.com/clip.mp4"
-        assert mask_text("crudo/juan@gmail/clip.com") == "crudo/juan@gmail/clip.com"
+        # 001.25: the folder `juan@gmail` is masked now (an `@` and a word of letters), but it
+        # still does not take the `.com` of the file: the TLD stays where it was
+        assert mask_text("crudo/juan@gmail/clip.com") == "crudo/j***@***/clip.com"
 
     def test_path_email_no_ext_a_name_read_whole_is_not_read_by_parts(self) -> None:
         assert mask_text("juan@gmail.com", parts=False) == "j***@***.com"

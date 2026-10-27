@@ -8,6 +8,7 @@ from tests.unit.test_ffmpeg_caps import ENCODERS_811, VERSION_811
 
 FAKE_FFMPEG = Path("C:/fake/ffmpeg.exe")
 FAKE_FFPROBE = Path("C:/fake/ffprobe.exe")
+LOOKS_FRAME = bytes(64 * 64 * 3)  # S1.5b: what a look gives back in the reader
 
 
 def filters_text(names: tuple[str, ...]) -> str:
@@ -19,8 +20,8 @@ def filters_text(names: tuple[str, ...]) -> str:
 class FakeFfmpeg:
     """Stands in for `proc.run`: answers -version, -filters and -encoders from canned text.
 
-    Any other call (the synthetic lavfi probes of `tonemap_chain` and `soxr`, which end in `-`)
-    exits with `probe_exit` and prints `probe_stderr`.
+    Any other call (the synthetic lavfi probes of `tonemap_chain`, `soxr` and `looks`, which
+    end in `-`) exits with `probe_exit` and prints `probe_stderr`.
     """
 
     def __init__(
@@ -47,4 +48,6 @@ class FakeFfmpeg:
         }
         if args[-1] in canned:
             return RunResult(0, canned[args[-1]].encode("utf-8"), "")
-        return RunResult(self.probe_exit, b"", self.probe_stderr)
+        # a probe that works gives the 12 288 bytes of the one 64x64 frame of `looks`
+        frame = LOOKS_FRAME if self.probe_exit == 0 else b""
+        return RunResult(self.probe_exit, frame, self.probe_stderr)

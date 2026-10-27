@@ -4,6 +4,7 @@ Pure arithmetic on numbers: no image, no ffmpeg. `edl.ranges` uses `upscale_fact
 warning; S1.5b's `frame_fx` uses the rest to cut each frame.
 """
 
+import math
 from collections.abc import Sequence
 from itertools import pairwise
 
@@ -81,7 +82,10 @@ def upscale_factor(zoom_max: float, sw: int, sh: int, W: int, H: int) -> float:
     """How much the source is stretched to fill the output at its biggest zoom:
     `W * zoom_max / cover_box(...)[0]`. Above 1 the picture is enlarged (W01 warns past 1.10).
     A mezzanine is never smaller than the resolution that avoids scaling, so it depends only on
-    the source."""
+    the source. A source with no pixels (`sw` or `sh` under 1) is stretched without limit: `inf`,
+    never a division by zero (001.24, point 12)."""
+    if sw < 1 or sh < 1 or W < 1 or H < 1:
+        return math.inf
     return W * zoom_max / cover_box(sw, sh, W, H)[0]
 
 

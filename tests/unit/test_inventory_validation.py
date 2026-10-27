@@ -1,7 +1,9 @@
 """The inventory lives in `.kcut/`, so it is never trusted: bad ids, slugs and paths are refused."""
 
 import json
+import math
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -9,10 +11,12 @@ from kcut import cli
 from kcut.errors import ProjectError
 from kcut.ingest.inventory import load_inventory
 from kcut.ingest.sync_reasons import ambiguity_message
+from kcut.render.geometry import upscale_factor
 from tests.unit.inventory_fakes import (
     HOSTILE_TEXT,
     MEMBER,
     REJECTED,
+    Mutation,
     set_clip,
     set_work,
     sync_block,
@@ -219,3 +223,47 @@ def test_path_len_of_the_work_files(root: Path, key: str, length: int, ok: bool)
         with pytest.raises(ProjectError) as info:
             load_inventory(written(root, change), root)
         assert getattr(info.value, "field", "") == f"clips[0].work.{key}"
+
+
+def _video_key(**changes: Any) -> Mutation:
+    return lambda d: d["clips"][0]["video"].update(changes)
+
+
+@pytest.mark.parametrize("key", ["display_w", "display_h"])
+@pytest.mark.parametrize("value", [0, -1, -1080])
+def test_inventory_display_min_a_picture_with_no_pixels_is_invalid(
+    root: Path, key: str, value: int
+) -> None:
+    """001.24 point 12 (S1.5b row 29): `display_w` and `display_h` are at least 1."""
+    with pytest.raises(ProjectError) as info:
+        load_inventory(written(root, _video_key(**{key: value})), root)
+    assert getattr(info.value, "field", "") == f"clips[0].video.{key}"
+
+
+@pytest.mark.parametrize("key", ["display_w", "display_h"])
+def test_inventory_display_min_one_pixel_is_the_least_that_loads(root: Path, key: str) -> None:
+    loaded = load_inventory(written(root, _video_key(**{key: 1})), root)
+    assert loaded.clips[0].video is not None and getattr(loaded.clips[0].video, key) == 1
+
+
+def test_inventory_display_min_ingest_marks_it_invalid_and_rebuilds(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = tmp_path / "proyecto ñandú"
+    assert cli.main(["new", str(project)]) == 0
+    (project / "crudo" / "nota.txt").write_text("hola", encoding="utf-8")
+    argv = ["ingest", "--project", str(project), "--no-proxy"]
+    assert cli.main(argv) == 0
+    saved = written(project, _video_key(display_w=0))
+    capsys.readouterr()
+    assert cli.main(argv) == 0
+    assert "inventory_invalid" in capsys.readouterr().err
+    assert [c.id for c in load_inventory(saved, project).clips] == ["d1"]
+
+
+@pytest.mark.parametrize(
+    ("sw", "sh"), [(0, 1920), (1080, 0), (0, 0), (-5, 1920)], ids=["no-w", "no-h", "none", "neg"]
+)
+def test_inventory_display_min_upscale_factor_never_divides_by_zero(sw: int, sh: int) -> None:
+    assert upscale_factor(1.5, sw, sh, 1080, 1920) == math.inf
+    assert upscale_factor(1.0, 1080, 1920, 1080, 1920) == 1.0

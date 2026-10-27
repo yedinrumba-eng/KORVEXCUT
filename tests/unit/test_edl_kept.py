@@ -13,6 +13,7 @@ import pytest
 from kcut import cli
 from kcut.edl.kept import KeptWords, kept_words
 from kcut.edl.model import Edl
+from kcut.edl.words import KeptWord
 from kcut.ingest.inventory import Notice
 from kcut.project import Project, load_inventory, open_project
 from tests.unit.edl_fakes import Doc, edit, parsed
@@ -132,3 +133,29 @@ class TestMissingTranscripts:
         kept, notices = _kept(_project(tmp_path, monkeypatch), edl)
         assert (kept.words, kept.shown, kept.missing) == ([], {}, ())
         assert notices == []
+
+
+class TestRepr:
+    """001.24 point 11 (S1.5b row 28): the raw text is not in the `repr` of a `KeptWord` or of
+    `KeptWords`, so a `print` or a log line cannot leak a phone number said in the video."""
+
+    def test_edl_kept_repr_the_phone_said_in_words_is_not_in_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        kept, _ = _kept(_project(tmp_path, monkeypatch), ONE)
+        text = repr(kept)
+        assert not set(PHONE) & set(text.replace("'", " ").replace(",", " ").split())
+        assert "nueve" not in text and "ocho" not in text and "siete" not in text
+        assert "KeptWords(" in text and "shown=" in text and "masked=True" in text
+
+    def test_edl_kept_repr_a_word_hides_its_text_and_keeps_where_it_is(self) -> None:
+        word = KeptWord("a1:w0001", "8095551234", 1, 30, 60, "a1", 1000, 2000)
+        shown = repr(word)
+        assert "8095551234" not in shown and "809" not in shown
+        assert "a1:w0001" in shown and "out_s_f=30" in shown
+
+    def test_edl_kept_repr_the_words_are_still_there_to_be_read(self) -> None:
+        word = KeptWord("a1:w0001", "8095551234", 1, 30, 60, "a1", 1000, 2000)
+        kept = KeptWords([word], {"a1:w0001": "********34"}, (), True)
+        assert kept.words[0].text == "8095551234" and kept.words == [word]
+        assert "8095551234" not in repr(kept) and "********34" in repr(kept)

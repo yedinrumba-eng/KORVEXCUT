@@ -1,1 +1,1 @@
-"""Rendering pieces. S1.5a holds only the geometry that EDL validation needs."""
+"""Rendering: geometry and looks, the picture of each frame, mezzanines, the encode and the lock."""

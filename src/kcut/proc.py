@@ -15,6 +15,7 @@ from kcut import childlog
 from kcut.errors import MissingDependency, ToolError
 from kcut.logfile import append_log as append_log
 from kcut.logfile import log_writer
+from kcut.scrub import hide_paths
 from kcut.scrub import scrub_media_metadata as scrub_media_metadata
 from kcut.toolpath import tool_path as tool_path
 
@@ -114,10 +115,13 @@ class ChildProcess:
         self._popen.kill()
 
     def stderr_tail(self, n: int = _TAIL_LINES) -> str:
-        """Last `n` stderr lines of this child only, scrubbed. Empty until the child is done."""
+        """Last `n` stderr lines of this child only, scrubbed: no metadata, and every path of its
+        command (the input, the output) as `<ruta>`, because a file name is untrusted text and
+        the tail goes into error messages (001.25, point 12). Empty until the child is done."""
         if self._stderr_text is None:
             return ""
-        return "\n".join(scrub_media_metadata(self._stderr_text).splitlines()[-n:])
+        clean = hide_paths(scrub_media_metadata(self._stderr_text), self._args)
+        return "\n".join(clean.splitlines()[-n:])
 
     def __enter__(self) -> Self:
         return self

@@ -17,6 +17,7 @@ from kcut.ingest.inventory import load_inventory
 from kcut.paths import resolve_in_project
 from tests.conftest import run_kcut
 from tests.fixtures.synth_edl import write_edl_v1
+from tests.integration.edl_cli_cases import *  # noqa: F403  (001.24: 300-line rule)
 from tests.integration.view_frames_helpers import Run, project_args, remove
 
 pytestmark = [pytest.mark.ffmpeg, pytest.mark.slow]

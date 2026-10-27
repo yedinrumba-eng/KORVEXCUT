@@ -2,6 +2,7 @@
 or deleted, even when the paths come from a poisoned cache."""
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -110,14 +111,16 @@ class TestAssertInCache:
     ) -> None:
         victim_dir = tmp_path / "victima"
         victim_dir.mkdir()
-        (victim_dir / "a1_x.partial.wav").write_bytes(b"mia")
+        # 001.26: the partial has the pid in its name, so this is the file the build would use
+        victim = victim_dir / f"a1_x.{os.getpid()}.partial.wav"
+        victim.write_bytes(b"mia")
         make_dir_link(project.layout.wav48, victim_dir)
         monkeypatch.setattr(proc, "run", lambda *_a, **_k: pytest.fail("ffmpeg must not run"))
         with pytest.raises(ProjectError):
             workfiles._build(
                 project, lambda out: ["x"], project.layout.wav48 / "a1_x.wav", ("h", {}, 1.0), None
             )
-        assert (victim_dir / "a1_x.partial.wav").read_bytes() == b"mia"
+        assert victim.read_bytes() == b"mia"  # 001.26: the same file as above, with the pid
 
 
 class TestOldWavReuse:

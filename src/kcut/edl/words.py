@@ -10,7 +10,7 @@ With `A = in_f * 1000`, `B = out_f * 1000`, `S = s_ms * fps` and `E = e_ms * fps
 
 from bisect import bisect_left
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from kcut.edl.model import Edl, VoiceClip
 from kcut.timebase import ms_to_f_ceil, rdiv
@@ -26,10 +26,11 @@ MIN_WORD_SHOWN_MS = 120  # nor for less (a subtitle that flashes cannot be read)
 class KeptWord:
     """A word of the transcript that the cut keeps. `clip_index` is its voice clip's index in
     `edl.clips`; `out_s_f` and `out_e_f` are the output frames it is shown in; `text` is the
-    corrected text, as raw as the transcript has it; `s_ms` and `e_ms` are the transcript's."""
+    corrected text, as raw as the transcript has it (so it is not in the `repr`: a `print` or a log
+    must not leak a phone number, 001.24 point 11); `s_ms` and `e_ms` are the transcript's."""
 
     id: str
-    text: str
+    text: str = field(repr=False)
     clip_index: int
     out_s_f: int
     out_e_f: int

@@ -17,7 +17,6 @@ from PIL import Image
 
 from kcut.analysis.energy import Run, rms_db, silence_runs
 from kcut.audio.wavio import read_wav_range
-from kcut.commands.pack import UNMASKED
 from kcut.config.model import AnalysisSection
 from kcut.console import Out
 from kcut.errors import ProjectError, UsageError
@@ -26,7 +25,7 @@ from kcut.ingest import workfiles
 from kcut.ingest.inventory import Clip, Inventory, Notice
 from kcut.jsonio import write_bytes_atomic
 from kcut.pack.assemble import HOP_MS, cover
-from kcut.pack.pii import mask_pii
+from kcut.pack.pii import UNMASKED, mask_pii
 from kcut.paths import resolve_in_project, to_rel
 from kcut.project import Project, assert_writable, load_inventory, open_project, under_kcut
 from kcut.schema_util import describe_value

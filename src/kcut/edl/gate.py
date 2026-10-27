@@ -3,25 +3,26 @@ it (exit 5); `edl check` only reports it.
 
 The answer is "no" at the least doubt: the front-matter of `edit/estrategia.md` is read line by
 line with a strict pattern, so a line that smuggles a second `aprobado: si` behind a Unicode line
-separator is not approval.
+separator is not approval. And the value is compared exactly (001.24, point 3): `❌ sí` or `[ ] sí`
+are not `sí`, even though a human reads them as a no.
 """
 
 import re
 import unicodedata
 from dataclasses import dataclass
 
+from kcut.edl.shown import shown_text
 from kcut.errors import GateError, ProjectError
 from kcut.jsonio import read_capped
 from kcut.paths import resolve_in_project
 from kcut.project import Project
-from kcut.schema_util import describe_value
-from kcut.text.normalize import norm_token
 
 STRATEGY_REL = "edit/estrategia.md"
 MAX_STRATEGY_BYTES = 256 * 1024  # a strategy is a page or two; a bigger file is not read
 MAX_LINE = 1000  # characters of a front-matter line (the pattern below is not linear on long ones)
 _LINE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*):[ \t]*(.*?)[ \t]*")
 _BAD_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+_YES = frozenset({"si", "sí"})
 
 
 @dataclass(frozen=True)
@@ -78,10 +79,18 @@ def strategy_approved(project: Project) -> GateStatus:
         return GateStatus(False, STRATEGY_REL, f"{STRATEGY_REL}: {exc.message_es}")
     if "aprobado" not in front:
         return GateStatus(False, STRATEGY_REL, "el front-matter no tiene la clave aprobado")
-    if norm_token(front["aprobado"]) != "si":
-        said = describe_value(front["aprobado"])
+    value = front["aprobado"]
+    if not _says_yes(value):
+        said = shown_text(value)  # the text of the file is never echoed (001.24, point 6)
         return GateStatus(False, STRATEGY_REL, f"la estrategia no está aprobada (aprobado: {said})")
     return GateStatus(True, STRATEGY_REL, "estrategia aprobada")
+
+
+def _says_yes(value: str) -> bool:
+    """Is the value of `aprobado`, without the U+0020 at its edges, `si` or `sí` after NFC and
+    `.lower()`? Nothing else: no punctuation, no marks, no invisible letters. Not `casefold`: it
+    turns the long s (U+017F) into `s`, and `ſi` would approve (001.25, point 13)."""
+    return unicodedata.normalize("NFC", value.strip(" ")).lower() in _YES
 
 
 def _chomp(line: str) -> str:

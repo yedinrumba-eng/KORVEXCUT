@@ -25,6 +25,7 @@ from tests.unit.pii_cases_v5 import (  # 001.22: collected here, test_pii.py is 
     TestPiiEmailV5Numbers,
     TestPiiEmailV5OpenTld,
 )
+from tests.unit.pii_cases_v6 import TestPiiEmailGluedV3, TestPiiEmailV6JoinRepeat  # 001.24
 
 __all__ = [
     "TestPiiAbsorbBackwards",
@@ -34,9 +35,11 @@ __all__ = [
     "TestPiiBridge",
     "TestPiiEmailGluedNumber",
     "TestPiiEmailGluedV2",
+    "TestPiiEmailGluedV3",
     "TestPiiEmailV5Guion",
     "TestPiiEmailV5Numbers",
     "TestPiiEmailV5OpenTld",
+    "TestPiiEmailV6JoinRepeat",
     "TestPiiRestartV2",
     "TestPiiTens",
 ]

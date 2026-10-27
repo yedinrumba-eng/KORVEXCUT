@@ -8,21 +8,30 @@ from itertools import pairwise
 from kcut.config.model import ProjectConfig
 from kcut.edl.model import BrollSpan, CamSpan, ColorSpan, Edl, Span, VoiceClip
 from kcut.edl.refs import SourceStatus
+from kcut.edl.shown import shown_id, shown_number
 from kcut.edl.timeline import VoiceIndex, is_contiguous
 from kcut.ingest.inventory import Inventory
 from kcut.issues import Issue
 from kcut.render.geometry import upscale_factor
-from kcut.schema_util import describe_value
 
 MAX_UPSCALE = 1.10  # W01 warns when the picture is stretched more than 10 % past its pixels
 # W03 warns when two shots of one camera differ less than 15 % in zoom
 MIN_ZOOM_CHANGE = Fraction(15, 100)
 
 
-def span_hints(edl: Edl, inv: Inventory, cfg: ProjectConfig, status: SourceStatus) -> list[Issue]:
-    """W01, W03, W04 and W05 for every span, in the order of the spans."""
+def span_hints(
+    edl: Edl,
+    inv: Inventory,
+    cfg: ProjectConfig,
+    status: SourceStatus,
+    voices: VoiceIndex | None = None,
+) -> list[Issue]:
+    """W01, W03, W04 and W05 for every span, in the order of the spans. `voices` is the
+    `VoiceIndex` of the EDL if the caller has one (001.24, point 4)."""
     issues: list[Issue] = []
-    index = VoiceIndex(edl) if is_contiguous(edl.clips) else None
+    index = None
+    if is_contiguous(edl.clips):
+        index = voices if voices is not None else VoiceIndex(edl)
     for i, span in enumerate(edl.spans):
         path = f"spans[{i}]"
         if isinstance(span, ColorSpan) and span.look is not None:
@@ -31,7 +40,7 @@ def span_hints(edl: Edl, inv: Inventory, cfg: ProjectConfig, status: SourceStatu
             )
         issues += _upscale(span, path, inv, cfg, status)
         if i and isinstance(span, CamSpan) and _flat_cut(edl.spans[i - 1], span, status):
-            name = describe_value(span.src)
+            name = shown_id(span.src)
             found = f"corte entre dos cam de {name} que casi no cambia el zoom"
             issues.append(Issue("W03", "warning", path, found))
         if index is not None and isinstance(span, CamSpan) and span.src_f is None:
@@ -58,7 +67,7 @@ def _upscale(
     if factor <= MAX_UPSCALE:
         return []
     found = (
-        f"agranda {factor:.2f}x los pixeles de {describe_value(span.src)} "
+        f"agranda {factor:.2f}x los pixeles de {shown_id(span.src)} "
         f"({clip.video.display_w}x{clip.video.display_h}); se verá blando"
     )
     return [Issue("W01", "warning", path, found)]
@@ -84,6 +93,7 @@ def _crosses_cut(index: VoiceIndex, span: CamSpan, path: str) -> list[Issue]:
     voices = [clip for _, clip in index.overlapping(span.at_f, end) if isinstance(clip, VoiceClip)]
     for before, after in pairwise(voices):
         if span.at_f < after.at_f < end and (before.src != after.src or before.out_f != after.in_f):
-            found = f"el cam sincronizado cruza un corte de voz en el frame {after.at_f} de salida"
+            at = shown_number(after.at_f)
+            found = f"el cam sincronizado cruza un corte de voz en el frame {at} de salida"
             return [Issue("W04", "warning", path, found)]
     return []

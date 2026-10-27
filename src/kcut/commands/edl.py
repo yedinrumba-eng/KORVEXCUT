@@ -1,7 +1,9 @@
 """kcut edl: `check` judges an `edit/edl-vN.json`, `sources` prints the block that goes in it.
 
 `check` exits 1 if the EDL has errors (warnings never fail it) and always says whether Gate 1, the
-strategy, is approved; `render` and `build` are the ones that refuse to run without it.
+strategy, is approved; `render` and `build` are the ones that refuse to run without it. It prints
+the summary and the gate first and then at most `MAX_SHOWN` errors and as many warnings, so an EDL
+with thousands of findings costs a page, not a log (001.24, point 5).
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from kcut.edl.check import EdlCheck, check_edl_file, clip_audio_frames
 from kcut.edl.gate import GateStatus, strategy_approved
 from kcut.errors import UsageError
 from kcut.ingest.inventory import Clip, Inventory
-from kcut.issues import exit_code, issue_json
+from kcut.issues import Issue, exit_code, issue_json
 from kcut.project import Project, load_inventory, open_project
 from kcut.schema_util import describe_value
 from kcut.timebase import fmt_tc, ms_to_f_round
@@ -22,6 +24,7 @@ from kcut.timebase import fmt_tc, ms_to_f_round
 NAME = "edl"
 HELP_ES = "Revisa el EDL (check) o imprime su bloque sources (sources)"
 _NOT_MEDIA = ("imagen", "doc", "desconocido")
+MAX_SHOWN = 50  # errors, and warnings, that `check` lists
 
 
 def add_parser(
@@ -72,15 +75,13 @@ def _check(args: argparse.Namespace) -> int:
     gate = strategy_approved(project)
     errors = [issue for issue in result.issues if issue.level == "error"]
     warnings = [issue for issue in result.issues if issue.level == "warning"]
-    for issue in errors:
-        out.line("ERROR", f"{issue.code} {issue.path}: {issue.message_es}")
-    for issue in warnings:
-        out.line("AVISO", f"{issue.code} {issue.path}: {issue.message_es}")
     fps = project.config.output.fps
     shown = _duration(result, fps)
     summary = f"{result.rel}: {shown}, {len(errors)} errores, {len(warnings)} avisos"
     out.line("ERROR" if errors else "OK", summary)
     out.line("OK" if gate.approved else "AVISO", f"estrategia ({gate.file}): {gate.reason_es}")
+    _list(out, "ERROR", errors)
+    _list(out, "AVISO", warnings)
     out.result(
         {
             "schema": "kcut.edlcheck/1",
@@ -88,18 +89,29 @@ def _check(args: argparse.Namespace) -> int:
             "ok": not errors,
             "frames": None if result.edl is None else result.edl.frames,
             "duration_display": None if result.edl is None else fmt_tc(result.edl.frames, fps),
-            "errors": [issue_json(issue) for issue in errors],
-            "warnings": [issue_json(issue) for issue in warnings],
+            "errors": [issue_json(issue) for issue in errors[:MAX_SHOWN]],
+            "warnings": [issue_json(issue) for issue in warnings[:MAX_SHOWN]],
+            "errors_total": len(errors),
+            "warnings_total": len(warnings),
+            "truncated": len(errors) > MAX_SHOWN or len(warnings) > MAX_SHOWN,
             "gate": _gate_json(gate),
         }
     )
     return exit_code(result.issues)
 
 
+def _list(out: Out, tag: str, issues: list[Issue]) -> None:
+    """The first `MAX_SHOWN` findings, one line each, and how many more there are."""
+    for issue in issues[:MAX_SHOWN]:
+        out.line(tag, f"{issue.code} {issue.path}: {issue.message_es}")
+    if len(issues) > MAX_SHOWN:
+        out.line(tag, f"… y {len(issues) - MAX_SHOWN} más")
+
+
 def _duration(result: EdlCheck, fps: int) -> str:
     if result.edl is None:
         return "no se pudo leer"
-    return f"{result.edl.frames} frames ({fmt_tc(result.edl.frames, fps)})"
+    return f"{describe_value(result.edl.frames)} frames ({fmt_tc(result.edl.frames, fps)})"
 
 
 def _gate_json(gate: GateStatus) -> dict[str, object]:

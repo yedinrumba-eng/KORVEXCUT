@@ -1,9 +1,10 @@
 """Read and write mono audio: 16-bit wav via stdlib `wave`, raw float32 for intermediates (DS4)."""
 
+import contextlib
 import os
 import struct
 import wave
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import BinaryIO
@@ -12,6 +13,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from kcut.errors import ProjectError
+from kcut.jsonio import refuse_directory
 
 _S16_FULL_SCALE = 32768.0
 PEAK_BLOCK_FRAMES = 1_048_576
@@ -222,5 +224,51 @@ def read_f32(path: Path) -> NDArray[np.float32]:
 
 def write_f32(path: Path, x: NDArray[np.float32]) -> None:
     """Write raw float32 little-endian mono samples (no clipping: peaks survive until loudnorm)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(np.asarray(x, dtype="<f4").tobytes())
+    write_f32_blocks(path, [x])
+
+
+def write_f32_blocks(path: Path, blocks: Iterable[NDArray[np.float32]]) -> None:
+    """Write the blocks, one after the other, as raw float32 little-endian mono samples.
+
+    Never in place (001.25, point 3): the samples go to `<name>.<pid>.partial`, created new, and
+    `os.replace` puts the finished file over `path`. A hard link or a link planted at `path` is
+    replaced and not written through, and two processes do not write the same partial. Only one
+    block is in memory at a time. A folder at `path` or at the partial, a file that cannot be
+    deleted or replaced, and a disk that fails are a ProjectError; the partial is never left.
+
+    What fails while a block is being made (`blocks` reads a wav) is not a failure to write: an
+    `OSError` from `blocks` is a ProjectError that says it could not read (001.26, point 6).
+    """
+    refuse_directory(path)
+    partial = path.with_name(f"{path.name}.{os.getpid()}.partial")
+    refuse_directory(partial)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial.unlink(missing_ok=True)  # never write through a stale file or a planted link
+        with partial.open("xb") as handle:
+            for block in _made(blocks):
+                handle.write(np.asarray(block, dtype="<f4").tobytes())
+        os.replace(partial, path)
+    except PermissionError:
+        raise ProjectError(f"cierra el archivo {path} en el reproductor y repite") from None
+    except OSError as exc:
+        raise ProjectError(f"no pude escribir {path}: {exc}") from None
+    finally:
+        with contextlib.suppress(OSError):
+            partial.unlink(missing_ok=True)
+
+
+def _made(blocks: Iterable[NDArray[np.float32]]) -> Iterator[NDArray[np.float32]]:
+    """`blocks`, one by one; an `OSError` that makes one of them is a ProjectError about reading
+    (the file it names, if the error has one), so `write_f32_blocks` does not call it a write."""
+    iterator = iter(blocks)
+    while True:
+        try:
+            block = next(iterator)
+        except StopIteration:
+            return
+        except OSError as exc:
+            raise ProjectError(
+                f"no pude leer {exc.filename or 'lo que iba a escribir'}: {exc}"
+            ) from None
+        yield block

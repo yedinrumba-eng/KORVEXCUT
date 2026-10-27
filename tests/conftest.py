@@ -1,5 +1,6 @@
 """Shared test setup: clean skips for tests that need external tools, and a CLI runner."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -7,9 +8,11 @@ import sys
 from collections.abc import Callable
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from tests.fixtures.synth_edl import write_edl_v1
 from tests.fixtures.synth_media import MediaTruth, make_media
 
 
@@ -106,3 +109,22 @@ def synth_project(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Media
     ingested = run_kcut("ingest", "--project", str(root), "--json")
     assert ingested.returncode == 0, ingested.stderr
     return root, truth
+
+
+@pytest.fixture(scope="session")
+def rendered_example(
+    tmp_path_factory: pytest.TempPathFactory, synth_project: tuple[Path, MediaTruth]
+) -> tuple[Path, dict[str, Any]]:
+    """A copy of the synthetic project with the example EDL of the spec (S1.5), approved and
+    rendered once with `kcut render --no-graphics`: `(project root, the JSON that render printed)`.
+
+    The render costs half a minute, so the whole session shares it: the tests that read
+    `.kcut/build/v1/` and `.kcut/mezz/` (S1.5b rows 5 to 8) must not change them.
+    """
+    root = tmp_path_factory.mktemp("rendered") / "proyecto ñandú"
+    shutil.copytree(synth_project[0], root)
+    write_edl_v1(root)
+    done = run_kcut("render", "--no-graphics", "--project", str(root), "--json")
+    assert done.returncode == 0, done.stderr
+    document: dict[str, Any] = json.loads(done.stdout)
+    return root, document

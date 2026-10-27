@@ -17,6 +17,7 @@ EXPECTED_IDS = [
     "encoders",
     "tonemap_chain",
     "soxr",
+    "looks",  # S1.5b (001.15)
     "libs",
     "whisper_model",
     "chromium",

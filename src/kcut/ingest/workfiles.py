@@ -14,10 +14,11 @@ from kcut import proc
 from kcut.errors import ProjectError, ToolError
 from kcut.ff.args import proxy_args, wav_args
 from kcut.ff.color import CHAIN_VERSION, video_chain
+from kcut.ingest.cache_guard import assert_in_cache
 from kcut.ingest.inventory import Clip, Notice
 from kcut.ingest.probe import VideoInfo
 from kcut.jsonio import MAX_SIDECAR_BYTES, read_json, refuse_directory, write_json_atomic
-from kcut.paths import is_inside, resolve_in_project
+from kcut.paths import resolve_in_project
 from kcut.project import Project
 from kcut.timebase import rdiv
 
@@ -30,21 +31,8 @@ _TIMEOUT_BASE_S = 60.0
 
 SidecarState = Literal["fresh", "stale", "missing", "corrupt"]
 
-
-def _assert_in_cache(project: Project, path: Path) -> Path:
-    """Resolve `path` (following links) and require it to stay inside the real `.kcut/`.
-
-    The cache must really be `<root>/.kcut` (a `.kcut` linked to `crudo/` is refused) and the
-    target must not sit under `crudo/`, whatever the cache says.
-    """
-    cache = project.layout.cache.resolve()
-    if os.path.normcase(str(cache)) != os.path.normcase(str((project.root / ".kcut").resolve())):
-        raise ProjectError(f"{project.layout.cache} no es la carpeta .kcut real del proyecto")
-    resolved = path.resolve()
-    under_crudo = is_inside((project.root / "crudo").resolve(), resolved)
-    if under_crudo or not is_inside(cache, resolved):
-        raise ProjectError(f"{path} queda fuera de .kcut/: kcut no escribe, mueve ni borra ahí")
-    return resolved
+# the guard lives in `cache_guard.py` (001.26, 300-line rule); this is the name the code uses
+_assert_in_cache = assert_in_cache
 
 
 def max_job_seconds(project: Project) -> float:
@@ -251,9 +239,13 @@ def _build(
     job: tuple[str, dict[str, Any], float],
     log: Path | None,
 ) -> None:
-    """Run ffmpeg into `<name>.partial.<ext>`, then replace `dst` and write its sidecar."""
+    """Run ffmpeg into `<name>.<pid>.partial.<ext>`, then replace `dst` and write its sidecar.
+
+    The partial has the pid, so two renders that make the same file do not write the same one and
+    each deletes only its own. If `dst` is fresh when the partial is done (the other one came
+    first) it is used as it is, and the sidecar is the other's (001.26, point 3)."""
     qhash, params, timeout_s = job
-    partial = dst.with_name(f"{dst.stem}.partial{dst.suffix}")
+    partial = dst.with_name(f"{dst.stem}.{os.getpid()}.partial{dst.suffix}")
     for target in (dst, partial, sidecar_path(dst)):
         _assert_in_cache(project, target)  # before touching the disk
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -262,10 +254,27 @@ def _build(
         proc.run(make_args(partial), log=log, timeout_s=timeout_s)
         if not partial.is_file():
             raise ToolError(f"ffmpeg no produjo {dst.name}")
-        _replace(partial, dst)
+        if not _land(partial, dst, qhash, params):
+            return
     finally:
         partial.unlink(missing_ok=True)
     write_json_atomic(sidecar_path(dst), {"qhash": qhash, "params": params})
+
+
+def _land(partial: Path, dst: Path, qhash: str, params: dict[str, Any]) -> bool:
+    """Put `partial` over `dst`: True if it was moved, False if `dst` was already fresh, before
+    or because the replace was refused (a reader has it open: on Windows ffmpeg and `wave` do not
+    share the delete), so the one that is there is the one to use."""
+    if is_fresh(dst, qhash, params):
+        return False
+    refuse_directory(dst)
+    try:
+        os.replace(partial, dst)
+    except PermissionError:
+        if is_fresh(dst, qhash, params):
+            return False
+        raise ProjectError(f"cierra el archivo {dst} en el reproductor y repite") from None
+    return True
 
 
 def _copy(src: Path, dst: Path) -> None:

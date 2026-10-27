@@ -34,3 +34,24 @@ def test_edl_layers_the_issue_module_imports_nothing_of_kcut() -> None:
         check=False,
     )  # fmt: skip
     assert done.stdout.strip() == "['kcut', 'kcut.issues']", done.stderr
+
+
+def test_edl_layers_kept_loads_no_command_and_unmasked_lives_in_pack_pii() -> None:
+    """001.24 point 8 (S1.5b row 25): `UNMASKED` is in `kcut/pack/pii.py`, so `edl.kept` no longer
+    pulls `kcut.commands.pack` (a CLI module) into a library."""
+    code = (
+        "import sys, kcut.edl.kept; "
+        "bad = [m for m in sys.modules if m.startswith('kcut.commands')]; "
+        "print(bad); sys.exit(1 if bad else 0)"
+    )
+    done = subprocess.run(
+        [sys.executable, "-I", "-X", "utf8", "-c", code],
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert (done.returncode, done.stdout.strip()) == (0, "[]"), done.stderr
+    from kcut.commands import pack, view
+    from kcut.pack import pii
+
+    assert pack.UNMASKED is pii.UNMASKED is view.UNMASKED
