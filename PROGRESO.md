@@ -30,7 +30,8 @@
       · verificado: suite completa → 3943 passed, 3 skipped (3025.40 s; exit 0) · criterios S1.5b 1–59 exit 0 · ruff check, ruff format y mypy OK · 3 rondas de revisión (parches 001.25–001.27) + paso 0 (001.24)
 - [x] **S1.6a** — (parte a de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos · paso 0 = spec 001.27
       · verificado: suite completa → 4432 passed, 4 skipped in 1008.43 s (0:16:48), exit 0 (los 4 skips son de symlinks sin privilegio, WinError 1314, aceptados) · fila 17 (`-k workfiles_concurrent`) 3 corridas sueltas → 7 passed las 3 · ruff check, ruff format y mypy limpios · ningún .py pasa de 300 líneas · 2 rondas de revisión + paso 0 (001.27)
-- [ ] **S1.6b** — (parte b de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
+- [x] **S1.6b** — (parte b de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos · paso 0 = spec 001.30
+      · verificado: suite completa → 4918 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio, WinError 1314) · fila S1.6a-17 (`-k workfiles_concurrent`) 10 de 10 en ronda 2 y 3 de 3 en revisión 3 · ruff check, ruff format y mypy limpios · ningún .py pasa de 300 líneas · 3 rondas de revisión + paso 0 (001.30); parches 001.31 a 001.33
 - [ ] **S1.7** — Componentes de lucimiento (pasos, sticker, holograma, globo)
 - [ ] **S1.8a** — (parte a de S1.8) Audio: voz, SFX sintetizados, música, ducking, loudness
 - [ ] **S1.8b** — (parte b de S1.8) Audio: voz, SFX sintetizados, música, ducking, loudness
@@ -61,6 +62,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 26/10/2026 | S1.5a | EDL en frames: modelo, validación, `kcut edl check` (`--json`) y `kcut edl sources`, `kept_words`, geometría; gate que cierra a `no` ante cualquier duda; paso 0 (001.22–001.23); BLOQUEADO del implementador por ejemplos del spec mal escritos (001.23, lección 21); 1 ronda de revisión (verificador y seguridad APROBADOS, 0 CRÍTICO, 0 ALTO); commit `6605456` pusheado a `origin/main` | suite completa → 3331 passed, 3 skipped (implementador 442.57 s; verificador 606.77 s; exit 0 en ambas) · ruff check, ruff format y mypy limpios · ningún archivo pasa de 300 líneas · criterios S1.5a 1–26 exit 0 |
 | 27/10/2026 | S1.5b | `kcut render` base: cámaras e insertos, looks, frame fx y tarjetas de pantalla; mezzanines por tramo con sidecar de frames reales, parciales con pid y aterrizaje seguro entre procesos; pista de voz exacta a la muestra desde el wav48, con fades; lock por versión del build y mux A/V a `render.mp4`; guardas de destino y de enlaces en `.kcut/build/vN`; prefijo `\\?\` quitado en la guarda de caché; paso 0 de 001.24 (deuda 33) incluido; 3 rondas de revisión (ronda 1: 1 ALTO del verificador y 2 ALTO de seguridad; ronda 2: 2 ALTO del verificador, seguridad aprobó; ronda 3: 0 CRÍTICO y 0 ALTO, aprobaron los dos); los BAJO de la ronda 3 van al paso 0 de S1.6a (001.27, puntos 1–9); commit `1d8cf00` pusheado a `origin/main`, que quedó en `a46223d` (specs 001.24–001.27: `5076880`, `6ee21f8`, `7651209`, `a46223d`) | suite completa → 3943 passed, 3 skipped in 3025.40s (0:50:25), exit 0 (los 3 skipped son por falta de privilegio para symlinks en Windows); ruff check src tests → All checks passed!; ruff format --check src tests → 313 files already formatted; mypy → Success: no issues found in 124 source files; tope de 300 líneas → `[]`; criterios S1.5b 1–59 exit 0; repros de concurrencia: stagger_row39 8/8 y wav48_race 5/5 con `[0, 0]`; mezzanine corto 3/3 exit 0 |
 | 27/10/2026 | S1.6a | Capa de gráficos hasta la página HTML: esquema de `graphics.json` con anclas y parámetros, subtítulos por chunks, resolución de cues a frames de salida, imágenes aprobadas, página con runtime JS y 5 componentes base, `kcut graphics check` (G01–G12, JSON enmascarado); paso 0 de 001.27 incluido (barrido de parciales huérfanos, `encoding=` obligatorio, chequeos de `build/vN`, `write_json_exclusive`, hard links marcados como stale); 2 rondas de revisión (ronda 1: verificador 1 CRÍTICO (los errores de `wavio` sacaban la ruta del wav48, con slug y teléfono), seguridad 2 MEDIO y 4 BAJO, implementador BLOQUEADO en fila 17; ronda 2: verificador y seguridad 0 CRÍTICO y 0 ALTO, segundo BLOQUEADO del implementador en fila 17); commits `fdb19a3` y `3261492` pusheados a `origin/main` | suite completa → 4432 passed, 4 skipped in 1008.43 s (0:16:48), exit 0 (los 4 skips son de symlinks sin privilegio, WinError 1314, aceptados); fila 17 `-k workfiles_concurrent` 3 corridas sueltas → 7 passed las 3; ruff check, ruff format y mypy limpios; ningún .py pasa de 300 líneas; verificación final del verificador |
+| 27/10/2026 | S1.6b | Captura de gráficos con Chromium headless (sandbox encendido, sin red por `context.route` y CSP, WebRTC sin UDP directo); cada cuadro se dibuja en una PNG de capa en `.kcut/build/vN/gfx/` con `index.json` por hash de página; `kcut render` mezcla la capa sobre el corte; `kcut graphics capture` y `kcut graphics still` (máx. 60 cuadros por llamada, timeout de 30 s por cuadro); el chequeo de disco cuenta la capa; cada carpeta de caché debe resolver a sí misma y se revisa antes de cada escritura, borrado y lectura de la capa (un hard link no es capa válida); sidecar de work file y mezzanine aterrizan igual que el archivo; módulos neutros `build_folder`, `refuse_edl`, `proxy_of`, `fx_context`; paso 0 = spec 001.30 (filas 13–18); 3 rondas de revisión: ronda 1 (verificador 1 ALTO de antes de S1.6b: con dos renders a la vez, Windows rechazaba el sidecar del wav48 mientras el otro render lo leía, 2 fallos en 14 corridas de S1.6a-17; seguridad 0 ALTO, 5 MEDIO, 6 BAJO) → 001.31 (filas 19–31); ronda 2 (verificador 1 ALTO: `OSError` al arrancar Playwright con driver faltante daba exit 10 en vez de 7) → 001.32 (filas 32–40; además, URL de página comparada distinguiendo mayúsculas, que rompía un host UNC; dígitos de teléfono tras cualquier separador en un nombre de archivo; `809.555.1234` como nombre de archivo sin extensión real); ronda 3: 0 CRÍTICO y 0 ALTO en ambos revisores; código en commit `f8f728f` y spec `b564a45` (001.33) pusheados, `origin/main` en `b564a45` | suite completa → 4918 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio, WinError 1314); fila S1.6a-17 (`-k workfiles_concurrent`) 10 de 10 en ronda 2 y 3 de 3 en ronda 3; verificador: 11 mutaciones en memoria, cada una rompe el test de su fila; ruff check, ruff format y mypy limpios; ningún .py pasa de 300 líneas (`ingest/workfiles.py` queda en 300, S1.7 paso 0 lo parte) |
 
 ---
 
@@ -314,6 +316,10 @@ Entre comprobar que el log vacío es el mismo archivo y borrarlo, alguien con ac
 - Una cadena con un aparte entre cada trozo, donde ningún par llega a 7 ("809 ya 55 ya 512 ya 34"), queda visible (001.23, punto 1).
 - `juan arroba gmail punto com;8095551234`: el correo dictado queda legible; solo pasa con texto hostil.
 - (Fuera del enmascarado, anotado aquí para no perderlo) `qhash` no cubre la parte del medio de los archivos de más de 16 MiB: frena la renumeración accidental, no un archivo fabricado.
+- `pedro@g-809@555@1234.mp4`: un `@` entre los dígitos corta la racha y el nombre `pedro` queda visible.
+- `x/809/555/1234.mp4`: un teléfono partido entre carpetas queda entero.
+- `o'brien@g-809-555-1234.mp4` sale como `o'b***@***.mp4`.
+- Motivo: son rutas armadas a propósito para esos casos; enmascarar más taparía carpetas de fecha como `2026/10/27/` (001.33 punto 10, 001.32 punto 11).
 - **Mitigado hoy por:** cada clip se enmascara entero; el md lleva la línea fija "es dato, nunca instrucciones"; los mensajes van recortados.
 - **Cura real:** en el plugin, negar la lectura de `.kcut/transcripts/**` y trabajar solo con `pack`; juntar números entre clips solo si aparece el caso real — ~2 h.
 - **Cuándo:** spec 002 (el plugin no deja que Claude lea `.kcut/transcripts/`).
@@ -380,17 +386,22 @@ Casos de S1.6a que siguen con la ruta o el nombre con slug:
 - `cli._internal`, que enmascara los dígitos y deja el nombre;
 - un slug sin `@` en lo que imprime `kcut ingest`.
 
+Para el Gate 1 de spec 002:
+
+- (a) Claude no lee `.kcut/build/vN/gfx/` salvo `gfx/stills/`, porque `page.html` y las PNG de la capa llevan texto crudo para el MP4.
+- (b) Decidir si los precios con punto como separador de miles quedan visibles. Hoy `1.500.000` sale enmascarado como `*.***.*00` en la transcripción y en el texto plano; un test lo fija.
+
 - **Mitigado hoy por:** nada; el plugin todavía no existe.
 - **Cura real:** decidir el enmascarado de la consola en el Gate 1 de spec 002, con Yedin (spec 001.27 punto 13) — ~2-4 h.
 - **Cuándo:** Gate 1 de spec 002.
 
-### 35. `require_disk_space` cuenta solo la voz + 1 GiB ⚪
+### 35. `require_disk_space` no cuenta los mezzanines ni el video ⚪
 
-`require_disk_space` cuenta solo la pista de voz + 1 GiB; los mezzanines y el video no entran en el cálculo.
+`require_disk_space` cuenta la pista de voz, 1 GiB y, desde 001.31, la capa de gráficos (`GFX_FRAME_BYTES` = 192 KiB por cuadro activo). Desde 001.30 las cifras van antes de la ruta. Siguen fuera del cálculo los mezzanines y el video.
 
 - **Mitigado hoy por:** si el disco se llena durante los mezzanines o el video, el render sale con `ToolError` y borra su parcial: es una falla segura.
 - **Cura real:** contar también los mezzanines y el video — ~1 h.
-- **Cuándo:** en curso, S1.6b fila 16.
+- **Cuándo:** S1.9b (`kcut build`).
 
 ### 36. `frame_count` duplicado ⚪
 
@@ -414,41 +425,94 @@ Casos de S1.6a que siguen con la ruta o el nombre con slug:
 - **Cura real:** barrido con los clips ordenados — ~1 h.
 - **Cuándo:** S1.8a.
 
-### 39. `captions.hide` sin tope y `graphics check --json` sin tope de errores 🟡
+### 39. `captions.hide` sin tope y `graphics check --json` sin tope de errores ✅ pagada
 
 `captions.hide` no tiene tope, y `graphics check --json` no tiene tope de errores. Abierta al cerrar S1.6a.
 
 - **Riesgo:** un `graphics.json` de menos de 1 MiB con unas 36 000 ventanas cuelga `graphics check` unos 107 s, y uno con 350 000 enteros da 350 000 errores en lo que lee Claude.
 - **Mitigado hoy por:** el tope de 1 MiB de la lectura (001.28). Acota los bytes, no los elementos.
-- **Cura real:** en curso, S1.6b paso 0, fila 13 (`MAX_HIDE = 500`, y 50 errores con totales como en `edl check`) — ~1 h.
-- **Cuándo:** en curso, S1.6b paso 0, fila 13.
+- **Cura real:** S1.6b paso 0, fila 13 (`MAX_HIDE = 500`, y 50 errores con totales como en `edl check`) — ~1 h.
+- **Cuándo:** pagada 27/10/2026 (S1.6b paso 0, fila 13, commit `f8f728f`).
 
-### 40. `assert_in_cache` nombra la ruta ⚪
+### 40. `assert_in_cache` nombra la ruta ✅ pagada
 
 `assert_in_cache` nombra la ruta. Abierta al cerrar S1.6a.
 
 - **Riesgo:** con un junction plantado en un work file, el mensaje de `kcut render` lleva el slug con el teléfono.
 - **Mitigado hoy por:** hace falta plantar el enlace dentro de `.kcut/`. El chequeo falla cerrado y no escribe nada fuera.
-- **Cura real:** en curso, S1.6b paso 0, fila 14 (`label` con `work_label`) — ~30 min.
-- **Cuándo:** en curso, S1.6b paso 0, fila 14.
+- **Cura real:** S1.6b paso 0, fila 14 (`label` con `work_label`) — ~30 min.
+- **Cuándo:** pagada 27/10/2026 (S1.6b paso 0, fila 14, commit `f8f728f`).
 
-### 41. WebP reserva memoria antes del chequeo de píxeles ⚪
+### 41. WebP reserva memoria antes del chequeo de píxeles ✅ pagada
 
 Un WebP reserva memoria antes del chequeo de píxeles. Abierta al cerrar S1.6a.
 
 - **Riesgo:** un archivo de 32 bytes que declara 16384 × 16384 pide unos 2 GB de memoria comprometida antes del chequeo.
 - **Mitigado hoy por:** no se alcanza. Ningún componente base tiene un parámetro `path` hasta S1.7, y toda imagen pide aprobación humana en el manifiesto.
-- **Cura real:** en curso, S1.6b paso 0, fila 15 (leer ancho y alto de la cabecera RIFF antes de `Image.open`) — ~1 h.
-- **Cuándo:** en curso, S1.6b paso 0, fila 15.
+- **Cura real:** S1.6b paso 0, fila 15 (leer ancho y alto de la cabecera RIFF antes de `Image.open`) — ~1 h.
+- **Cuándo:** pagada 27/10/2026 (S1.6b paso 0, fila 15, commit `f8f728f`).
 
-### 42. Etiqueta de una letra con teléfono en `mask_bare_domains` ⚪
+### 42. Etiqueta de una letra con teléfono en `mask_bare_domains` ✅ pagada
 
 Hay una etiqueta de una letra con teléfono en `mask_bare_domains`. Abierta al cerrar S1.6a.
 
 - **Riesgo:** `pedro@g-8095551234.mp4` deja ver `pedro`. El teléfono sí sale tapado.
 - **Mitigado hoy por:** el enmascarado de dígitos tapa el teléfono. Es un nombre de archivo poco realista.
-- **Cura real:** en curso, S1.6b paso 0, fila 17 (tapar la etiqueta que lleva 7 dígitos seguidos o más) — ~30 min.
-- **Cuándo:** en curso, S1.6b paso 0, fila 17.
+- **Cura real:** S1.6b paso 0, fila 17 (tapar la etiqueta que lleva 7 dígitos seguidos o más) — ~30 min.
+- **Cuándo:** pagada 27/10/2026 (S1.6b paso 0, fila 17, commit `f8f728f`).
+
+### 43. Cada PNG de la capa se decodifica dos veces ⚪
+
+Una vez en `_max_alpha` al capturar y otra en el overlay al renderizar.
+
+- **Riesgo:** CPU de más en captura y render; no afecta el resultado.
+- **Mitigado hoy por:** nada; no hace falta, el costo es tiempo.
+- **Cura real:** guardar el alfa máximo en el índice o decodificar una vez — ~1 h.
+- **Cuándo:** cuando se mida rendimiento en S1.9b.
+
+### 44. Dos tests importan el privado `kcut.commands.pack._energy` ⚪
+
+Son `tests/unit/test_wavio.py` y `tests/unit/wavio_cases.py`. `tests/unit/test_layers.py` solo mira `src/kcut/`.
+
+- **Riesgo:** cambiar `commands/pack.py` rompe tests de otra cosa.
+- **Mitigado hoy por:** la suite lo detecta enseguida.
+- **Cura real:** probar la función pública de `analysis/energy.py` — ~30 min.
+- **Cuándo:** la próxima vez que se toque `commands/pack.py`.
+
+### 45. Un `seek` que encuentra la página ya bloqueada no vuelve 🟡
+
+Pasa con una tarea del JS que la página dejó para después del frame anterior. `cdp.send` no tiene timeout, así que el lock `build-vN` queda tomado y Chromium al 100 %.
+
+- **Mitigado hoy por:** el JS de kcut no deja tareas diferidas; el `seek` es síncrono y la carga es un `Promise.all`. Además, S1.7 paso 0 fila 9 pone tope a la foto.
+- **Cura real:** un vigilante que mate el árbol de procesos de Chromium por pid al pasar el tope — ~2 h.
+- **Cuándo:** si un componente empieza a usar temporizadores.
+
+### 46. Ventanas de microsegundos entre mirar y usar en la caché ⚪
+
+Aceptadas en spec 001.32 punto 8.
+
+- **Riesgo:** un proceso local con escritura en `.kcut/` que acierte esa ventana.
+- **Mitigado hoy por:** cada escritura, borrado y lectura se mira justo antes.
+- **Cura real:** operar sobre handles en vez de rutas — ~4 h.
+- **Cuándo:** solo si kcut llega a correr donde otros escriben en `.kcut/`.
+
+### 47. Hallazgos de la revisión de S1.6b que van al paso 0 de S1.7 🟡
+
+Lo que falta; todo va al paso 0 de S1.7:
+
+- La foto de Chromium sin tope;
+- los stills leídos de disco;
+- los work files sin mirar después del ffmpeg (obliga a partir `workfiles.py`);
+- WebRTC por TURN sobre TCP;
+- la carpeta `gfx/` cambiada durante el render;
+- el traceback de asyncio cuando falta el driver;
+- dos regex de extensión sin amarrar;
+- el tope total de imágenes de la página;
+- un comentario viejo.
+
+- **Mitigado hoy por:** ninguno se alcanza con el JS de kcut ni sin acceso local de escritura a `.kcut/`.
+- **Cura real:** filas 9-18 de S1.7, ~6-8 h en total.
+- **Cuándo:** en curso, S1.7 paso 0.
 
 ---
 
@@ -617,7 +681,31 @@ Hay una etiqueta de una letra con teléfono en `mask_bare_domains`. Abierta al c
 - **Síntoma:** el resultado de la suite dependía del largo del `--basetemp`.
 - **Por qué engañaba:** el test de disco lleno pasaba solo y fallaba dentro de la suite completa. Parecía intermitente, pero era la ruta de la subcarpeta, 5 caracteres más larga.
 - **Causa real:** el mensaje de disco lleno pone la ruta antes de la cifra, y `cli` la recorta a 300 caracteres.
-- **Fix:** en curso, paso 0 de S1.6b (fila 16). Mientras, la suite se corre con `--basetemp` directo, sin subcarpeta.
+- **Fix:** pagada en S1.6b fila 16: el mensaje lleva las cifras antes de la ruta.
+
+### 32. "3 de 3" no prueba que un fallo intermitente se fue
+- **Síntoma:** S1.6a cerró con la fila 17 en 3 de 3, y en S1.6b el verificador la vio fallar 2 de 14.
+- **Por qué engañaba:** con un fallo de 1 en 7, tres corridas verdes salen el 63 % de las veces.
+- **Causa real:** el reemplazo del sidecar lo rechazaba Windows mientras el otro render lo leía para ver si estaba fresco.
+- **Fix:** `ingest/sidecar.land_sidecar` (espera y acepta el sidecar bueno del otro). Ahora la fila pide 10 corridas seguidas; con el mismo fallo, 10 verdes salen solo el 21 % de las veces.
+
+### 33. Un test que levanta la misma excepción que el `except` atrapa no prueba el `except`
+- **Síntoma:** la fila 29 pasaba y el arranque de Chromium igual daba exit 10.
+- **Por qué engañaba:** el test levantaba `playwright.sync_api.Error`, justo lo que el `except` atrapaba.
+- **Causa real:** cuando falta el driver, lo que sale es `FileNotFoundError`.
+- **Fix:** `except (Error, OSError)`, y el test usa la falla real: el driver apuntado a un exe que no existe. Va con la lección 28.
+
+### 34. Una basetemp con la ruta comida cayó dentro del repo
+- **Síntoma:** una corrida de la suite dio `54 failed, 547 errors`, con "los proyectos de video no van dentro del repo de kcut", y apareció en la raíz una carpeta de 916 MB con 12 junctions.
+- **Por qué engañaba:** parecía una regresión enorme y era el entorno.
+- **Causa real:** el shell se comió las barras invertidas de `--basetemp`.
+- **Fix:** pasar la basetemp con `/` o entre comillas, mirar que `git status` no crezca, y borrar primero los enlaces (comprobando hacia dónde apuntan) y después la carpeta, siempre antes de cualquier `git add`.
+
+### 35. Un slice entero sin commit no deja línea base
+- **Síntoma:** un implementador dejó en 0 bytes un archivo de tests sin rastrear, con un script, y lo reescribió de memoria.
+- **Por qué engañaba:** la cuenta de tests cuadraba, pero no hay forma de probar que no se perdió otro test.
+- **Causa real:** S1.6b estuvo sin commit durante 3 rondas, así que git no tenía copia.
+- **Fix:** el verificador comprobó con mutaciones que los tests de sus filas muerden. De ahora en adelante, antes de cada ronda de arreglos el coordinador copia al scratchpad los archivos sin rastrear del slice.
 
 ---
 
