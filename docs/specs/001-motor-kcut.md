@@ -97,6 +97,9 @@ src/kcut/edl/__init__.py  model.py  validate.py  refs.py  ranges.py  check.py  t
 src/kcut/render/__init__.py  geometry.py                                       S1.5a (001.15: W01 la usa)
 src/kcut/commands/edl.py                                                       S1.5a (`check` y `sources`, 001.15)
 src/kcut/render/looks.py  frame_fx.py  screen_card.py  mezz.py  mezz_files.py  reads.py  compose.py  encoder.py  lock.py   S1.5b (frame_fx: 001.15)
+src/kcut/render/mezz_index.py  src/kcut/ingest/cache_guard.py                S1.5b (partidos de mezz_files.py y workfiles.py por la regla de 300 líneas; 001.27)
+src/kcut/edl/shown.py  readers.py  src/kcut/pack/pii_written.py              S1.5b (partidos por la regla de 300 líneas; 001.25)
+src/kcut/ingest/partials.py                                                   S1.6a (paso 0, 001.27: barrido de parciales huérfanos)
 src/kcut/audio/voice_track.py                                                  S1.5b
 src/kcut/pipeline/__init__.py  mux.py                                          S1.5b
 src/kcut/commands/render.py                                                    S1.5b
@@ -2418,6 +2421,16 @@ Todos los tiempos son enteros (sin anclas), así no dependen de que haya modelo 
 | 9 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
 | 10 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
 | 11 | Sin `edit/graphics.json` (001.15, punto 40): con captions encendidos y una transcripción plantada con `save_transcript` (con un teléfono dicho), `kcut graphics check --json` → exit 0, `"graphics_json": null`, `"cues": []`, `chunks` no vacío con el teléfono enmascarado y G11 en `warnings`; con `captions.enabled = false` en `kcut.toml` → exit 0, `"chunks": []` y G12; con captions encendidos y sin transcripción → exit 1 con G08; con el archivo presente manda el archivo (los 4 cues de la fixture) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_graphics_check.py -q -k default_captions` → exit 0 | ❌ |
+| 12 | Paso 0 (001.27 punto 1): `kcut/ingest/partials.py` `sweep_orphan_partials(project, now=None) -> int` mira `.kcut/mezz`, `.kcut/wav16`, `.kcut/wav48` y `.kcut/proxy`, sin bajar a subcarpetas, y borra solo los archivos regulares con un solo enlace (`paths.lone_file_reason(os.lstat(...))` es None) cuyo nombre cumple `^.+\.[0-9]{1,10}\.partial(\.[A-Za-z0-9]{1,8})?$` o `^.+\.[0-9]{1,10}\.tmp$` y cuyo `st_mtime` tiene más de `ORPHAN_AGE_S = 86400` s; una carpeta, un symlink, un junction, un hard link, un parcial de menos de 24 h o uno que no se deja borrar (`OSError`) se quedan donde están, sin error; devuelve cuántos borró; `kcut render` (dentro del lock, antes de los mezzanines) y `kcut ingest` (al empezar) lo llaman y la cuenta va solo al log. Test: con `now` fijo, un `a1_x.4242.partial.wav` y un `a1_x.mp4.json.4242.tmp` de hace 25 h desaparecen; uno de hace 1 h, un junction con nombre de parcial, un hard link con nombre de parcial y `a1_x.wav` quedan; un `kcut render` del sintético con un parcial de mezzanine de hace 25 h plantado sale con 0 y el parcial ya no está | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_partials_sweep.py tests/integration/test_render_synth.py -q -k orphan_partials` → exit 0 | ❌ |
+| 13 | Paso 0 (001.27 punto 2): ninguna llamada a `open`, `.open`, `.read_text` ni `.write_text` de `src/` ni de `tests/` va sin `encoding=`, salvo un `open`/`.open` con un modo literal que lleva `b`; un test que recorre el AST de los dos árboles falla con la lista `archivo:línea`; y los tres módulos que fallaron sin `-X utf8` (001.26 punto 13) pasan sin él | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_text_encoding.py -q` → exit 0, y `.venv/Scripts/python.exe -I -m pytest tests/integration/test_ingest_edge.py tests/integration/test_sync_version.py tests/integration/test_ingest_output.py -q -p no:cacheprovider` (sin `-X utf8`) → exit 0 | ❌ |
+| 14 | Paso 0 (001.27 punto 3): un **archivo** en `.kcut/build/vN` → `ProjectError` (3) "<ruta> es un archivo; kcut espera una carpeta ahí: bórralo o renómbralo", nunca 10; `.kcut/mezz/` no se crea | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_render_synth.py -q -k build_dir_file` → exit 0 | ❌ |
+| 15 | Paso 0 (001.27 punto 4): `_build_folder(project, version)` se vuelve a llamar justo antes de cada escritura en la carpeta: al empezar `_picture`, antes de `write_voice` y al empezar `_mux`. Test en el mismo proceso: si después de los mezzanines `build/v7` se cambia por un junction a `.kcut/`, el render sale con 3 y la raíz de `.kcut/` no gana `video.mp4`, `video.partial.mp4`, `voice_raw.f32`, `render.mp4` ni `render.partial.mp4`; lo mismo si el cambio se hace después de `_picture` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_render_synth.py -q -k build_dir_swap` → exit 0 | ❌ |
+| 16 | Paso 0 (001.27 punto 5): `_write_sidecar` de `render/mezz_files.py` pasa a `kcut/jsonio.py` como `write_json_exclusive(path, obj)`, con el mismo comportamiento (`<nombre>.<pid>.tmp`, `unlink`, `open("x")`, `os.replace`, los mismos mensajes); `mezz_files` y el sidecar de `workfiles._build` (wav16, wav48 y proxy) lo usan; `write_json_atomic` no cambia. Test: el sidecar de un work file pasa por `<sidecar>.<pid>.tmp` (se espía `os.replace`), y un `<sidecar>.tmp` plantado (el nombre compartido de antes) queda byte por byte igual | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_workfiles.py tests/unit/test_mezz_plan.py -q -k sidecar_tmp_pid` → exit 0 | ❌ |
+| 17 | Paso 0 (001.27 punto 6): el test de la fila S1.5b-51 hace las 5 corridas que dice la fila, no 2 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_render_synth.py tests/unit/test_workfiles.py -q -k workfiles_concurrent` → exit 0, y revisión del test | ❌ |
+| 18 | Paso 0 (001.27 punto 7): en rutas, `mask_bare_domains` tapa además toda etiqueta cuyos 3 primeros caracteres son letras (`str.isalpha`): `pedrogomez@gmail_2026.mp4`, `pedrogomez@gmail_final_v2.mp4`, `pedrogomez@empresa-v2.mp4`, `pedrogomez@hotmail2.mp4` y `clip@take3.mp4` salen `<inicial>***@***.mp4`; `pedrogomez@gmail-8095551234.mp4` sale `p***@***.mp4`, sin ningún dígito del teléfono; `logo@2x.png`, `lunes@10am.mp4` y `foto@v2.mp4` no cambian; `pedrogomez@mi-empresa.mp4` sigue tapado | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_pack.py -q -k path_email_v5` → exit 0 | ❌ |
+| 19 | Paso 0 (001.27 punto 8): un mezzanine, un wav16, un wav48 o un proxy que no es un archivo regular con un solo enlace (`paths.lone_file_reason(os.lstat(...))` no es None) es `stale` en `mezz_files._state` y en `workfiles.sidecar_state`, aunque su sidecar diga otra cosa. Test: un hard link en `.kcut/mezz/<nombre>.mp4` hacia un mp4 de fuera del proyecto, con su sidecar copiado → el render lo rehace (`mezz_built` 1, `mezz_reused` 0), el archivo de fuera queda con el mismo sha256 y el mezzanine nuevo tiene `st_nlink` 1; lo mismo con un hard link en el wav48 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_render_synth.py tests/unit/test_workfiles.py -q -k hardlink_stale` → exit 0 | ❌ |
+| 20 | Paso 0 (001.27 punto 9): mientras se arma la voz (`write_voice`), ningún mensaje de error lleva la ruta del wav48 ni `str()` de un `OSError` (que trae la ruta): dice `el wav48 de <id>` y `exc.strerror` (o el nombre de la clase si no hay); `wavio._made` dice "no pude leer el audio de entrada: <strerror>". Test: un clip `Ana Perez 809-555-1234.mp4` (sintético) cuya lectura del wav48 levanta `PermissionError(13, ..., <ruta>)` → exit 3, el mensaje trae `wav48 de a1` y no trae `809`, `555` ni `1234` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_voice_track.py tests/unit/test_wavio_f32.py -q -k voice_read_no_path` → exit 0 | ❌ |
+| 21 | Paso 0 (001.27): toda aserción vieja que cambie en este paso lleva `# 001.27` en la línea o en el comentario justo encima y no se debilita (la de `pedrogomez@hotmail2.mp4` de la fila S1.5b-57 pasa de "no cambia" a tapada); `git diff --exit-code 6605456 -- tests/unit/test_pack_cameras.py tests/unit/test_pack_writer.py` da exit 0; la suite completa da exit 0 | revisión del diff + el `git diff` + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider` → exit 0 | ❌ |
 
 Equivalencias: S1.6-1 → a-1 · S1.6-2 → a-2 · S1.6-3 → a-3 · S1.6-8 → a-9 y b-10.
 
@@ -4358,3 +4371,48 @@ Esta es la ronda 3 de 3 de S1.5b, que suma los criterios 48–59. Lo que no es c
     - Hay tests que escriben `kcut.toml` con `write_text` sin `encoding=` y solo fallan sin `-X utf8`, como pasa con pytest-xdist (que se probó y se descartó: misma duración y 20 fallos). Va al paso 0 de S1.6a.
     - `＠` (U+FF20), `(at)` y un zero-width dentro de la parte local dejan legible parte de una dirección. Es texto deliberado, como 001.24 punto 14.
     - Siguen en la deuda: `frame_count` duplicado, `VoiceIndex.overlapping` lento ante un EDL hostil y `voice_blocks` O(bloques × clips).
+
+### 001.27 — 27/10/2026 — cierre de S1.5b y paso 0 de S1.6a
+
+S1.5b cerró en `1d8cf00`, en la ronda 3: el verificador y seguridad aprobaron con 0 CRÍTICO y 0 ALTO, con la suite en `3943 passed, 3 skipped`. Entre los dos dejaron 7 BAJO distintos; dos los vieron los dos. Van aquí, junto con lo que 001.26 punto 13 mandó al paso 0, **antes** de los gráficos, en el mismo slice S1.6a y con los mismos revisores. S1.6a suma los criterios 12–21. Lo que no es contrato lo decidió el coordinador.
+
+1. **Parciales huérfanos** (001.26 punto 13; `ingest/partials.py`, nuevo):
+   - Un render matado a la fuerza deja `<nombre>.<pid>.partial<ext>` y `<sidecar>.<pid>.tmp` en la caché, y nadie los barre.
+   - `kcut render` y `kcut ingest` borran los que tienen más de 24 h. Un render vivo no tarda tanto, así que el barrido no le toca nada a otro proceso; en Windows, además, un archivo abierto no se deja borrar y se salta.
+   - Nunca se sigue un enlace, y un hard link no se borra.
+   - Criterio S1.6a-12.
+2. **`encoding=` en todo texto** (001.26 punto 13): hay tests que escriben `kcut.toml` sin `encoding=` y solo pasan con `-X utf8`. Un test de AST lo cierra para siempre, en `src/` y en `tests/`. Criterio S1.6a-13.
+3. **BAJO (los dos revisores) — `build/vN` es un archivo** (`commands/render.py _build_folder`): pasaba el chequeo y `mkdir` reventaba con exit 10. Ahora es ProjectError (3), como S1.5b-42. Criterio S1.6a-14.
+4. **BAJO (seguridad) — `build/vN` cambiado por un enlace a mitad del render** (`commands/render.py`):
+   - El chequeo de 001.26 punto 10 se hacía una vez, antes de unos mezzanines que tardan minutos.
+   - Seguridad cambió `build/v7` por un junction a `.kcut/` durante ese paso, y el render salió con 0 dejando `render.mp4`, `video.mp4` y `voice_raw.f32` en la raíz de la caché.
+   - Ahora se repite antes de cada escritura. Queda la ventana de microsegundos entre el chequeo y la apertura, que pide escribir en `.kcut/build` mientras corre el render: aceptada.
+   - Criterio S1.6a-15.
+5. **BAJO (los dos) — el `.tmp` compartido del sidecar de un work file** (`ingest/workfiles.py`): `write_json_atomic` usa `<sidecar>.tmp` sin pid, la misma clase que 001.25 punto 8 arregló para el mezzanine. No se reprodujo en 40 corridas. El esquema del mezzanine pasa a `jsonio.write_json_exclusive` y lo usan los dos. Criterio S1.6a-16.
+6. **BAJO (verificador) — la fila S1.5b-51 decía 5 corridas y el test hacía 2** (`tests/integration/render_early_cases.py`). Se demostró igual con el repro 5/5 del verificador, pero el test tiene que decir lo mismo que la fila. Criterio S1.6a-17.
+7. **BAJO (seguridad) — correos con letras y después dígitos en la etiqueta** (`pack/pii_written.py`):
+   - `pedrogomez@gmail_2026.mp4` y `pedrogomez@empresa-v2.mp4` quedaban legibles, y `pedrogomez@gmail-8095551234.mp4` dejaba el correo a la vista (el teléfono sí se tapaba).
+   - 001.25 punto 15 había aceptado `hotmail2` como límite. La evidencia nueva es que `_2026`, `_v2` y `-<teléfono>` son sufijos de nombre de archivo mucho más comunes, así que se reabre.
+   - Regla: también se tapa toda etiqueta que empieza por 3 letras. Siguen sin tocarse `logo@2x`, `lunes@10am` y `foto@v2`.
+   - El costo es que se tapa algún `clip@take3`. Es un falso positivo barato: Claude ve el id del clip igual.
+   - Criterio S1.6a-18.
+8. **BAJO (seguridad) — un mezzanine que es un hard link** (`render/mezz_files.py _state`, `ingest/workfiles.py sidecar_state`):
+   - Con un hard link a un mp4 de fuera del proyecto y el sidecar copiado, kcut lo reusaba y lo decodificaba. Leía un archivo ajeno; nunca escribía a través de él.
+   - Ahora un archivo con más de un enlace, o que no es regular, es `stale` y se rehace. Se aplica a los work files también, que tienen el mismo problema.
+   - Criterio S1.6a-19.
+9. **BAJO (seguridad) — la ruta del wav48 en los mensajes de la voz** (`audio/voice_track.py`, `audio/wavio.py`):
+   - La ruta lleva el slug del nombre original del clip, que puede traer un teléfono.
+   - `str(OSError)` también la trae.
+   - Ahora el mensaje dice `el wav48 de <id>` y `strerror`, como los otros mensajes de `voice_track`.
+   - Criterio S1.6a-20.
+10. **Ratificado**:
+    - Las decisiones 1–9 del implementador de la ronda 3, que el verificador revisó una por una.
+    - Un cambio del coordinador antes de la revisión: `TestVoiceDiskSpace` entró al `__all__` de `tests/unit/voice_stream_cases.py`. Los 3 tests de la fila S1.5b-36 nunca se recogían; ahora sí, y `tests/unit/test_voice_track.py` da `40 passed`.
+11. **Árbol de §0.2**:
+    - Suma `render/mezz_index.py` e `ingest/cache_guard.py`, partidos en la ronda 3.
+    - Suma los tres de 001.25 punto 16 que nunca llegaron al árbol: `edl/shown.py`, `edl/readers.py` y `pack/pii_written.py`.
+    - Suma `ingest/partials.py` (punto 1).
+12. **Aceptados, sin código**:
+    - `pedro@sub.mi-empresa.mp4` tapa la parte local pero deja ver `mi-empresa` como si fuera el TLD. Es preexistente y lo que queda a la vista es el dominio, no la persona.
+    - La ventana entre el `unlink` del parcial y la apertura de ffmpeg pide saber el pid y ser el mismo usuario. Es preexistente.
+13. **Nota para el Gate 1 de spec 002** (no es contrato de 001): `kcut ingest` imprime por consola los nombres crudos de `crudo/` (`crudo/Ana Perez 809-555-1234.mp4`), y varios mensajes llevan slugs con dígitos. El plugin va a leer esa salida, así que el enmascarado de la consola se decide allá, con Yedin.
