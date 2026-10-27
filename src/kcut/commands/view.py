@@ -92,7 +92,7 @@ def run(args: argparse.Namespace) -> int:
     target = _target(project, clip, start_f, end_f, args.out, args.force)
     cfg = project.config.analysis
     s0, s1 = start_f * WAV16_RATE // fps, end_f * WAV16_RATE // fps
-    window, _ = read_wav_range(wav, s0, s1 - s0)
+    window, _ = read_wav_range(wav, s0, s1 - s0, label=f"el wav16 de {clip.id}")
     silences = _silences(wav, s0, s1, cfg)
     notices: list[Notice] = []
     words, notice, warnings = _words(project, inventory, clip, notices, log)

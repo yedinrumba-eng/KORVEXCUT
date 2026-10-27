@@ -1,0 +1,14 @@
+/* kcut graphics: what every component shares (spec S1.6a). The brand colors are set by the runtime
+   as --kc-accent, --kc-accent2, --kc-dark and --kc-light. No motion is declared here: the runtime
+   puts the page at one exact time with seek(t). */
+html, body { margin: 0; background: transparent; overflow: hidden; }
+body { font-family: Inter, sans-serif; position: relative; }
+#kc-root { position: absolute; left: 0; top: 0; }
+.kc-cue { position: absolute; left: 0; top: 0; overflow: hidden; }
+.kc-abs { position: absolute; white-space: nowrap; will-change: transform, opacity; }
+/* big text: Inter 900, capitals, tight, with a dark border painted behind the letters */
+.kc-big { font-weight: 900; text-transform: uppercase; letter-spacing: -2px; line-height: 1; }
+.kc-stroke { paint-order: stroke fill; -webkit-text-stroke: 12px var(--kc-dark); }
+/* the pill of a label and of the call to action of an endcard */
+.kc-pill { display: inline-block; border-radius: 999px; font-weight: 800; letter-spacing: .5px;
+           line-height: 1; padding: .35em .75em; box-shadow: 0 10px 30px rgba(0,0,0,.4); }

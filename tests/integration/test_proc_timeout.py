@@ -115,9 +115,12 @@ def test_killing_the_child_leaves_no_sleeping_interpreter(tmp_path: Path) -> Non
     code = "import os, sys, time; open(sys.argv[1], 'w').write(str(os.getpid())); " + NAP
     with proc.popen([PY, "-c", code, str(pid_file)], log=tmp_path / "o.log") as child:
         deadline = time.monotonic() + 20
-        while not (pid_file.exists() and pid_file.read_text()) and time.monotonic() < deadline:
+        while (
+            not (pid_file.exists() and pid_file.read_text(encoding="utf-8"))
+            and time.monotonic() < deadline
+        ):
             time.sleep(0.05)
-        sleeping = int(pid_file.read_text())
+        sleeping = int(pid_file.read_text(encoding="utf-8"))
         child.kill()
         child.wait(timeout_s=10)
     try:
@@ -142,7 +145,7 @@ def test_log_oserror_a_hung_child_is_still_killed_at_its_timeout(tmp_path: Path)
             [PY, "-c", code, str(pid_file)], log=blocker / "x.log", timeout_s=3.0, grace_s=GRACE_S
         )
     assert pid_file.exists(), "el hijo no llego a arrancar dentro del tiempo"
-    pid = int(pid_file.read_text())
+    pid = int(pid_file.read_text(encoding="utf-8"))
     alive = sys.platform == "win32" and _alive_on_windows(pid)
     if alive:
         _kill_tree(pid)

@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Protocol
 
 from kcut.console import safe_text
-from kcut.paths import is_inside, lone_file_reason
+from kcut.paths import is_inside, lone_file_reason, plain_path
 
 _LOG_LOCKS: dict[str, threading.Lock] = {}
 _LOG_LOCKS_GUARD = threading.Lock()
@@ -183,9 +183,9 @@ class _FdSink:
 
 def _lock_for(log: Path) -> threading.Lock:
     try:
-        key = os.path.normcase(str(log.resolve()))
+        key = os.path.normcase(str(plain_path(log.resolve())))
     except OSError:
-        key = os.path.normcase(str(log))
+        key = os.path.normcase(str(plain_path(log)))
     with _LOG_LOCKS_GUARD:
         return _LOG_LOCKS.setdefault(key, threading.Lock())
 

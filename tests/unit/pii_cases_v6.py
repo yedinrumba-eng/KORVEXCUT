@@ -238,7 +238,7 @@ class TestPiiPathEmailV3:
             "crudo/@home.mp4",  # no local part
             # 001.26: `crudo/clip@mi-casa.mp4` moved to TestPiiPathEmailV4: a hyphen no longer
             # makes the label something other than a word of letters
-            "crudo/clip@casa2.mp4",
+            # 001.27: `crudo/clip@casa2.mp4` is masked now: moved to TestPiiPathEmailV5 (3 letters)
         ],
     )
     def test_path_email_v3_what_is_not_an_address_does_not_change(self, name: str) -> None:
@@ -278,9 +278,10 @@ class TestPiiPathEmailV4:
         [
             "logo@2x.png",
             "lunes@10am.mp4",
-            "pedrogomez@hotmail2.mp4",
-            "crudo/pedrogomez@mi-empresa2.mp4",  # a digit among the letters
-            "crudo/pedrogomez@mi-2.mp4",
+            # 001.27: `pedrogomez@hotmail2.mp4` is masked now (TestPiiPathEmailV5, row 18)
+            # 001.28: `crudo/pedrogomez@mi-empresa2.mp4` and `crudo/pedrogomez@mi-2.mp4`
+            # are masked now (TestPiiPathEmailV6, row 25: their first stretch, `mi`, is
+            # 2 letters)
             "crudo/pedrogomez@a-.mp4",  # one letter is not a domain
             "crudo/pedrogomez@-_.mp4",  # no letters at all
             "crudo/@mi-empresa.mp4",  # no local part
@@ -294,5 +295,5 @@ class TestPiiPathEmailV4:
     def test_path_email_v4_the_masker_alone_takes_hyphens_and_underscores(self) -> None:
         assert mask_bare_domains("pedro@mi-empresa") == "p***@***"
         assert mask_bare_domains("pedro@gmail_final") == "p***@***"
-        assert mask_bare_domains("pedro@hotmail2") == "pedro@hotmail2"
+        assert mask_bare_domains("pedro@hotmail2") == "p***@***"  # 001.27: was left as it was
         assert mask_bare_domains("pedro@--") == "pedro@--"

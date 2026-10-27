@@ -214,7 +214,7 @@ def _wav16(project: Project, clip: Clip) -> Path:
 def _energy(wav: Path) -> NDArray[np.float32]:
     """Level of the wav16 per 10 ms block, read in pieces so a long recording stays flat."""
     wav16_length_ms(wav)  # checks it is a mono 16-bit 16 kHz wav
-    with open_wav(wav, "wav16") as handle:
+    with open_wav(wav, label="el wav16") as handle:
         return rms_db_stream(_chunks(handle), WAV16_RATE, HOP_MS)
 
 

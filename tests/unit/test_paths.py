@@ -17,6 +17,7 @@ from kcut.paths import (
     resolve_in_project,
     to_rel,
 )
+from tests.unit.paths_prefix_cases import *  # noqa: F403  (001.28: 300-line rule)
 
 
 def _link_dir(link: Path, target: Path) -> None:

@@ -77,8 +77,13 @@ def mask_bare_domains(text: str) -> str:
     The domain has no TLD of the closed list, because a file extension cut it off
     (`pedro@gmail.mp4`) or because it is a folder (`pedro@gmail/`), and an address is an address
     anyway. A `-` or a `_` in the label does not stop it from being a word of letters
-    (`pedro@mi-empresa`, `pedro@gmail_final`: 001.26, point 9). `logo@2x` and `lunes@10am` have a
-    label with a digit in it: they are files, not addresses (001.25, point 15). Run it after
+    (`pedro@mi-empresa`, `pedro@gmail_final`: 001.26, point 9). So is a label whose first 3
+    characters are letters, whatever follows: `pedro@gmail_2026`, `pedro@empresa-v2`,
+    `pedro@hotmail2` and `pedro@gmail-8095551234` are addresses with the suffix of a file name
+    (001.27, point 7). So is a label whose first stretch, up to the first `-` or `_`, is 2 letters
+    or more: `pedro@yo-2026` and `pedro@yo-8095551234` (001.28, point 4). `logo@2x`, `lunes@10am`
+    and `foto@v2` do not: they are files, not addresses (001.25, point 15). The price is a
+    `clip@take3` that is masked too; Claude still sees the id of the clip. Run it after
     `mask_written`, whose `***@***.tld` it leaves alone."""
     out: list[str] = []
     done = 0  # text before this position is already in `out`
@@ -90,13 +95,26 @@ def mask_bare_domains(text: str) -> str:
         end = at + 1
         while end < len(text) and _is_label(text[end]):
             end += 1
-        letters = text[at + 1 : end].replace("-", "").replace("_", "")
-        if start < at and len(letters) >= 2 and letters.isalpha():
+        if start < at and _looks_like_domain(text[at + 1 : end]):
             out += [text[done:start], f"{text[start]}***@***"]
             done = end
         at = text.find("@", max(end, at + 1))
     out.append(text[done:])
     return "".join(out)
+
+
+def _looks_like_domain(label: str) -> bool:
+    """Is `label`, what follows an `@` in a file name, the start of a domain and not of a file?
+    Yes if it is only letters besides `-` and `_` (`mi-empresa`), if its first 3 characters are
+    letters (`gmail_2026`, `hotmail2`: 001.27, point 7) or if its first stretch, up to the first
+    `-` or `_`, is 2 letters or more (`yo-2026`: 001.28, point 4)."""
+    letters = label.replace("-", "").replace("_", "")
+    head = label.replace("_", "-").split("-", 1)[0]
+    return (
+        (len(letters) >= 2 and letters.isalpha())
+        or (len(label) >= 3 and label[:3].isalpha())
+        or (len(head) >= 2 and head.isalpha())
+    )
 
 
 def last_at_is_open(text: str) -> bool:

@@ -105,7 +105,15 @@ class TestLyingHeader:
         path = _wav_file(tmp_path, 0xFFFFFFF0, b"\0" * 100)
         with pytest.raises(ProjectError) as info:
             reader(path)
-        assert info.value.message_es == TRUNCATED_WAV
+        # 001.28: the message is the template filled with the label of the file: "el wav" for the
+        # readers that are given none, and "el wav16" for `wav16_length_ms` (the old text)
+        old_label = "el wav16"
+        wanted = (
+            TRUNCATED_WAV
+            if reader is wav16_length_ms
+            else TRUNCATED_WAV.replace(old_label, "el wav")
+        )
+        assert info.value.message_es == wanted
 
     @pytest.mark.parametrize("reader", READERS)
     def test_lying_header_one_byte_short(self, tmp_path: Path, reader: Any) -> None:

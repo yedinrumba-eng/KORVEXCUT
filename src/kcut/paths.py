@@ -17,6 +17,8 @@ _RESERVED = frozenset(
     | {f"LPT{i}" for i in range(1, 10)}
 )
 _DRIVE = re.compile(r"[A-Za-z]:.*", re.DOTALL)
+_EXTENDED = "\\\\?\\"  # the extended-length prefix: `\\?\C:\...`
+_EXTENDED_UNC = "\\\\?\\UNC\\"  # the same for a network path: `\\?\UNC\server\share\...`
 
 
 @dataclass(frozen=True)
@@ -154,17 +156,17 @@ def resolve_in_project(root: Path, rel: str) -> Path:
     """Resolve a project-relative data path; anything that could leave the project is refused."""
     _reject_unsafe(rel)
     parts = _clean_parts(rel)
-    root_resolved = root.resolve()
-    target = root_resolved.joinpath(*parts).resolve()
+    root_resolved = plain_path(root.resolve())
+    target = plain_path(root_resolved.joinpath(*parts).resolve())
     if not is_inside(root_resolved, target):
         raise ProjectError(f"la ruta {quoted(rel)} sale del proyecto")
     return target
 
 
 def to_rel(root: Path, p: Path) -> str:
-    """POSIX path of `p` relative to the project root."""
+    """POSIX path of `p` relative to the project root (both without the extended-length prefix)."""
     try:
-        return p.resolve().relative_to(root.resolve()).as_posix()
+        return plain_path(p.resolve()).relative_to(plain_path(root.resolve())).as_posix()
     except ValueError:
         raise ProjectError(f"la ruta {p} no está dentro del proyecto {root}") from None
 
@@ -228,8 +230,31 @@ def lone_file_reason(info: os.stat_result) -> str | None:
     return None
 
 
+def plain_path(path: Path) -> Path:
+    """`path` without the extended-length prefix of Windows (`\\\\?\\`; for a network path
+    `\\\\?\\UNC\\` becomes `\\\\`).
+
+    `Path.resolve` leaves the prefix on a file that another process is creating or replacing at
+    that very moment, and then it no longer looks like it is inside the folder it is in. Both
+    sides of a comparison have to be without it (001.26, point 4; moved here from `cache_guard`
+    in 001.28, point 1, so that every comparison of paths in kcut does it)."""
+    text = str(path)
+    if text[: len(_EXTENDED_UNC)].upper() == _EXTENDED_UNC:
+        return Path("\\\\" + text[len(_EXTENDED_UNC) :])
+    if text.startswith(_EXTENDED):
+        return Path(text[len(_EXTENDED) :])
+    return path
+
+
 def is_inside(root: Path, target: Path) -> bool:
-    """True if `target` is `root` or lies under it (both already resolved; `normcase` compare)."""
-    base = os.path.normcase(str(root))
-    candidate = os.path.normcase(str(target))
+    """True if `target` is `root` or lies under it (both already resolved; `normcase` compare,
+    and neither side keeps the extended-length prefix: `plain_path`)."""
+    base = os.path.normcase(str(plain_path(root)))
+    candidate = os.path.normcase(str(plain_path(target)))
     return candidate == base or candidate.startswith(base.rstrip(os.sep) + os.sep)
+
+
+def same_path(a: Path, b: Path) -> bool:
+    """True if two paths, already resolved, are the same one (`normcase` compare, and neither side
+    keeps the extended-length prefix: `plain_path`). Never compare resolved paths with `==`."""
+    return os.path.normcase(str(plain_path(a))) == os.path.normcase(str(plain_path(b)))

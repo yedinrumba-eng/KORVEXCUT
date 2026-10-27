@@ -11,6 +11,8 @@ import pytest
 
 from kcut.audio.wavio import read_f32, write_f32, write_f32_blocks
 from kcut.errors import ProjectError
+from tests.unit.voice_nopath_cases import *  # noqa: F403  (001.27: test_voice_track.py is at 300)
+from tests.unit.wavio_nopath_cases import *  # noqa: F403  (001.28: 300-line rule)
 
 
 class TestF32:
@@ -121,8 +123,10 @@ class TestReadErrorIsNotAWriteError:
         with pytest.raises(ProjectError) as info:
             write_f32_blocks(target, blocks())
         message = info.value.message_es
-        assert info.value.exit_code == 3 and message.startswith(f"no pude leer {wav}")
-        assert "escribir" not in message
+        # 001.27: the message has the system's text and no path (it was `no pude leer <wav>`)
+        assert info.value.exit_code == 3
+        assert message == "no pude leer el audio de entrada: No such file or directory"
+        assert str(wav) not in message and "escribir" not in message
         assert np.array_equal(read_f32(target), np.array([7.0], dtype=np.float32))
         assert sorted(p.name for p in tmp_path.iterdir()) == ["voice_raw.f32"]
 
@@ -133,9 +137,25 @@ class TestReadErrorIsNotAWriteError:
             raise PermissionError("denied")
             yield np.zeros(1, dtype=np.float32)  # unreachable: it makes this a generator
 
-        with pytest.raises(ProjectError, match="no pude leer lo que iba a escribir"):
+        # 001.27: it said `no pude leer lo que iba a escribir`; with no system text, its class
+        with pytest.raises(ProjectError, match="no pude leer el audio de entrada: PermissionError"):
             write_f32_blocks(tmp_path / "v.f32", blocks())
         assert list(tmp_path.iterdir()) == []
+
+    def test_voice_read_no_path_the_message_of_the_blocks_has_no_digit_of_the_name(
+        self, tmp_path: Path
+    ) -> None:
+        name = tmp_path / "wav48" / "a1_ana-perez-809-555-1234.wav"
+
+        def blocks() -> Iterator[np.ndarray[Any, Any]]:
+            raise PermissionError(13, "Permission denied", str(name))
+            yield np.zeros(1, dtype=np.float32)  # unreachable: it makes this a generator
+
+        with pytest.raises(ProjectError) as info:
+            write_f32_blocks(tmp_path / "v.f32", blocks())
+        message = info.value.message_es
+        assert message == "no pude leer el audio de entrada: Permission denied"
+        assert not any(piece in message for piece in ("809", "555", "1234", "ana-perez"))
 
     def test_voice_read_error_a_project_error_from_the_blocks_goes_through_as_it_is(
         self, tmp_path: Path

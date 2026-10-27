@@ -147,10 +147,10 @@ def _read(wav: Path, item: _Placed, inside: int, count: int) -> NDArray[np.float
     """`count` samples of the clip from its sample `inside`, as float32."""
     src = item.clip.src
     start = item.start + inside
-    try:
-        samples, rate = read_wav_range(wav, start, count)
-    except OSError as exc:  # the wav was deleted or locked while the track was being written
-        raise ProjectError(f"no pude leer {wav}: {exc}") from None
+    # `wavio` names the file by the phrase it is given, never by its path: the name of the wav48
+    # carries the slug of the original clip, which may hold a phone number (001.28, point 2). A
+    # wav that was deleted or locked while the track is written comes out as a ProjectError.
+    samples, rate = read_wav_range(wav, start, count, label=f"el wav48 de {src}")
     if rate != SAMPLE_RATE:
         raise ProjectError(f"el wav48 de {src} está a {rate} Hz; corre kcut ingest")
     if len(samples) < count:

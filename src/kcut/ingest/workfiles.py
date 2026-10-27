@@ -17,8 +17,13 @@ from kcut.ff.color import CHAIN_VERSION, video_chain
 from kcut.ingest.cache_guard import assert_in_cache
 from kcut.ingest.inventory import Clip, Notice
 from kcut.ingest.probe import VideoInfo
-from kcut.jsonio import MAX_SIDECAR_BYTES, read_json, refuse_directory, write_json_atomic
-from kcut.paths import resolve_in_project
+from kcut.ingest.sidecar import SidecarState as SidecarState
+from kcut.ingest.sidecar import is_fresh as is_fresh
+from kcut.ingest.sidecar import sidecar_path as sidecar_path
+from kcut.ingest.sidecar import sidecar_state as sidecar_state
+from kcut.ingest.sidecar import wait_to_land
+from kcut.jsonio import refuse_directory, write_json_exclusive
+from kcut.paths import resolve_in_project, same_path
 from kcut.project import Project
 from kcut.timebase import rdiv
 
@@ -29,39 +34,16 @@ _PROXY_CRF = 23
 _TIMEOUT_PER_MEDIA_SECOND = 10
 _TIMEOUT_BASE_S = 60.0
 
-SidecarState = Literal["fresh", "stale", "missing", "corrupt"]
-
 # the guard lives in `cache_guard.py` (001.26, 300-line rule); this is the name the code uses
 _assert_in_cache = assert_in_cache
+# the sidecar and the freshness of a work file live in `sidecar.py` (001.27, 300-line rule); the
+# names imported above (`sidecar_path`, `sidecar_state`, `is_fresh`, `SidecarState`) are the ones
+# the rest of the code calls
 
 
 def max_job_seconds(project: Project) -> float:
     """Length cap of an ffmpeg job (`-t`): `max_duration_h` + 60 s; declared durations lie."""
     return project.config.ingest.max_duration_h * 3600 + 60
-
-
-def sidecar_path(path: Path) -> Path:
-    """`<file>.json` next to a work file."""
-    return path.with_name(path.name + ".json")
-
-
-def sidecar_state(path: Path, qhash: str, params: dict[str, Any]) -> SidecarState:
-    """Is the work file `path` usable? `corrupt`: the sidecar exists but cannot be read."""
-    if not path.is_file():
-        return "missing"
-    sidecar = sidecar_path(path)
-    if not sidecar.is_file():
-        return "missing"
-    try:
-        data = read_json(sidecar, MAX_SIDECAR_BYTES)
-    except ProjectError:
-        return "corrupt"
-    return "fresh" if data == {"qhash": qhash, "params": params} else "stale"
-
-
-def is_fresh(path: Path, qhash: str, params: dict[str, Any]) -> bool:
-    """True when `path` exists and its sidecar holds exactly this `qhash` and `params`."""
-    return sidecar_state(path, qhash, params) == "fresh"
 
 
 def job_timeout_s(duration_ms: int) -> float:
@@ -72,6 +54,13 @@ def job_timeout_s(duration_ms: int) -> float:
 def work_name(clip_id: str, slug: str, ext: str) -> str:
     """`a1_crudo-1.wav`: short, ASCII, no spaces (spec 0.10.8)."""
     return f"{clip_id}_{slug}.{ext}"
+
+
+def work_label(dst: Path) -> str:
+    """The phrase that names a work file in a message: its class and its clip (`wav48 de a1`),
+    never its name. The name has the slug of the original clip, which may hold a phone number
+    (001.28, point 2). The clip is what comes before the first `_` of the name."""
+    return f"{dst.parent.name} de {dst.name.split('_', 1)[0]}"
 
 
 def wav_params(sr: int) -> dict[str, Any]:
@@ -227,7 +216,7 @@ def _usable(dst: Path, qhash: str, params: dict[str, Any], notices: list[Notice]
     """Fresh work file? A corrupt sidecar is not an error: it is rebuilt, with a notice."""
     state = sidecar_state(dst, qhash, params)
     if state == "corrupt" and notices is not None:
-        detail = f"{dst.name}: el sidecar estaba dañado y se reconstruye"
+        detail = f"{work_label(dst)}: el sidecar estaba dañado y se reconstruye"
         notices.append(Notice("cache_rebuilt", detail))
     return state == "fresh"
 
@@ -243,7 +232,8 @@ def _build(
 
     The partial has the pid, so two renders that make the same file do not write the same one and
     each deletes only its own. If `dst` is fresh when the partial is done (the other one came
-    first) it is used as it is, and the sidecar is the other's (001.26, point 3)."""
+    first) it is used as it is, and the sidecar is the other's (001.26, point 3). The sidecar goes
+    through `<sidecar>.<pid>.tmp`, created new (`write_json_exclusive`, 001.27, point 5)."""
     qhash, params, timeout_s = job
     partial = dst.with_name(f"{dst.stem}.{os.getpid()}.partial{dst.suffix}")
     for target in (dst, partial, sidecar_path(dst)):
@@ -253,12 +243,13 @@ def _build(
         partial.unlink(missing_ok=True)
         proc.run(make_args(partial), log=log, timeout_s=timeout_s)
         if not partial.is_file():
-            raise ToolError(f"ffmpeg no produjo {dst.name}")
+            raise ToolError(f"ffmpeg no produjo el {work_label(dst)}")
         if not _land(partial, dst, qhash, params):
             return
     finally:
         partial.unlink(missing_ok=True)
-    write_json_atomic(sidecar_path(dst), {"qhash": qhash, "params": params})
+    sidecar = {"qhash": qhash, "params": params}
+    write_json_exclusive(sidecar_path(dst), sidecar, label=f"el sidecar del {work_label(dst)}")
 
 
 def _land(partial: Path, dst: Path, qhash: str, params: dict[str, Any]) -> bool:
@@ -267,30 +258,32 @@ def _land(partial: Path, dst: Path, qhash: str, params: dict[str, Any]) -> bool:
     share the delete), so the one that is there is the one to use."""
     if is_fresh(dst, qhash, params):
         return False
-    refuse_directory(dst)
+    refuse_directory(dst, f"el {work_label(dst)}")
     try:
         os.replace(partial, dst)
     except PermissionError:
-        if is_fresh(dst, qhash, params):
-            return False
-        raise ProjectError(f"cierra el archivo {dst} en el reproductor y repite") from None
+        try:  # waits for the other process, or for the reader to let go (001.29, point 1)
+            if wait_to_land(partial, dst, lambda: True if is_fresh(dst, qhash, params) else None):
+                return False
+        except PermissionError:
+            raise ProjectError(f"cierra el {work_label(dst)} en el reproductor y repite") from None
     return True
 
 
 def _copy(src: Path, dst: Path) -> None:
-    if src.resolve() == dst.resolve():
+    if same_path(src.resolve(), dst.resolve()):
         return  # same file: deleting the destination first would delete the source
-    refuse_directory(dst)
+    refuse_directory(dst, f"el {work_label(dst)}")
     try:
         dst.unlink(missing_ok=True)  # break any hard link before writing
         shutil.copy2(src, dst)
     except PermissionError:
-        raise ProjectError(f"cierra el archivo {dst} en el reproductor y repite") from None
+        raise ProjectError(f"cierra el {work_label(dst)} en el reproductor y repite") from None
 
 
 def _replace(src: Path, dst: Path) -> None:
-    refuse_directory(dst)
+    refuse_directory(dst, f"el {work_label(dst)}")
     try:
         os.replace(src, dst)
     except PermissionError:
-        raise ProjectError(f"cierra el archivo {dst} en el reproductor y repite") from None
+        raise ProjectError(f"cierra el {work_label(dst)} en el reproductor y repite") from None

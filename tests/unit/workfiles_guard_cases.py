@@ -15,6 +15,7 @@ import pytest
 
 from kcut import proc
 from kcut.errors import ProjectError
+from kcut.ingest import sidecar as sidecar_module
 from kcut.ingest import workfiles
 from kcut.ingest.cache_guard import plain_path
 from kcut.project import Project
@@ -233,7 +234,10 @@ class TestWorkfilesConcurrent:
             raise PermissionError(13, "Access is denied", str(dst))
 
         monkeypatch.setattr(os, "replace", refused)
+        monkeypatch.setattr(sidecar_module, "LAND_WAIT_S", 0.0)  # 001.29: no real wait
         with pytest.raises(ProjectError) as info:
             self._build(project, dst)
-        assert info.value.exit_code == 3 and "cierra el archivo" in info.value.message_es
+        # 001.28: the file is named by class and clip, not by path (was `cierra el archivo`)
+        assert info.value.exit_code == 3
+        assert info.value.message_es == "cierra el wav48 de a1 en el reproductor y repite"
         assert [p.name for p in dst.parent.iterdir()] == ["a1_clip.wav"]  # its partial is gone

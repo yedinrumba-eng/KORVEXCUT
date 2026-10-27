@@ -272,9 +272,10 @@ class TestUsesRange:
         calls: list[tuple[int, int]] = []
         real = wavio.read_wav_range
 
-        def spy(path: Path, start: int, count: int) -> tuple[NDArray[np.float32], int]:
+        def spy(path: Path, start: int, count: int, **kw: Any) -> tuple[NDArray[np.float32], int]:
             calls.append((start, count))
-            return real(path, start, count)
+            assert kw == {"label": "el wav48 de a1"}  # 001.28: the phrase, never the path
+            return real(path, start, count, **kw)
 
         monkeypatch.setattr(voice_track, "read_wav_range", spy)
         _voice(wired[0])

@@ -135,7 +135,7 @@ def _audio_peak(
         if in_wav16 and state == "fresh":
             item.wav = old
         elif in_wav16 and state == "corrupt":
-            detail = f"{old.name}: el sidecar estaba dañado y se reconstruye"
+            detail = f"{workfiles.work_label(old)}: el sidecar estaba dañado y se reconstruye"
             notices.append(Notice("cache_rebuilt", detail))
     if item.wav is None:
         duration = item.info.duration_ms if item.info is not None else 0

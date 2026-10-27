@@ -22,7 +22,10 @@ def _argv(root: Path) -> list[str]:
 
 def _master_is_s1(root: Path) -> None:
     toml = root / "kcut.toml"
-    toml.write_text(toml.read_text(encoding="utf-8").replace('master = ""', 'master = "s1"'))
+    toml.write_text(
+        toml.read_text(encoding="utf-8").replace('master = ""', 'master = "s1"'),
+        encoding="utf-8",
+    )
 
 
 @pytest.fixture

@@ -14,6 +14,7 @@ from tests.unit.edl_fakes import Doc, config, edit, inventory, parsed
 from tests.unit.mezz_build_cases import *  # noqa: F403  (001.25: 300-line rule)
 from tests.unit.mezz_files_cases import *  # noqa: F403  (001.25: 300-line rule)
 from tests.unit.mezz_land_cases import *  # noqa: F403  (001.26: 300-line rule)
+from tests.unit.mezz_land_wait_cases import *  # noqa: F403  (001.29: 300-line rule)
 
 
 def _jobs(edl: Edl | None = None, inv: Inventory | None = None) -> list[MezzJob]:

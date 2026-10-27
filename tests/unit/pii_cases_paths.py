@@ -11,6 +11,7 @@ from tests.unit.pii_cases_v6 import (  # 001.24, 001.25, 001.26
     TestPiiPathEmailV3,
     TestPiiPathEmailV4,
 )
+from tests.unit.pii_cases_v7 import TestPiiPathEmailV5, TestPiiPathEmailV6  # 001.27, 001.28
 
 __all__ = [
     "TestPiiPathContiguous",
@@ -19,6 +20,8 @@ __all__ = [
     "TestPiiPathEmailV2",
     "TestPiiPathEmailV3",
     "TestPiiPathEmailV4",
+    "TestPiiPathEmailV5",
+    "TestPiiPathEmailV6",
     "TestPiiPathJoiners",
     "TestPiiPathUnderscoreV2",
 ]

@@ -8,8 +8,10 @@ from typing import Any
 
 from kcut.console import Out, Progress
 from kcut.ingest.inventory import Inventory, Notice, SyncRejected
+from kcut.ingest.partials import sweep_orphan_partials
 from kcut.ingest.run import run_ingest
 from kcut.ingest.sync_reasons import SYNC_METHODS, rejection_text
+from kcut.logfile import append_log
 from kcut.project import open_project
 from kcut.timebase import fmt_s
 
@@ -31,6 +33,10 @@ def add_parser(
 def run(args: argparse.Namespace) -> int:
     out = Out(json_mode=args.json)
     project = open_project(args.project)
+    log = getattr(args, "log", None)
+    swept = sweep_orphan_partials(project)  # what a render killed by force left (001.27)
+    if swept and log is not None:
+        append_log(log, f"[orphan_partials] {swept} archivos parciales huérfanos borrados\n")
     started = time.monotonic()
     progress = Progress("ingest", 0, "pasos")
     notices: list[Notice] = []
@@ -40,7 +46,7 @@ def run(args: argparse.Namespace) -> int:
             make_proxies=not args.no_proxy,
             resync=args.resync,
             progress=progress,
-            log=getattr(args, "log", None),
+            log=log,
             notices=notices,
         )
     finally:

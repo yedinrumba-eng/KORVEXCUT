@@ -15,6 +15,8 @@ from typing import Any
 import pytest
 
 from kcut.errors import CheckFailed, ProjectError
+from kcut.ingest import sidecar as sidecar_module
+from kcut.jsonio import write_json_exclusive
 from kcut.project import Project
 from kcut.render import mezz_files
 from kcut.render.mezz_files import MezzEntry, build_mezz, find_fresh, list_mezz, params_of
@@ -133,6 +135,7 @@ class TestFirstOneWins:
             raise PermissionError(13, "Access is denied", str(dst))
 
         monkeypatch.setattr(mezz_files.os, "replace", refused)
+        monkeypatch.setattr(sidecar_module, "LAND_WAIT_S", 0.0)  # 001.29: no real wait
         _Fake(monkeypatch, made=90)
         with pytest.raises(ProjectError) as info:
             build_mezz(mezz_project, job, _a1(), FPS, None)
@@ -162,6 +165,7 @@ class TestFirstOneWins:
         job = _job()
         path = _plant(mezz_project, job, size=15, frames=90)
         _Fake(monkeypatch, made=90)
+        monkeypatch.setattr(sidecar_module, "LAND_WAIT_S", 0.0)  # 001.29: no real wait
         with path.open("rb"):
             assert build_mezz(mezz_project, job, _a1(), FPS, None).path == path.resolve()
             Path(f"{path}.json").unlink()  # now it is not fresh
@@ -195,7 +199,7 @@ class TestSidecarTmp:
         tmp = sidecar.with_name(f"{sidecar.name}.{os.getpid()}.tmp")
         self._race(tmp, victim, monkeypatch)
         with pytest.raises(ProjectError) as info:
-            mezz_files._write_sidecar(sidecar, {"a": 1})
+            write_json_exclusive(sidecar, {"a": 1})  # 001.27: it was `mezz_files._write_sidecar`
         assert info.value.exit_code == 3 and "no pude escribir" in info.value.message_es
         assert victim.read_bytes() == b"PRECIOUS-FOOTAGE" * 4
         assert not sidecar.exists()
@@ -207,7 +211,7 @@ class TestSidecarTmp:
         victim.write_bytes(b"PRECIOUS-FOOTAGE" * 4)
         sidecar = tmp_path / "x.mp4.json"
         os.link(victim, sidecar.with_name(f"{sidecar.name}.{os.getpid()}.tmp"))
-        mezz_files._write_sidecar(sidecar, {"a": 1})
+        write_json_exclusive(sidecar, {"a": 1})  # 001.27: it was `mezz_files._write_sidecar`
         assert victim.read_bytes() == b"PRECIOUS-FOOTAGE" * 4
         assert json.loads(sidecar.read_text(encoding="utf-8")) == {"a": 1}
         assert sorted(p.name for p in tmp_path.iterdir()) == ["victim.bin", "x.mp4.json"]
@@ -216,6 +220,28 @@ class TestSidecarTmp:
         self, tmp_path: Path
     ) -> None:
         sidecar = tmp_path / "x.mp4.json"
-        mezz_files._write_sidecar(sidecar, {"ñ": "ú"})
+        write_json_exclusive(sidecar, {"ñ": "ú"})  # 001.27: it was `mezz_files._write_sidecar`
         raw = sidecar.read_bytes()
         assert b"\r" not in raw and raw.endswith(b"\n") and "ñ".encode() in raw
+
+    def test_sidecar_tmp_pid_the_sidecar_of_a_mezzanine_goes_through_a_tmp_with_the_pid(
+        self, mezz_project: Project, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Row 16 (001.27 point 5): the temporary of the sidecar has the pid, and a
+        `<sidecar>.tmp` planted by anyone (the shared name of before) is not touched."""
+        _Fake(monkeypatch, made=90)
+        sidecar = _job().path.rsplit("/", 1)[1] + ".json"
+        planted = mezz_project.root / ".kcut" / "mezz" / f"{sidecar}.tmp"
+        planted.write_bytes(b"PLANTED-BY-ANOTHER-RENDER")
+        moves: list[tuple[str, str]] = []
+        real = os.replace
+
+        def spy(src: Any, dst: Any) -> None:
+            moves.append((Path(src).name, Path(dst).name))
+            real(src, dst)
+
+        monkeypatch.setattr(os, "replace", spy)
+        build_mezz(mezz_project, _job(), _a1(), FPS, None)
+        assert (f"{sidecar}.{os.getpid()}.tmp", sidecar) in moves
+        assert (f"{sidecar}.tmp", sidecar) not in moves
+        assert planted.read_bytes() == b"PLANTED-BY-ANOTHER-RENDER"

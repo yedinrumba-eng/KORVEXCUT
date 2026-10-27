@@ -189,10 +189,12 @@ class TestWorkfilesConcurrentRenders:
     def test_workfiles_concurrent_both_finish_with_the_wav48_and_the_mezzanines_cold(
         self, small: Path
     ) -> None:
-        document: dict[str, Any] = json.loads((small / "edit" / "edl-v1.json").read_text("utf-8"))
+        document: dict[str, Any] = json.loads(
+            (small / "edit" / "edl-v1.json").read_text(encoding="utf-8")
+        )
         document["version"] = 2
         (small / "edit" / "edl-v2.json").write_text(json.dumps(document), encoding="utf-8")
-        for round_ in range(2):
+        for round_ in range(5):  # 001.27: the row says 5 of 5 runs, and the test did 2
             shutil.rmtree(small / ".kcut" / "mezz", ignore_errors=True)
             shutil.rmtree(small / ".kcut" / "wav48", ignore_errors=True)
             done = [(*c.communicate(timeout=300), c.returncode) for c in self._children(small)]

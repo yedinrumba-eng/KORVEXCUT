@@ -8,7 +8,6 @@ most its range and reaches what the job reads (`need_end_f`). One that holds the
 job, with the same size and chain, is as good as one made for it.
 """
 
-import json
 import os
 import re
 from collections.abc import Sequence
@@ -21,7 +20,8 @@ from kcut.ff.args import mezz_args
 from kcut.ff.color import CHAIN_VERSION
 from kcut.ingest import workfiles
 from kcut.ingest.inventory import Clip
-from kcut.jsonio import MAX_SIDECAR_BYTES, read_json, refuse_directory
+from kcut.ingest.sidecar import is_lone_file, wait_to_land
+from kcut.jsonio import MAX_SIDECAR_BYTES, read_json, refuse_directory, write_json_exclusive
 from kcut.paths import resolve_in_project
 from kcut.project import Project
 from kcut.render.lock import discard_partial, prepare_partial
@@ -141,11 +141,15 @@ def _state(
     """`workfiles.sidecar_state`, and the frames the file has. The sidecar must also say how many
     bytes and frames the mp4 has: the file must still have those bytes (a file that was swapped,
     cut or written over is `stale`, 001.25 point 9), and the frames are a whole number from 1 to
-    `longest`, the length of the range of its name (001.26, point 1)."""
+    `longest`, the length of the range of its name (001.26, point 1). A file that is not a regular
+    file with a single link (a hard link to something outside the project, a symlink) is `stale`
+    whatever its sidecar says (001.27, point 8)."""
     sidecar = workfiles.sidecar_path(path)
     try:
         if not path.is_file() or not sidecar.is_file():
             return "missing", 0
+        if not is_lone_file(path):
+            return "stale", 0
         data = read_json(sidecar, MAX_SIDECAR_BYTES)
         size = path.stat().st_size
     except ProjectError:
@@ -201,7 +205,7 @@ def build_mezz(project: Project, job: MezzJob, clip: Clip, fps: int, log: Path |
         discard_partial(partial)
     params = params_of(job, job.start_f, job.end_f, fps)
     data = {"qhash": clip.qhash, "params": params, "size_bytes": size, "frames": made}
-    _write_sidecar(sidecar, data)
+    write_json_exclusive(sidecar, data)  # through `<sidecar>.<pid>.tmp`, created new (001.27)
     return MezzEntry(dst, job.start_f, job.start_f + made, job.w, job.h)
 
 
@@ -218,12 +222,14 @@ def _land(partial: Path, dst: Path, job: MezzJob, clip: Clip, fps: int) -> MezzE
     try:
         os.replace(partial, dst)
     except PermissionError:
-        entry, _ = _usable(dst, job.start_f, job.end_f, job, clip, fps)
-        if entry is not None:
-            return entry
-        raise ProjectError(
-            f"otro proceso tiene abierto {dst}; espera a que termine y repite"
-        ) from None
+        try:  # waits for the other process, or for the reader to let go (001.29, point 1)
+            return wait_to_land(
+                partial, dst, lambda: _usable(dst, job.start_f, job.end_f, job, clip, fps)[0]
+            )
+        except PermissionError:
+            raise ProjectError(
+                f"otro proceso tiene abierto {dst}; espera a que termine y repite"
+            ) from None
     return None
 
 
@@ -239,24 +245,3 @@ def frame_count(path: Path, log: Path | None) -> int:
         if found.get(entry, "").isdigit():
             return int(found[entry])
     raise ToolError(f"ffprobe no dio el número de frames de {path.name}")
-
-
-def _write_sidecar(sidecar: Path, data: dict[str, Any]) -> None:
-    """The sidecar through `<name>.<pid>.tmp` and `os.replace`: two renders that finish the same
-    mezzanine together do not write the same temporary file, and the temporary is created new
-    (`"x"`): a link planted after the `unlink` makes the open fail and is not written through
-    (001.26, point 7)."""
-    refuse_directory(sidecar)
-    tmp = sidecar.with_name(f"{sidecar.name}.{os.getpid()}.tmp")
-    try:
-        tmp.unlink(missing_ok=True)  # never write through a stale file or a planted link
-        text = json.dumps(data, ensure_ascii=False, indent=1, allow_nan=False) + "\n"
-        with tmp.open("x", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-        os.replace(tmp, sidecar)
-    except PermissionError:
-        raise ProjectError(f"cierra el archivo {sidecar} en el reproductor y repite") from None
-    except OSError as exc:
-        raise ProjectError(f"no pude escribir {sidecar}: {exc}") from None
-    finally:
-        discard_partial(tmp)

@@ -75,7 +75,9 @@ def test_header_and_line_format() -> None:
 
 
 def test_alphabetical_order_ignoring_case() -> None:
-    names = [ln.partition("==")[0].lower() for ln in LOCK.read_text("utf-8").splitlines()[1:]]
+    names = [
+        ln.partition("==")[0].lower() for ln in LOCK.read_text(encoding="utf-8").splitlines()[1:]
+    ]
     assert names == sorted(names)
 
 

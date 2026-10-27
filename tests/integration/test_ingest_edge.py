@@ -172,7 +172,10 @@ class TestWeakRefine:
         write_wav_s16_mono(blank / "crudo" / "a.wav", scene[5 * SR : 17 * SR], SR)
         write_wav_s16_mono(blank / "crudo" / "b.wav", scene[10 * SR : 22 * SR], SR)
         toml = blank / "kcut.toml"
-        toml.write_text(toml.read_text(encoding="utf-8").replace('master = ""', 'master = "s1"'))
+        toml.write_text(
+            toml.read_text(encoding="utf-8").replace('master = ""', 'master = "s1"'),
+            encoding="utf-8",
+        )
         return blank
 
     def test_a_weak_refine_is_rejected_and_recorded(self, shifted_pair: Path) -> None:
@@ -194,7 +197,9 @@ class TestWeakRefine:
         monkeypatch.setattr(sync_module, "AMBIGUITY_LAG_MS", math.inf)  # 001.7: 2nd net off too
         toml = shifted_pair / "kcut.toml"
         text = toml.read_text(encoding="utf-8")
-        toml.write_text(text.replace("min_refine_corr = 0.1", "min_refine_corr = 0.0"))
+        toml.write_text(
+            text.replace("min_refine_corr = 0.1", "min_refine_corr = 0.0"), encoding="utf-8"
+        )
         argv = ["ingest", "--project", str(shifted_pair), "--json", "--no-proxy"]
         assert cli.main(argv) == 0  # in-process: the patched constant has to be the one in use
         (member,) = inventory(shifted_pair).sync.members
@@ -232,7 +237,9 @@ class TestWeakRefine:
         assert ingest(two_cameras)[0] == 0
         toml = two_cameras / "kcut.toml"
         text = toml.read_text(encoding="utf-8")
-        toml.write_text(text.replace("min_refine_corr = 0.1", "min_refine_corr = 1.0"))
+        toml.write_text(
+            text.replace("min_refine_corr = 0.1", "min_refine_corr = 1.0"), encoding="utf-8"
+        )
         calls: list[int] = []
         real = sync_stage.sync_pair
         monkeypatch.setattr(
@@ -250,7 +257,10 @@ class TestAmbiguous:
         write_wav_s16_mono(blank / "crudo" / "a.wav", world(0.0), SR)
         write_wav_s16_mono(blank / "crudo" / "b.wav", world(4.0), SR)
         toml = blank / "kcut.toml"
-        toml.write_text(toml.read_text(encoding="utf-8").replace('master = ""', 'master = "s1"'))
+        toml.write_text(
+            toml.read_text(encoding="utf-8").replace('master = ""', 'master = "s1"'),
+            encoding="utf-8",
+        )
         return blank
 
     def test_an_ambiguous_pair_is_rejected_with_its_lags_and_a_message(

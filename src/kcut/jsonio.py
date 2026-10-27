@@ -73,11 +73,42 @@ def write_json_atomic(path: Path, obj: object) -> None:
     write_text_atomic(path, json.dumps(obj, ensure_ascii=False, indent=1, allow_nan=False) + "\n")
 
 
-def refuse_directory(path: Path) -> None:
-    """ProjectError if a folder sits where a file is expected (not the "close the player" case)."""
+def write_json_exclusive(path: Path, obj: object, label: str | None = None) -> None:
+    """Write `obj` as indented UTF-8 JSON through `<name>.<pid>.tmp` and `os.replace`, with a
+    temporary file that is created new (spec 001.27, point 5; moved here from `mezz_files`).
+
+    The temporary has the pid, so two renders that write the same sidecar together do not write
+    the same file, and it is created with `"x"`: a link planted after the `unlink` makes the open
+    fail and is not written through (001.26, point 7). A folder at `path` and a `path` that a
+    player has open are a ProjectError, as for `write_json_atomic`, which keeps its `<name>.tmp`.
+
+    `label` is the phrase that names the file in the messages (`el sidecar del wav48 de a1`): if it
+    comes, the messages have it where they had the path, and the system's text (`strerror`, or the
+    class of the error) where they had `str(exc)`, which carries the path too (001.28, point 2)."""
+    refuse_directory(path, label)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp.unlink(missing_ok=True)  # never write through a stale file or a planted link
+        text = json.dumps(obj, ensure_ascii=False, indent=1, allow_nan=False) + "\n"
+        with tmp.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    except PermissionError:
+        named = label or f"el archivo {path}"
+        raise ProjectError(f"cierra {named} en el reproductor y repite") from None
+    except OSError as exc:
+        reason = str(exc) if label is None else (exc.strerror or type(exc).__name__)
+        raise ProjectError(f"no pude escribir {label or path}: {reason}") from None
+    finally:
+        _discard(tmp)
+
+
+def refuse_directory(path: Path, label: str | None = None) -> None:
+    """ProjectError if a folder sits where a file is expected (not the "close the player" case).
+    With a `label` (a phrase like `el wav48 de a1`) the message names it, not the path (001.28)."""
     if path.is_dir():
         raise ProjectError(
-            f"en {path} hay una carpeta donde kcut espera un archivo; bórrala o muévela"
+            f"en {label or path} hay una carpeta donde kcut espera un archivo; bórrala o muévela"
         )
 
 

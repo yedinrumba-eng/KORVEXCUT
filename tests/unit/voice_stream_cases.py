@@ -247,13 +247,18 @@ class TestVoiceReadError:
         def broken(*_a: object, **_k: object) -> None:
             raise error("wav48 gone")  # no file name in the error: the voice says which wav
 
-        monkeypatch.setattr(voice_track, "read_wav_range", broken)
+        # 001.28: it patched `voice_track.read_wav_range`, which hid that no `OSError` comes out of
+        # it; the real reader runs now and `wave.open` is what fails (same assertions as before)
+        monkeypatch.setattr(wave, "open", broken)
         dst = tmp_path / "voice_raw.f32"
         dst.write_bytes(b"the old voice")
         with pytest.raises(ProjectError) as info:
             write_voice(streamed.project, parsed(), inventory(), dst, None)
         message = info.value.message_es
-        assert info.value.exit_code == 3 and message.startswith(f"no pude leer {streamed.wav}")
+        # 001.27: the clip and the class of the error, not the path of the wav (was `... <wav>`)
+        assert info.value.exit_code == 3
+        assert message == f"no pude leer el wav48 de a1: {error.__name__}"
+        assert str(streamed.wav) not in message
         assert "escribir" not in message and "voice_raw.f32" not in message
         assert dst.read_bytes() == b"the old voice"  # the file that was there is kept
         assert list(tmp_path.glob("*.partial")) == []

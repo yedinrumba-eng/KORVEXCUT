@@ -23,9 +23,11 @@ from kcut.edl.model import Edl
 from kcut.errors import CheckFailed, GateError, ProjectError
 from kcut.ingest import workfiles
 from kcut.ingest.inventory import Inventory, Notice
+from kcut.ingest.partials import sweep_orphan_partials
 from kcut.issues import Issue
 from kcut.jsonio import refuse_directory
-from kcut.paths import to_rel
+from kcut.logfile import append_log
+from kcut.paths import same_path, to_rel
 from kcut.pipeline.mux import mux_args
 from kcut.project import Project, load_inventory, open_project
 from kcut.render.compose import compose_video
@@ -88,13 +90,17 @@ def run(args: argparse.Namespace) -> int:
         folder.mkdir(parents=True, exist_ok=True)
         for name in _DESTINATIONS:  # a folder there is told now, not after minutes of render
             refuse_directory(folder / name)
+        swept = sweep_orphan_partials(project)  # what a render killed by force left (001.27)
+        if swept and log is not None:
+            append_log(log, f"[orphan_partials] {swept} archivos parciales huérfanos borrados\n")
         require_disk_space(folder, edl)
         index = _mezzanines(project, edl, inventory, version, log, notices)
         video, raw, render = folder / "video.mp4", folder / "voice_raw.f32", folder / "render.mp4"
         frames = _picture(project, edl, inventory, index, video, version, log)
+        _build_folder(project, version)  # looked at again before each write (001.27, point 4)
         workfiles._assert_in_cache(project, raw)
         write_voice(project, edl, inventory, raw, log)
-        _mux(project, video, raw, render, log)
+        _mux(project, video, raw, render, version, log)
     for item in notices:
         out.warn(f"{item.code}: {item.detail}")
     elapsed = round(time.monotonic() - started, 1)
@@ -127,16 +133,25 @@ def _build_folder(project: Project, version: int) -> Path:
     """`.kcut/build/vN`, after it was seen to be a real folder of the cache and not a symlink or
     a junction to somewhere else, even somewhere inside `.kcut/` (`build/v7 -> .kcut/` would make
     the render write `video.mp4` in the root of the cache): it has to resolve to itself. A
-    ProjectError before anything is written there (001.26, point 10)."""
+    ProjectError before anything is written there (001.26, point 10), and a file where the folder
+    goes is one too (001.27, point 3).
+
+    The render calls it again before each write into the folder (the picture, the voice and the
+    mux: 001.27, point 4), because the mezzanines take minutes and the folder can be changed for
+    a link in the meantime."""
     folder = project.layout.build_dir(version)
     workfiles._assert_in_cache(project, folder)
     if os.path.lexists(folder):
         itself = project.layout.build.resolve() / folder.name
         linked = os.path.islink(folder) or os.path.isjunction(folder)
-        if linked or os.path.normcase(str(folder.resolve())) != os.path.normcase(str(itself)):
+        if linked or not same_path(folder.resolve(), itself):
             raise ProjectError(
                 f"{folder} es un enlace (symlink o junction) o no resuelve a sí misma: "
                 "kcut no renderiza ahí; reemplázala por una carpeta de verdad"
+            )
+        if not folder.is_dir():
+            raise ProjectError(
+                f"{folder} es un archivo; kcut espera una carpeta ahí: bórralo o renómbralo"
             )
     return folder
 
@@ -167,6 +182,7 @@ def _picture(
     log: Path | None,
 ) -> int:
     """The picture to `video.partial.mp4` and then to `video.mp4`; the partial is never left."""
+    _build_folder(project, version)  # looked at again before the first write (001.27, point 4)
     partial = video.with_name("video.partial.mp4")
     for path in (partial, video):
         workfiles._assert_in_cache(project, path)
@@ -182,8 +198,11 @@ def _picture(
     return frames
 
 
-def _mux(project: Project, video: Path, raw: Path, render: Path, log: Path | None) -> None:
+def _mux(
+    project: Project, video: Path, raw: Path, render: Path, version: int, log: Path | None
+) -> None:
     """The picture copied and the raw voice as AAC 192k stereo, to `render.mp4`."""
+    _build_folder(project, version)  # looked at again before the first write (001.27, point 4)
     partial = render.with_name("render.partial.mp4")
     for path in (partial, render):
         workfiles._assert_in_cache(project, path)

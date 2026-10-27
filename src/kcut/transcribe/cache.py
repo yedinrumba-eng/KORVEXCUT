@@ -78,7 +78,7 @@ def wav16_length_ms(path: Path) -> int:
     point 10). The wav must be mono, 16-bit, 16 kHz, or this is a ProjectError, and the data its
     header declares must fit in the file (spec 001.14, point 4).
     """
-    with open_wav(path, "wav16") as wav:
+    with open_wav(path, label="el wav16") as wav:
         shape = (wav.getnchannels(), wav.getsampwidth(), wav.getframerate())
         frames = wav.getnframes()
     if shape != (1, 2, WAV16_RATE):

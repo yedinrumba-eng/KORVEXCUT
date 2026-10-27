@@ -12,6 +12,11 @@ from kcut.paths import Layout
 from kcut.project import Project
 from tests.fixtures.links import make_dir_link
 from tests.unit.workfiles_guard_cases import *  # noqa: F403  (001.26: 300-line rule)
+from tests.unit.workfiles_land_wait_cases import *  # noqa: F403  (001.29: 300-line rule)
+from tests.unit.workfiles_nopath_cases import *  # noqa: F403  (001.28: 300-line rule)
+from tests.unit.workfiles_notice_cases import *  # noqa: F403  (001.29: 300-line rule)
+from tests.unit.workfiles_prefix_cases import *  # noqa: F403  (001.28: 300-line rule)
+from tests.unit.workfiles_step0_cases import *  # noqa: F403  (001.27: 300-line rule)
 
 
 @pytest.fixture

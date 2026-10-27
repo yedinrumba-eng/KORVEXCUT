@@ -17,6 +17,7 @@ import pytest
 from kcut.edl.check import check_edl_file
 from kcut.edl.files import find_edl
 from kcut.errors import ProjectError
+from kcut.ingest import sidecar as sidecar_module
 from kcut.ingest.inventory import load_inventory
 from kcut.project import open_project
 from kcut.render.mezz import plan_mezz
@@ -207,8 +208,9 @@ class TestMezzReaderOpen:
 
     @pytest.mark.skipif(sys.platform != "win32", reason="only Windows refuses to replace it")
     def test_mezz_concurrent_reader_a_file_that_is_open_and_not_fresh_is_exit_3(
-        self, small: Path
+        self, small: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        monkeypatch.setattr(sidecar_module, "LAND_WAIT_S", 0.0)  # 001.29: no real wait
         project, job, clip = self._the_job(small)
         (mezz,) = mezz_files(small)
         Path(f"{mezz}.json").unlink()  # nobody vouches for it
