@@ -28,7 +28,8 @@
       · verificado: suite completa → 3331 passed, 3 skipped (implementador 442.57 s; verificador 606.77 s; exit 0 en ambas) · ruff check, ruff format y mypy OK · 1 ronda de revisión + paso 0 (001.22–001.23)
 - [x] **S1.5b** — (parte b de S1.5, 001.15) `kcut render` base (cámaras, insertos, looks, frame fx, tarjetas, mezzanines por tramo, voz exacta, lock, mux A/V) · paso 0 = spec 001.24
       · verificado: suite completa → 3943 passed, 3 skipped (3025.40 s; exit 0) · criterios S1.5b 1–59 exit 0 · ruff check, ruff format y mypy OK · 3 rondas de revisión (parches 001.25–001.27) + paso 0 (001.24)
-- [ ] **S1.6a** — (parte a de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
+- [x] **S1.6a** — (parte a de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos · paso 0 = spec 001.27
+      · verificado: suite completa → 4432 passed, 4 skipped in 1008.43 s (0:16:48), exit 0 (los 4 skips son de symlinks sin privilegio, WinError 1314, aceptados) · fila 17 (`-k workfiles_concurrent`) 3 corridas sueltas → 7 passed las 3 · ruff check, ruff format y mypy limpios · ningún .py pasa de 300 líneas · 2 rondas de revisión + paso 0 (001.27)
 - [ ] **S1.6b** — (parte b de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos
 - [ ] **S1.7** — Componentes de lucimiento (pasos, sticker, holograma, globo)
 - [ ] **S1.8a** — (parte a de S1.8) Audio: voz, SFX sintetizados, música, ducking, loudness
@@ -59,6 +60,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 26/10/2026 | S1.4 | kcut view + kcut frames (timeline PNG con cajas de palabras enmascaradas, filmstrip, frames y hoja ≤25 Mpx sin upscale, `FrameReader` con topes de 60 s y 64 MB, `PROXY_MISMATCH`, escritura fuera de `.kcut/` sin `--force`); PII: paso 0 + 3 rondas (001.18–001.21); revisión final aprobada (verificador y seguridad, 0 CRÍTICO, 0 ALTO); commit `40e9c65` pusheado a `origin/main` | suite completa → 2968 passed, 3 skipped (456.59 s, exit 0); suite rápida (implementador) → 2719 passed, 3 skipped, 249 deselected (87.20 s); ruff check, ruff format y mypy limpios; ningún archivo pasa de 300 líneas; criterios S1.4 1–41 exit 0 |
 | 26/10/2026 | S1.5a | EDL en frames: modelo, validación, `kcut edl check` (`--json`) y `kcut edl sources`, `kept_words`, geometría; gate que cierra a `no` ante cualquier duda; paso 0 (001.22–001.23); BLOQUEADO del implementador por ejemplos del spec mal escritos (001.23, lección 21); 1 ronda de revisión (verificador y seguridad APROBADOS, 0 CRÍTICO, 0 ALTO); commit `6605456` pusheado a `origin/main` | suite completa → 3331 passed, 3 skipped (implementador 442.57 s; verificador 606.77 s; exit 0 en ambas) · ruff check, ruff format y mypy limpios · ningún archivo pasa de 300 líneas · criterios S1.5a 1–26 exit 0 |
 | 27/10/2026 | S1.5b | `kcut render` base: cámaras e insertos, looks, frame fx y tarjetas de pantalla; mezzanines por tramo con sidecar de frames reales, parciales con pid y aterrizaje seguro entre procesos; pista de voz exacta a la muestra desde el wav48, con fades; lock por versión del build y mux A/V a `render.mp4`; guardas de destino y de enlaces en `.kcut/build/vN`; prefijo `\\?\` quitado en la guarda de caché; paso 0 de 001.24 (deuda 33) incluido; 3 rondas de revisión (ronda 1: 1 ALTO del verificador y 2 ALTO de seguridad; ronda 2: 2 ALTO del verificador, seguridad aprobó; ronda 3: 0 CRÍTICO y 0 ALTO, aprobaron los dos); los BAJO de la ronda 3 van al paso 0 de S1.6a (001.27, puntos 1–9); commit `1d8cf00` pusheado a `origin/main`, que quedó en `a46223d` (specs 001.24–001.27: `5076880`, `6ee21f8`, `7651209`, `a46223d`) | suite completa → 3943 passed, 3 skipped in 3025.40s (0:50:25), exit 0 (los 3 skipped son por falta de privilegio para symlinks en Windows); ruff check src tests → All checks passed!; ruff format --check src tests → 313 files already formatted; mypy → Success: no issues found in 124 source files; tope de 300 líneas → `[]`; criterios S1.5b 1–59 exit 0; repros de concurrencia: stagger_row39 8/8 y wav48_race 5/5 con `[0, 0]`; mezzanine corto 3/3 exit 0 |
+| 27/10/2026 | S1.6a | Capa de gráficos hasta la página HTML: esquema de `graphics.json` con anclas y parámetros, subtítulos por chunks, resolución de cues a frames de salida, imágenes aprobadas, página con runtime JS y 5 componentes base, `kcut graphics check` (G01–G12, JSON enmascarado); paso 0 de 001.27 incluido (barrido de parciales huérfanos, `encoding=` obligatorio, chequeos de `build/vN`, `write_json_exclusive`, hard links marcados como stale); 2 rondas de revisión (ronda 1: verificador 1 CRÍTICO (los errores de `wavio` sacaban la ruta del wav48, con slug y teléfono), seguridad 2 MEDIO y 4 BAJO, implementador BLOQUEADO en fila 17; ronda 2: verificador y seguridad 0 CRÍTICO y 0 ALTO, segundo BLOQUEADO del implementador en fila 17); commits `fdb19a3` y `3261492` pusheados a `origin/main` | suite completa → 4432 passed, 4 skipped in 1008.43 s (0:16:48), exit 0 (los 4 skips son de symlinks sin privilegio, WinError 1314, aceptados); fila 17 `-k workfiles_concurrent` 3 corridas sueltas → 7 passed las 3; ruff check, ruff format y mypy limpios; ningún .py pasa de 300 líneas; verificación final del verificador |
 
 ---
 
@@ -370,6 +372,14 @@ Lo que falta; todo va al paso 0 de S1.5b (spec 001.24):
 
 `kcut ingest` imprime los nombres de `crudo/` tal cual (por ejemplo `crudo/<nombre con un teléfono>.mp4`), y varios mensajes llevan slugs con dígitos. El plugin de spec 002 va a leer esa salida.
 
+Casos de S1.6a que siguen con la ruta o el nombre con slug:
+
+- `transcribe/cache.py`: `wav16_length_ms` y `file_sha256`;
+- `jsonio.read_json` (`no pude leer {path}: {exc}`);
+- `resolve_in_project` con un symlink en `crudo/` (el mensaje nombra el archivo crudo);
+- `cli._internal`, que enmascara los dígitos y deja el nombre;
+- un slug sin `@` en lo que imprime `kcut ingest`.
+
 - **Mitigado hoy por:** nada; el plugin todavía no existe.
 - **Cura real:** decidir el enmascarado de la consola en el Gate 1 de spec 002, con Yedin (spec 001.27 punto 13) — ~2-4 h.
 - **Cuándo:** Gate 1 de spec 002.
@@ -380,7 +390,7 @@ Lo que falta; todo va al paso 0 de S1.5b (spec 001.24):
 
 - **Mitigado hoy por:** si el disco se llena durante los mezzanines o el video, el render sale con `ToolError` y borra su parcial: es una falla segura.
 - **Cura real:** contar también los mezzanines y el video — ~1 h.
-- **Cuándo:** S1.9a (`kcut build`), cuando el pipeline completo calcule su presupuesto de disco.
+- **Cuándo:** en curso, S1.6b fila 16.
 
 ### 36. `frame_count` duplicado ⚪
 
@@ -403,6 +413,42 @@ Lo que falta; todo va al paso 0 de S1.5b (spec 001.24):
 - **Mitigado hoy por:** los mismos topes de la 37.
 - **Cura real:** barrido con los clips ordenados — ~1 h.
 - **Cuándo:** S1.8a.
+
+### 39. `captions.hide` sin tope y `graphics check --json` sin tope de errores 🟡
+
+`captions.hide` no tiene tope, y `graphics check --json` no tiene tope de errores. Abierta al cerrar S1.6a.
+
+- **Riesgo:** un `graphics.json` de menos de 1 MiB con unas 36 000 ventanas cuelga `graphics check` unos 107 s, y uno con 350 000 enteros da 350 000 errores en lo que lee Claude.
+- **Mitigado hoy por:** el tope de 1 MiB de la lectura (001.28). Acota los bytes, no los elementos.
+- **Cura real:** en curso, S1.6b paso 0, fila 13 (`MAX_HIDE = 500`, y 50 errores con totales como en `edl check`) — ~1 h.
+- **Cuándo:** en curso, S1.6b paso 0, fila 13.
+
+### 40. `assert_in_cache` nombra la ruta ⚪
+
+`assert_in_cache` nombra la ruta. Abierta al cerrar S1.6a.
+
+- **Riesgo:** con un junction plantado en un work file, el mensaje de `kcut render` lleva el slug con el teléfono.
+- **Mitigado hoy por:** hace falta plantar el enlace dentro de `.kcut/`. El chequeo falla cerrado y no escribe nada fuera.
+- **Cura real:** en curso, S1.6b paso 0, fila 14 (`label` con `work_label`) — ~30 min.
+- **Cuándo:** en curso, S1.6b paso 0, fila 14.
+
+### 41. WebP reserva memoria antes del chequeo de píxeles ⚪
+
+Un WebP reserva memoria antes del chequeo de píxeles. Abierta al cerrar S1.6a.
+
+- **Riesgo:** un archivo de 32 bytes que declara 16384 × 16384 pide unos 2 GB de memoria comprometida antes del chequeo.
+- **Mitigado hoy por:** no se alcanza. Ningún componente base tiene un parámetro `path` hasta S1.7, y toda imagen pide aprobación humana en el manifiesto.
+- **Cura real:** en curso, S1.6b paso 0, fila 15 (leer ancho y alto de la cabecera RIFF antes de `Image.open`) — ~1 h.
+- **Cuándo:** en curso, S1.6b paso 0, fila 15.
+
+### 42. Etiqueta de una letra con teléfono en `mask_bare_domains` ⚪
+
+Hay una etiqueta de una letra con teléfono en `mask_bare_domains`. Abierta al cerrar S1.6a.
+
+- **Riesgo:** `pedro@g-8095551234.mp4` deja ver `pedro`. El teléfono sí sale tapado.
+- **Mitigado hoy por:** el enmascarado de dígitos tapa el teléfono. Es un nombre de archivo poco realista.
+- **Cura real:** en curso, S1.6b paso 0, fila 17 (tapar la etiqueta que lleva 7 dígitos seguidos o más) — ~30 min.
+- **Cuándo:** en curso, S1.6b paso 0, fila 17.
 
 ---
 
@@ -542,6 +588,36 @@ Lo que falta; todo va al paso 0 de S1.5b (spec 001.24):
 - **Por qué engañaba:** la suite seguía verde; nada fallaba, porque esos tests nunca se ejecutaban.
 - **Causa real:** al partir el módulo en `*_cases.py` con `import *`, la clase no estaba en `__all__`, así que no se traía ni la recogía pytest.
 - **Fix:** se agregaron al `__all__`. Al partir un módulo, comparar el número de tests recogidos antes y después.
+
+### 27. El prefijo `\\?\` de Windows volvió por otro lado
+- **Síntoma:** 001.26 lo arregló solo en `cache_guard`, y la fila 17 se cayó después en `paths.resolve_in_project` con un "sale del proyecto" falso.
+- **Por qué engañaba:** pasa solo a veces.
+- **Causa real:** `ntpath.realpath` de CPython 3.12 deja el prefijo cuando otro proceso crea el archivo o su carpeta entre sus dos llamadas internas.
+- **Fix:** arreglarlo en el centro. `plain_path` vive en `paths.py`, y `is_inside`, `same_path`, `resolve_in_project` y `to_rel` lo aplican a los dos lados.
+
+### 28. Un test que parchea la función que se está arreglando pasa aunque el camino real siga roto
+- **Síntoma:** el test de la fila 20 parcheaba `read_wav_range` para que levantara un `OSError` que la función real nunca deja salir.
+- **Por qué engañaba:** el test pasaba aunque el camino real siguiera roto.
+- **Causa real:** `open_wav`, `check_wav_extent` y `_unreadable` ya convierten todo `OSError` en `ProjectError` con la ruta. El `except OSError` nuevo de `voice_track._read` era código muerto, y el test lo cubría simulando un error que no existe.
+- **Fix:** probar con fallos de E/S reales (archivo borrado, bloqueado con share 0, una carpeta en su lugar).
+
+### 29. Un heredoc escribió el carácter 0x08 en vez de `\b` en una regex
+- **Síntoma:** el test de reglas JS (`innerText`, `document.write`) nunca encontraba nada.
+- **Por qué engañaba:** el test pasaba en verde, y el carácter 0x08 no se ve en el editor. Una regex que nunca encuentra nada parece igual a un código que cumple la regla.
+- **Causa real:** un heredoc escribió el carácter 0x08 en vez de `\b` en una regex.
+- **Fix:** un test de contraste, y `tests/unit/test_source_bytes.py`, que falla si hay caracteres `Cc` en el código. Es la tercera vez que pasa.
+
+### 30. Dos renders que aterrizan el mismo archivo a la vez
+- **Síntoma:** dos renders que aterrizan el mismo archivo a la vez; Windows rechaza el `os.replace` del segundo.
+- **Por qué engañaba:** quedaba escondido detrás del bug del prefijo `\\?\`, que daba el mismo exit 3 en la misma fila 17. Al arreglar el prefijo, la fila siguió fallando 1 de cada 3 veces, con otro mensaje.
+- **Causa real:** entre el `os.replace` de uno y su sidecar hay unos milisegundos; si el otro intenta su `os.replace` en ese hueco, Windows lo rechaza.
+- **Fix:** espera acotada de 10 s (`ingest/sidecar.wait_to_land`). No es el reintento que se quitó en 001.26: aquel tapaba un bug, este espera a otro proceso.
+
+### 31. El resultado de la suite dependía del largo del `--basetemp`
+- **Síntoma:** el resultado de la suite dependía del largo del `--basetemp`.
+- **Por qué engañaba:** el test de disco lleno pasaba solo y fallaba dentro de la suite completa. Parecía intermitente, pero era la ruta de la subcarpeta, 5 caracteres más larga.
+- **Causa real:** el mensaje de disco lleno pone la ruta antes de la cifra, y `cli` la recorta a 300 caracteres.
+- **Fix:** en curso, paso 0 de S1.6b (fila 16). Mientras, la suite se corre con `--basetemp` directo, sin subcarpeta.
 
 ---
 

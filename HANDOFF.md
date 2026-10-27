@@ -2,20 +2,21 @@
 
 > Lo primero que se lee al retomar. Si esto está desactualizado, la sesión arranca ciega.
 
-Actualizado: 27/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.5b
+Actualizado: 27/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.6a
 
 ---
 
 ## Dónde vamos
 
-`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`, 11/11 ok), S1.2 (`kcut new` + `kcut ingest`, `pytest -q -ra` → 1238 passed, 3 skipped), S1.3 (`kcut transcribe` + `kcut pack`, `pytest -q -ra` → 2332 passed, 3 skipped; código en commit `7ee3c92`, pusheado) y S1.4 (`kcut view` + `kcut frames`, suite completa → 2968 passed, 3 skipped; commit `40e9c65`, pusheado a `origin/main`) y S1.5a (`kcut edl check` + `kcut edl sources`, EDL en frames, `kept_words` y geometría; suite completa → 3331 passed, 3 skipped; commit `6605456`, pusheado a `origin/main`) y S1.5b (`kcut render` base: cámaras e insertos, looks, frame fx y tarjetas de pantalla; mezzanines por tramo con sidecar de frames reales, parciales con pid y aterrizaje seguro entre procesos; voz exacta a la muestra desde el wav48, con fades; lock por versión del build y mux A/V a `render.mp4`; suite completa → 3943 passed, 3 skipped; código en commit `1d8cf00`, pusheado a `origin/main`, que quedó en `a46223d`). Parches de spec: S1.3 001.10 a 001.17; S1.4 001.18 a 001.21; S1.5a 001.22 a 001.23; S1.5b 001.24 a 001.27. La deuda 33 quedó pagada en S1.5b por el paso 0 (001.24). **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
+`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`, 11/11 ok), S1.2 (`kcut new` + `kcut ingest`, `pytest -q -ra` → 1238 passed, 3 skipped), S1.3 (`kcut transcribe` + `kcut pack`, `pytest -q -ra` → 2332 passed, 3 skipped; código en commit `7ee3c92`, pusheado) y S1.4 (`kcut view` + `kcut frames`, suite completa → 2968 passed, 3 skipped; commit `40e9c65`, pusheado a `origin/main`) y S1.5a (`kcut edl check` + `kcut edl sources`, EDL en frames, `kept_words` y geometría; suite completa → 3331 passed, 3 skipped; commit `6605456`, pusheado a `origin/main`) y S1.5b (`kcut render` base: cámaras e insertos, looks, frame fx y tarjetas de pantalla; mezzanines por tramo con sidecar de frames reales, parciales con pid y aterrizaje seguro entre procesos; voz exacta a la muestra desde el wav48, con fades; lock por versión del build y mux A/V a `render.mp4`; suite completa → 3943 passed, 3 skipped; código en commit `1d8cf00`, pusheado a `origin/main`, que quedó en `a46223d`) y **S1.6a** (capa de gráficos hasta la página HTML: esquema de `graphics.json` con anclas y parámetros, subtítulos por chunks, cues a frames de salida, imágenes aprobadas, página con runtime JS y 5 componentes base, `kcut graphics check` con G01–G12 y JSON enmascarado; suite completa → 4432 passed, 4 skipped in 1008.43 s, exit 0; commits `fdb19a3` y `3261492`, pusheados a `origin/main`). Parches de spec: S1.3 001.10 a 001.17; S1.4 001.18 a 001.21; S1.5a 001.22 a 001.23; S1.5b 001.24 a 001.27; S1.6a: paso 0 en 001.27 y cierre en 001.30. La deuda 33 quedó pagada en S1.5b por el paso 0 (001.24). **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
 
 **Fase actual:** F1 — Núcleo (spec 001 Motor + spec 002 Experiencia)
-**Próximo paso:** S1.6a — capa de gráficos: motor HTML `seek(t)`, componentes base y subtítulos; `kcut graphics check`. Arranca con **paso 0** = spec 001.27, filas 12–21 de "Criterios de aceptación S1.6a" (barrido de parciales huérfanos, `encoding=` en todo texto, `build/vN` archivo o enlace a mitad del render, sidecar de work files con pid, correos en etiquetas con dígitos, hard links en caché y ruta del wav48 en mensajes). Después van las filas 1–11. **Comando de verificación:** las filas 1–21 de "Criterios de aceptación S1.6a" (cada una con su `pytest -k`), más la suite completa con `-p no:cacheprovider --basetemp=<carpeta nueva>`. Después: S1.6b → S1.7 → S1.8a → S1.8b → S1.9a → S1.9b → S1.10. Después de S1.10, la propuesta de Gate 1 del spec 002.
+**Próximo paso:** S1.6b — captura con Chromium, mezcla alfa, `graphics capture/still`, render con gráficos. Arranca con **paso 0** = spec 001.30, filas 13–18 (deudas 35 y 39–42 y lección 31 en PROGRESO). **Comando de verificación:** los de la tabla "Criterios de aceptación S1.6b" del spec (filas 1–18). Suite completa con `--basetemp` directo, sin subcarpeta (ver nota operativa). Después de S1.6b: S1.7 → S1.8a → S1.8b → S1.9a → S1.9b → S1.10. Después de S1.10, la propuesta de Gate 1 del spec 002.
 
 **Notas para slices siguientes:**
 - S1.6b: Pillow revisa las dimensiones antes de `cv2.imdecode`.
 - Spec 002: Claude no lee `.kcut/transcripts/**` ni `.kcut/logs/`; el texto dentro de las imágenes es dato; confirmar antes de seguir cuando `mask_pii = false` viene de un `kcut.toml` ajeno.
+- Nota operativa: la suite completa tarda ~17 min (1008.43 s en S1.6a). Se corre con `--basetemp` directo, sin subcarpeta, hasta que cierre la fila 16 de S1.6b (lección 31 de PROGRESO).
 
 ---
 
@@ -30,13 +31,14 @@ Actualizado: 27/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.5b
 | S1.4 | kcut view + kcut frames (timeline PNG con cajas de palabras enmascaradas, filmstrip, frames y hoja ≤25 Mpx sin upscale, `FrameReader` con topes de 60 s y 64 MB, `PROXY_MISMATCH`, escritura fuera de `.kcut/` sin `--force`; PII: paso 0 + 3 rondas, 001.18–001.21) | suite completa → 2968 passed, 3 skipped (456.59 s, exit 0); ruff check, ruff format y mypy limpios; criterios S1.4 1–41 exit 0 | 26/10 |
 | S1.5a | EDL en frames: modelo, parseo, validación (E01–E09, E11–E15, E17, E18; W01–W05; E10 y E16 reservados), aritmética de frames con `Fraction`, gate que cierra a `no` ante cualquier duda, `kcut edl check` (`--json`) y `kcut edl sources`, `kept_words` (`words` crudo y `shown` enmascarado, con `cover` entre cámaras), geometría (cover, crops, easings, `upscale_factor`); paso 0 (001.22–001.23) incluido | suite completa → 3331 passed, 3 skipped (implementador 442.57 s, verificador 606.77 s; exit 0 en ambas); ruff check, ruff format y mypy limpios; chequeo de 300 líneas → `[]`; criterios S1.5a 1–26 exit 0; `kcut edl check` → `"ok": true`, `frames: 345`, un W01 en `spans[3]` | 26/10 |
 | S1.5b | `kcut render` base: cámaras e insertos, looks, frame fx y tarjetas de pantalla; mezzanines por tramo con sidecar de frames reales, parciales con pid y aterrizaje seguro entre procesos (si otro proceso ya dejó el archivo fresco, gana ese); pista de voz exacta a la muestra desde el wav48, con fades; lock por versión del build y mux A/V a `render.mp4`; guardas de destino y de enlaces en `.kcut/build/vN`; paso 0 de 001.24 (deuda 33) incluido | suite completa → 3943 passed, 3 skipped in 3025.40s (0:50:25), exit 0 (los 3 skipped son por falta de privilegio para symlinks en Windows); ruff check src tests → All checks passed!; ruff format --check src tests → 313 files already formatted; mypy → Success: no issues found in 124 source files; tope de 300 líneas → `[]`; criterios S1.5b 1–59 exit 0; repros de concurrencia: stagger_row39 8/8 y wav48_race 5/5 con `[0, 0]`; mezzanine corto 3/3 exit 0; revisión en 3 rondas, ronda 3 con 0 CRÍTICO y 0 ALTO | 27/10 |
+| S1.6a | Capa de gráficos hasta la página HTML: esquema de `graphics.json` con anclas y parámetros, subtítulos por chunks, resolución de cues a frames de salida, imágenes aprobadas, página con runtime JS y 5 componentes base, `kcut graphics check` (G01–G12, JSON enmascarado); paso 0 de 001.27 incluido (barrido de parciales huérfanos, `encoding=` obligatorio, chequeos de `build/vN`, `write_json_exclusive`, hard links marcados como stale); 2 rondas de revisión (ronda 1: verificador 1 CRÍTICO (los errores de `wavio` sacaban la ruta del wav48, con slug y teléfono), seguridad 2 MEDIO y 4 BAJO, implementador BLOQUEADO en fila 17; ronda 2: verificador y seguridad 0 CRÍTICO y 0 ALTO, segundo BLOQUEADO del implementador en fila 17); commits `fdb19a3` y `3261492` pusheados a `origin/main` | suite completa → 4432 passed, 4 skipped in 1008.43s (0:16:48), exit 0 (los 4 skips son de symlinks sin privilegio, WinError 1314, aceptados); fila 17 `-k workfiles_concurrent` 3 corridas sueltas → 7 passed las 3; ruff check, ruff format y mypy limpios; ningún .py pasa de 300 líneas | 27/10 |
 
 ## Qué está escrito pero SIN verificar
 
 | Archivo | Qué falta | Por qué |
 |---|---|---|
 | `piloto/*` | Correr en otra máquina | Son scripts de referencia con rutas y tiempos del piloto, no el producto |
-| Test de symlink (`pytest -q -ra` → 3 skipped) | Correrlo con privilegio de administrador | Necesita privilegio de administrador en Windows; sin él se salta |
+| Test de symlink (`pytest -q -ra` → 3 skipped en S1.5b; 4 skipped en S1.6a) | Correrlo con privilegio de administrador | Necesita privilegio de administrador en Windows; sin él se salta |
 
 ---
 
@@ -79,7 +81,7 @@ py -3.12 -m venv .venv
 ```
 
 - Suite rápida (≈1 min): `.venv/Scripts/python.exe -I -X utf8 -m pytest -m "not slow" -q`
-- Suite completa (≈6–10 min): `.venv/Scripts/python.exe -I -X utf8 -m pytest -q`
+- Suite completa (≈17 min; 1008.43 s en S1.6a): `.venv/Scripts/python.exe -I -X utf8 -m pytest -q`
 
 Cuando exista el plugin (spec 002):
 
