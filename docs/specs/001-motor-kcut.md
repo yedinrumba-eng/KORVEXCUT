@@ -4778,4 +4778,4 @@ S1.8a cerró en `4e996cc`, en la primera revisión. El verificador y seguridad a
 14. **A la deuda, sin código**:
     - `title`, `label`, `endcard` y los subtítulos siguen reusando nodos entre `seek`s. Pasan el test de orden sin `will-change`; la cura de fondo es rearmarlos como `kinetic`.
     - `lowpass` es un bucle de Python, unos 0.1 s por segundo de audio. Vectorizarlo puede romper el bit a bit con el piloto.
-15. **Para el Gate 1 de spec 002**: `graphics check --json` muestra `params.image` con los dígitos tapados y la palabra visible (`recursos/Zorrilla-********88.png`). Es la política vigente. Si también se tapa el nombre, lo decide Yedin con la deuda 34.
+15. **Para el Gate 1 de spec 002**: `graphics check --json` muestra `params.image` con los dígitos tapados y la palabra visible (`recursos/Maria-********34.png`). Es la política vigente. Si también se tapa el nombre, lo decide Yedin con la deuda 34.
