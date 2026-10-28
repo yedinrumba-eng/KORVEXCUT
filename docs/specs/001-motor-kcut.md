@@ -2789,7 +2789,7 @@ Regla verificada por test: toda salida de `asplit` se consume; si alguna sobrara
 
 #### `src/kcut/commands/mix.py` — CREAR (S1.8b)
 `kcut mix [--edl]` (lock `build-vN`; gate no requerido). `--json` →
-`{"ok": true, "mix": ".kcut/build/v1/mix.wav", "samples": 552000, "voice_lufs": -16.1, "mix_I": -14.0, "mix_TP": -1.6, "sfx_events": 9, "music": "synth"}`
+`{"ok": true, "mix": ".kcut/build/v1/mix.wav", "samples": 552000, "voice_lufs": -16.1, "mix_I": -14.0, "mix_TP": -1.6, "sfx_events": 13, "music": "synth"}`
 (`voice_lufs`, `mix_I`, `mix_TP` medidos con `ebur128=peak=true` sobre `voice.f32` y `mix.wav`).
 (001.15) Mide con `loudnorm.ebur128_args`/`parse_ebur128` (`null` si la medición da `None`). Antes de
 mezclar: `check_edl_file`, `kept_words`, `parse_sfx` + `resolve_events` y `parse_music`; exit =
@@ -2849,6 +2849,18 @@ música) · S1.8-8 → a-6 y b-10.
 | 9 | Medición a nivel info (T3, 001.15): `pass1_args` y `ebur128_args` sin `-loglevel` y con `-nostats`, `pass2_args` con `-loglevel error`, y `framelog=quiet`; con ffmpeg real sobre `-f lavfi -i sine=d=3`, `parse_ebur128` lee `I` y `TP` del `Summary` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_loudnorm_args.py tests/integration/test_ebur128_live.py -q` → exit 0 | ❌ |
 | 10 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
 | 11 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 12 | Paso 0 (001.36 punto 1): `edit/sfx.json` tiene topes. `audio/sfx_schema.py`: `MAX_EVENTS = 2000` y `MAX_WINDOWS = 200`; pasarse da **un** A01 en `events` o `windows` con el texto fijo `hay más de 2000 eventos; kcut no los revisa` (o `más de 200 ventanas`), sin revisar ninguno, como `MAX_CUES`. `jsonio.MAX_SFX_BYTES = 1 MiB` y `MAX_MUSIC_BYTES = 1 MiB`; `kcut mix` lee `sfx.json` y `music.json` con ese tope. `resolve_events` indexa las palabras una vez (por id) en vez de buscar cada ancla en la lista. `kcut mix` lista como mucho `MAX_SHOWN` errores y avisos, con los totales, como `graphics check`. Tests: 2001 eventos → un solo A01 en `events`; 2000 válidos → sin A01; 201 ventanas → un A01; un `sfx.json` de 1 MiB + 1 byte → el error de tamaño de `read_json`, exit 3, antes de parsear; 4000 anclas de palabra contra 20 000 palabras → `resolve_events` en menos de 1 s | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k sfx_limits` → exit 0 | ❌ |
+| 13 | Paso 0 (001.36 punto 2): la síntesis tiene presupuesto. `MAX_SFX_DUR_S = 30`: un evento de un tipo con `dur_f` (y `whoosh` o `shimmer` con `dur_f` explícito) que dura más de 30 s es A03 `dura más de 30 s; un efecto va hasta 30 s`. `MAX_SFX_TOTAL_S = 600`: si la suma de las duraciones de todos los eventos resueltos pasa de 600 s, es **un** A03 en `events` con el texto `los efectos suman más de 600 s de audio`, y no se sintetiza nada. Un `MemoryError` al sintetizar es ProjectError (exit 3) `no hay memoria para sintetizar los efectos`. Tests: un `pad` de 30 s → sin A03; de 30 s + 1 frame → A03; 21 eventos de 30 s → el A03 del total; `MemoryError` parcheado en `build_sfx_bus` → exit 3 con ese texto | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k sfx_budget` → exit 0 | ❌ |
+| 14 | Paso 0 (001.36 punto 3): el A03 de `dur_f` usa `describe_value(given)` como el resto: `dur_f = 10**300` → el mensaje no pasa de 120 caracteres y no trae los 301 dígitos | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_sfx_events.py -q -k dur_f_huge` → exit 0 | ❌ |
+| 15 | Paso 0 (001.36 punto 4): el recorrido de chunks de `gfx/assets._png_has_actl` y `_webp_is_animated` para a los 64 chunks: más antes de `IDAT` (o antes de `VP8 `/`VP8L`/`ANMF`) es G09 `la imagen tiene demasiados bloques; vuelve a exportarla`. `resolve_cues` guarda en la caché del documento también los rechazos, por `rel`, así que una imagen rechazada no se vuelve a leer en cada cue. Tests: un PNG con 65 chunks `tEXt` vacíos antes de `IDAT` → G09; con 64 → sin G09; 8 cues con la misma imagen rechazada → la imagen se lee una vez (un espía cuenta las lecturas) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k image_chunk_cap` → exit 0 | ❌ |
+| 16 | Paso 0 (001.36 punto 5): `paths.resolve_in_project` convierte un `ValueError` u `OSError` de `Path.resolve` (por ejemplo `path too long for Windows`) en ProjectError `la ruta no se puede resolver` (sin la ruta). El `file.path` de `music.json` lleva `max_len=200`, como `image` (S1.8a-8). Tests: un `file` de 40 000 caracteres en `recursos.json` → exit 3 con ese texto, no 10; `resolve_in_project(root, "a" * 40000)` levanta ProjectError | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k resolve_too_long` → exit 0 | ❌ |
+| 17 | Paso 0 (001.36 punto 6): las reglas JS suman `\bKeyframeEffect\b`, `\bdocument\s*\.\s*timeline\b`, `\bnew\s+Animation\b` y `\bgetAnimations\b`, y el patrón de `animation` y `transition` no distingue mayúsculas (atrapa `el.style.Animation`). El test de contraste trae un ejemplo de cada una. El acceso por corchetes con nombres armados (`window["set"+"Timeout"]`) queda aceptado: es un lint sobre el JS de kcut, no una defensa ante JS ajeno. Si un `.js` usa una: BLOQUEADO con el archivo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_gfx_js_rules.py -q` → exit 0 | ❌ |
+| 18 | Paso 0 (001.36 punto 7): un test amarra que `kcut render` le pasa `watch=` al `OverlaySource`: durante un render con gráficos de 60 frames, el guard completo de carpetas corre como mucho 5 veces (un espía lo cuenta); sin `watch=` corre una vez por PNG y el test falla (se ve fallar con la mutación). El docstring del test de `build/vN` de S1.8a-13 dice que ese caso lo para `build_folder()` al inicio de `_picture`, no el chequeo de identidad | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k overlay_watch_wired` → exit 0 | ❌ |
+| 19 | Paso 0 (001.36 punto 8): si una identidad guardada por el overlay tiene `st_ino == 0` (FAT, exFAT), el overlay vuelve al guard completo antes de cada PNG para esa carpeta. Test con `os.lstat` parcheado para dar `st_ino = 0` → el guard completo corre por PNG | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k overlay_ino_zero` → exit 0 | ❌ |
+| 20 | Paso 0 (001.36 punto 9): con un `recursos.json` roto, el mensaje de `require_approved` dice dónde sin citar valores: `items[N].<clave>` cuando la clave es una de las que kcut conoce, o `línea L, columna C` si el JSON no se puede leer. Tests: `approved_by` entero en el ítem 3 → el mensaje trae `items[3].approved_by` y no el valor; JSON cortado → trae `línea` y `columna`; un nombre de clave desconocida no aparece | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k manifest_where` → exit 0 | ❌ |
+| 21 | Paso 0 (001.36 punto 10): `tests/integration/test_capture_gates.py` deja el componente falso `picture` y usa el sticker | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_capture_gates.py -q` → exit 0 | ❌ |
+| 22 | Paso 0 (001.36 punto 11): todos los textos `_es` de `gfx/components_showpiece.py` y `gfx/components_base.py` (`name_es`, `purpose_es`, `avoid_es`, `cost_note_es`, `help_es`) llevan tildes | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_components_params.py tests/integration/test_components_base.py -q` → exit 0 | ❌ |
+| 23 | Paso 0 (001.36): toda aserción vieja que cambie en este paso lleva `# 001.36` y no se debilita; las filas 12–22 pasan con sus comandos; la suite completa da exit 0 | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider` → exit 0 | ❌ |
 
 Equivalencias: S1.8-3 → b-1 · S1.8-4 → b-3 (sin el esquema de sfx) · S1.8-5 → b-4 · S1.8-6 → b-5 ·
 S1.8-7 → b-6 · S1.8-8 → a-6 y b-10.
@@ -4732,3 +4744,38 @@ S1.7 cerró en `78a2b19`, en la primera revisión. El verificador y seguridad ap
 13. **A la deuda, sin código**:
     - `resolve_cues._use_images` no baja a los parámetros `object`, así que una imagen dentro de un objeto no se embebería. Ningún componente lo hace hoy.
     - El parámetro `out_dir` de `capture_stills`, que ya no se usa (001.34 punto 5).
+
+### 001.36 — 28/10/2026 — cierre de S1.8a y paso 0 de S1.8b
+
+S1.8a cerró en `4e996cc`, en la primera revisión. El verificador y seguridad aprobaron con 0 CRÍTICO y 0 ALTO.
+- **Suite:** `5380 passed, 4 skipped` en las corridas del implementador y del verificador.
+- **Port del piloto:** el verificador confirmó que las fórmulas son bit a bit las de `piloto/audio.py` (18 casos, `array_equal`, maxdiff 0).
+- **Pendientes:** entre los dos dejaron 4 MEDIO y 9 BAJO. Van aquí, al paso 0 de S1.8b (filas 12–23), **antes** de cablear `kcut mix`, que es cuando `sfx.json` empieza a leerse. Lo que no es contrato lo decidió el coordinador.
+
+1. **MEDIO de seguridad — `sfx.json` sin topes** (fila 12).
+   - Sin tope de eventos, de ventanas ni de bytes: 100 `whoosh` largos tardaban 65 s en un video de 11.5 s.
+   - Las anclas de palabra se buscaban en lista, así que el costo crecía con anclas por palabras (O(N·M)).
+   - 2000 eventos dan para un video de 10 minutos con golpes cada 8 frames. 1 MiB les sobra.
+2. **MEDIO de seguridad — síntesis sin presupuesto** (fila 13).
+   - `dur_f` podía llegar al largo del video: un `pad` de 20 minutos pide unos 2.5 GB.
+   - 30 s alcanzan para "colchón corto" y "subida antes de un golpe". Los 600 s del total acotan la CPU a unos 30 s.
+3. **BAJO de seguridad — un número enorme en el A03** (fila 14).
+4. **BAJO de seguridad — el recorrido de chunks sin tope** (fila 15). Un PNG de 20 MiB con 1.75 M de chunks vacíos tardaba 3 s por cue, y los rechazos no se guardaban en la caché.
+5. **BAJO de seguridad — una ruta de más de 32 000 caracteres da exit 10** (fila 16). `Path.resolve` levanta `ValueError`. `music.json` iba a caer en lo mismo.
+6. **BAJO de seguridad — APIs de animación con reloj propio** (fila 17). `KeyframeEffect`, `document.timeline`, `new Animation` y `getAnimations` rompen "mismo tiempo, misma imagen". Las ofuscaciones con corchetes quedan aceptadas: la CSP sin `'unsafe-eval'` ya frena `eval` y `Function`, y no hay sumidero de HTML.
+7. **MEDIO del verificador — nada amarraba `watch=`** (fila 18). Con la mutación, el costo de 1.7 ms por frame volvía sin que fallara ningún test.
+8. **De seguridad, sin verificar — `st_ino` en FAT** (fila 19). En FAT el índice puede ser 0, y la identidad no distinguiría carpetas.
+9. **BAJO del verificador — el manifiesto roto no dice dónde** (fila 20). Con los textos fijos de S1.8a-8, nada decía cuál entrada estaba mal. Nombrar el índice y una clave conocida no cita valores.
+10. **BAJO del verificador — el tercer `picture` falso y las tildes** (filas 21 y 22).
+11. **MEDIO del verificador — "pico ≤ 1" de S1.8a-1.**
+    - Las fórmulas del piloto, portadas bit a bit, dan picos crudos de hasta 1.46 (`whoosh`). Con la ganancia por defecto quedan por debajo de 1 en los parámetros que prueba el test, pero `typing` con otras semillas da 1.068.
+    - Decisión: "pico ≤ 1" **no** es contrato de los SFX sueltos. Vale DS4: todo va en f32 sin recorte hasta el loudnorm, que pone el tope (S1.8b-5: TP ≤ −1.0).
+    - El test de la fila 1 queda como está: mide lo que dice, con sus parámetros. El criterio de la fila se lee como "largos exactos, finitos y deterministas".
+12. **Ratificado**:
+    - Las decisiones del paso 0 y de S1.8a que el verificador aceptó: textos fijos de `require_approved`, regex, orden de los chequeos, recorridos, `watch=`, `will-change` y `kinetic`, avisos, reparto A01/A03, rampas.
+    - La cobertura de "en medio del render" de S1.8a-13. En Windows no se puede renombrar `build/vN` con ffmpeg escribiendo adentro (`WinError 5`). Los tests unitarios cambian cada carpeta entre un `blend` y otro.
+13. **Corrección del spec**: el ejemplo de `kcut mix` decía `"sfx_events": 9`, y el fixture tiene 13 (los 5 del ejemplo más 8 golpes de 210 a 266). Pasa a 13.
+14. **A la deuda, sin código**:
+    - `title`, `label`, `endcard` y los subtítulos siguen reusando nodos entre `seek`s. Pasan el test de orden sin `will-change`; la cura de fondo es rearmarlos como `kinetic`.
+    - `lowpass` es un bucle de Python, unos 0.1 s por segundo de audio. Vectorizarlo puede romper el bit a bit con el piloto.
+15. **Para el Gate 1 de spec 002**: `graphics check --json` muestra `params.image` con los dígitos tapados y la palabra visible (`recursos/Zorrilla-********88.png`). Es la política vigente. Si también se tapa el nombre, lo decide Yedin con la deuda 34.
