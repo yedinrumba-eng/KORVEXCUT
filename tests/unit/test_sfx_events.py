@@ -217,3 +217,13 @@ def test_sfx_events_the_plan_of_the_synthetic_project_is_valid_and_resolves_clea
     beats = events[5:]
     assert [e.type for e in beats] == ["kick", "hat"] * 4
     assert [e.at_f for e in beats] == list(range(210, 270, 8))
+
+
+def test_sfx_events_dur_f_huge_the_a03_does_not_carry_the_whole_number() -> None:
+    """001.36, point 3: a `dur_f` of 10**300 is an A03 like any other, whose message gives the
+    number as `describe_value` does (its first digits and how many it has), not its 301 digits."""
+    events, found = _resolve({"type": "pad", "at": 10, "dur_f": 10**300})
+    assert events == [] and [(i.code, i.path) for i in found] == [("A03", "events[0].dur_f")]
+    message = found[0].message_es
+    assert len(message) <= 120, len(message)
+    assert "0" * 30 not in message and "301" in message  # how many digits it has

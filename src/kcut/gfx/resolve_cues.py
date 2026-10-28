@@ -49,6 +49,9 @@ class Worker:
         self._issues = issues
         self._image_bytes = 0  # what `images` weighs, as the page will carry it (001.33, point 8)
         self.images: dict[str, str] = {}
+        # the images that were refused, by `rel`: `(code, message)`. A cue that names one again
+        # gets the same answer without the file being read again (001.36, point 4)
+        self._refused: dict[str, tuple[str, str]] = {}
 
     def windows(self, doc: GraphicsDoc) -> list[tuple[int, int]]:
         """The `captions.hide` windows that resolve and fit in the video."""
@@ -140,17 +143,26 @@ class Worker:
     def _image(self, rel: str, path: str) -> None:
         if rel in self.images:
             return
+        if rel in self._refused:  # already looked at: the same answer, for this cue's `path`
+            code, message = self._refused[rel]
+            self._issues.append(Issue(code, "error", path, message))
+            return
         try:
             uri = image_data_uri(self._project, rel)
         except GateError as exc:
-            self._issues.append(Issue("G10", "error", path, exc.message_es))
+            self._refuse(rel, path, "G10", exc.message_es)
             return
         except ProjectError as exc:
-            self._issues.append(Issue("G09", "error", path, exc.message_es))
+            self._refuse(rel, path, "G09", exc.message_es)
             return
         size = assets.uri_bytes(uri)
         if self._image_bytes + size > assets.MAX_PAGE_IMAGE_BYTES:  # the cue that crosses it
-            self._issues.append(Issue("G09", "error", path, assets.PAGE_IMAGES_TOO_BIG))
+            self._refuse(rel, path, "G09", assets.PAGE_IMAGES_TOO_BIG)
             return
         self._image_bytes += size
         self.images[rel] = uri
+
+    def _refuse(self, rel: str, path: str, code: str, message: str) -> None:
+        """An error of the image at `path`, kept by `rel` for the cues that name it again."""
+        self._refused[rel] = (code, message)
+        self._issues.append(Issue(code, "error", path, message))

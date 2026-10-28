@@ -8,7 +8,7 @@ for a time or a window outside the video, A08 when part of a sound falls outside
 and an event with an error is left out of the result. A message never repeats text of the file.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -19,10 +19,16 @@ from kcut.edl.model import Edl
 from kcut.edl.words import KeptWord
 from kcut.issues import Issue
 from kcut.schema_util import describe_value
-from kcut.timebase import ms_to_f_round
+from kcut.timebase import SAMPLE_RATE, ms_to_f_round
 from kcut.timebase import spf as samples_per_frame
 
 Align = Literal["start", "center", "end"]
+# The budget of the synthesis (001.36, point 2). A `dur_f` could be as long as the video: a `pad` of
+# 20 minutes asks for about 2.5 GB. 30 s are enough for "a short cushion" and "a rise before a hit",
+# and 1200 s of effects in all keep the CPU of the synthesis to about 70 s (001.37, point 9: the
+# total was 600 s, and 2000 `kick`, the most events a file may have, last more than that)
+MAX_SFX_DUR_S = 30
+MAX_SFX_TOTAL_S = 1200
 
 
 @dataclass(frozen=True)
@@ -50,12 +56,21 @@ def resolve_events(
     (or `ms_to_f_round(default_dur_ms, fps)`) in `whoosh` and `shimmer` and the given one in the
     required ones; `gain` is the given one or the default of the type; `seed`, `freq` and `rate`
     are the given ones or the default of their `ParamSpec` in the types that have them. The windows
-    of gain are checked too (A07): `0 <= start < end <= frames`."""
+    of gain are checked too (A07): `0 <= start < end <= frames`.
+
+    The words are indexed once, by id, and not looked up in the list for each anchor (001.36,
+    point 1). An event of a type with `dur_f` that lasts more than `MAX_SFX_DUR_S` is an A03. Past
+    `MAX_SFX_TOTAL_S` of effects in all (the events that are left, added), it returns `[]` next to
+    one A03 of level error in `events` (001.37, point 13): there is nothing to make, and the error
+    stops `kcut mix` before any effect is synthesized."""
     issues: list[Issue] = []
     events: list[SfxEvent] = []
     spf = samples_per_frame(fps)
+    index: dict[str, KeptWord] = {}
+    for word in kept:
+        index.setdefault(word.id, word)  # the first one with an id, as the list search found it
     for event in doc.events:
-        resolved = _resolve(event, kept, edl, fps, spf, issues)
+        resolved = _resolve(event, index, edl, fps, spf, issues)
         if resolved is not None:
             events.append(resolved)
     for window in doc.windows:
@@ -65,12 +80,23 @@ def resolve_events(
                 f"video tiene {edl.frames} frames: tiene que cumplirse 0 <= start < end <= frames"
             )
             issues.append(Issue("A07", "error", f"windows[{window.index}]", message))
+    total = sum(_length(event, spf) for event in events)
+    if total > MAX_SFX_TOTAL_S * SAMPLE_RATE:
+        message = f"los efectos suman más de {MAX_SFX_TOTAL_S} s de audio"
+        issues.append(Issue("A03", "error", "events", message))
+        return [], issues
     return events, issues
+
+
+def _length(event: SfxEvent, spf: int) -> int:
+    """The samples that `event` makes: the fixed length of its type or `dur_f * spf`."""
+    fixed = SFX[event.type].fixed_n
+    return fixed if fixed is not None else (event.dur_f or 0) * spf
 
 
 def _resolve(
     event: SfxEventDoc,
-    kept: Sequence[KeptWord],
+    index: Mapping[str, KeptWord],
     edl: Edl,
     fps: int,
     spf: int,
@@ -83,7 +109,7 @@ def _resolve(
         issues.append(Issue("A02", "error", f"{where}.type", message))
         return None
     before = len(issues)
-    at_f = _moment(event, kept, edl, issues)
+    at_f = _moment(event, index, edl, issues)
     dur_f = _duration(event, sfx, edl, fps, issues)
     failed = any(issue.level == "error" for issue in issues[before:])  # a warning keeps the event
     if failed or at_f is None:
@@ -107,13 +133,23 @@ def _resolve(
     )
 
 
+def _scope(at: object, index: Mapping[str, KeptWord]) -> Sequence[KeptWord]:
+    """The words `resolve_time` has to look through for the moment `at`: none, unless it is a word
+    anchor, and then only the one with that id, found in the index and not in the whole list."""
+    if isinstance(at, dict):
+        wanted = at.get("word")
+        word = index.get(wanted) if isinstance(wanted, str) else None
+        return () if word is None else (word,)
+    return ()
+
+
 def _moment(
-    event: SfxEventDoc, kept: Sequence[KeptWord], edl: Edl, issues: list[Issue]
+    event: SfxEventDoc, index: Mapping[str, KeptWord], edl: Edl, issues: list[Issue]
 ) -> int | None:
     """The frame of `event.at` (A04 / A05 / A07 if it cannot be found or is outside the video, A06
     if a frame of a source is heard more than once and the first is used)."""
     path = f"events[{event.index}].at"
-    found = resolve_time(event.at, kept, edl)
+    found = resolve_time(event.at, _scope(event.at, index), edl)
     if found.problem == "word_not_kept":
         message = "la palabra no está entre las que conserva el corte"
         issues.append(Issue("A04", "error", path, message))
@@ -144,9 +180,15 @@ def _duration(
     if sfx.fixed_n is not None:
         return None
     given = event.dur_f
+    where = f"events[{event.index}].dur_f"
     if given is not None and given > edl.frames:
-        message = f"debe estar entre 1 y {edl.frames} (los frames del video; vino {given})"
-        issues.append(Issue("A03", "error", f"events[{event.index}].dur_f", message))
+        seen = describe_value(given)
+        message = f"debe estar entre 1 y {edl.frames} (los frames del video; vino {seen})"
+        issues.append(Issue("A03", "error", where, message))
+        return None
+    if given is not None and given > MAX_SFX_DUR_S * fps:  # more than 30 s, in whole frames
+        message = f"dura más de {MAX_SFX_DUR_S} s; un efecto va hasta {MAX_SFX_DUR_S} s"
+        issues.append(Issue("A03", "error", where, message))
         return None
     if given is not None:
         return given

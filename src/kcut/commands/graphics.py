@@ -15,13 +15,14 @@ import os
 from typing import Any
 
 from kcut.commands.graphics_capture import run_capture, run_still
+from kcut.commands.listing import findings_json, list_findings
 from kcut.console import Out
 from kcut.edl.check import EdlCheck, check_edl_file
 from kcut.gfx.captions import shown_chunks
 from kcut.gfx.resolve import GRAPHICS_REL, ResolvedGraphics, chunk_json, resolve
 from kcut.gfx.resolve_cues import ResolvedCue
 from kcut.ingest.inventory import Notice
-from kcut.issues import MAX_SHOWN, Issue, exit_code, issue_json
+from kcut.issues import Issue, exit_code, issue_json
 from kcut.pack.pii import mask_text
 from kcut.project import Project, load_inventory, open_project
 
@@ -103,8 +104,8 @@ def _check(args: argparse.Namespace) -> int:
     chunks = shown_chunks(resolved.chunks, resolved.shown, resolved.captions_cfg)
     summary = f"{len(resolved.cues)} cues, {len(chunks)} subtítulos, {len(errors)} errores"
     out.line("ERROR" if errors else "OK", f"{checked.rel}: {summary}, {len(warnings)} avisos")
-    _list(out, "ERROR", errors)
-    _list(out, "AVISO", warnings)
+    list_findings(out, "ERROR", errors)
+    list_findings(out, "AVISO", warnings)
     for notice in resolved.notices:
         out.line("AVISO", f"{notice.code}: {notice.detail}")
     out.result(
@@ -116,7 +117,7 @@ def _check(args: argparse.Namespace) -> int:
             "frames": resolved.frames,
             "cues": [_cue_json(c, resolved) for c in resolved.cues],
             "chunks": [chunk_json(c) for c in chunks],
-            **_findings_json(
+            **findings_json(
                 [issue_json(i) for i in errors],
                 [issue_json(i) for i in warnings] + [_notice_json(n) for n in resolved.notices],
             ),
@@ -129,7 +130,7 @@ def _refused(out: Out, project: Project, checked: EdlCheck, errors: list[Issue])
     """The EDL has errors: they are the answer, and no graphics are resolved."""
     present = os.path.lexists(project.layout.edit / "graphics.json")
     out.line("ERROR", f"{checked.rel}: el EDL tiene {len(errors)} errores; corre kcut edl check")
-    _list(out, "ERROR", errors)
+    list_findings(out, "ERROR", errors)
     out.result(
         {
             "schema": "kcut.gfxcheck/1",
@@ -139,34 +140,10 @@ def _refused(out: Out, project: Project, checked: EdlCheck, errors: list[Issue])
             "frames": None if checked.edl is None else checked.edl.frames,
             "cues": [],
             "chunks": [],
-            **_findings_json([issue_json(i) for i in errors], []),
+            **findings_json([issue_json(i) for i in errors], []),
         }
     )
     return exit_code(errors)
-
-
-def _findings_json(
-    errors: list[dict[str, str]], warnings: list[dict[str, str]]
-) -> dict[str, object]:
-    """The findings as `--json` lists them, like `edl check --json` (001.30 point 1): at most
-    `MAX_SHOWN` errors and as many warnings, the totals, and whether anything was left out. A
-    file with thousands of findings costs a page, not a log."""
-    return {
-        "errors": errors[:MAX_SHOWN],
-        "warnings": warnings[:MAX_SHOWN],
-        "errors_total": len(errors),
-        "warnings_total": len(warnings),
-        "truncated": len(errors) > MAX_SHOWN or len(warnings) > MAX_SHOWN,
-    }
-
-
-def _list(out: Out, tag: str, issues: list[Issue]) -> None:
-    """The first `MAX_SHOWN` findings, one line each, and how many more there are."""
-    for issue in issues[:MAX_SHOWN]:
-        where = f" {issue.path}" if issue.path else ""
-        out.line(tag, f"{issue.code}{where}: {issue.message_es}")
-    if len(issues) > MAX_SHOWN:
-        out.line(tag, f"... y {len(issues) - MAX_SHOWN} más")
 
 
 def _notice_json(notice: Notice) -> dict[str, str]:

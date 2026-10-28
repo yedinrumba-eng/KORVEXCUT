@@ -51,12 +51,12 @@ TITLE = ComponentDef(
     big=True,
     params=(
         ParamSpec(
-            "text", "str", True, max_len=40, help_es="texto del titulo (hasta 40 caracteres)"
+            "text", "str", True, max_len=40, help_es="texto del título (hasta 40 caracteres)"
         ),
-        _frac("y", 0.6, "centro vertical, fraccion del alto"),
-        _frac("x", 0.5, "centro horizontal, fraccion del ancho"),
+        _frac("y", 0.6, "centro vertical, fracción del alto"),
+        _frac("x", 0.5, "centro horizontal, fracción del ancho"),
         ParamSpec("size", "int", default=132, lo=24, hi=400, help_es="alto de la letra en px"),
-        ParamSpec("bar", "bool", default=True, help_es="barra de color detras del texto"),
+        ParamSpec("bar", "bool", default=True, help_es="barra de color detrás del texto"),
         ParamSpec("bar_color", "color", default="accent", help_es=_COLOR_HELP),
         ParamSpec(
             "color",
@@ -67,11 +67,11 @@ TITLE = ComponentDef(
             "stroke", "bool", help_es="borde oscuro en las letras (por defecto, solo sin barra)"
         ),
     ),
-    name_es="Titulo grande",
+    name_es="Título grande",
     purpose_es="Nombra la marca o la idea clave en la palabra que la dice",
     avoid_es="No lo uses sobre una cara en primer plano ni dos veces seguidas",
     cost="bajo",
-    cost_note_es="captura HTML ~55 ms por frame mientras esta en pantalla",
+    cost_note_es="captura HTML ~55 ms por frame mientras está en pantalla",
     since="S1.6",
 )
 
@@ -81,20 +81,20 @@ LABEL = ComponentDef(
     big=False,
     params=(
         ParamSpec(
-            "text", "str", True, max_len=48, help_es="texto de la pildora (hasta 48 caracteres)"
+            "text", "str", True, max_len=48, help_es="texto de la píldora (hasta 48 caracteres)"
         ),
-        _frac("y", 0.58, "centro vertical, fraccion del alto"),
-        _frac("x", 0.5, "centro horizontal, fraccion del ancho"),
+        _frac("y", 0.58, "centro vertical, fracción del alto"),
+        _frac("x", 0.5, "centro horizontal, fracción del ancho"),
         ParamSpec("size", "int", default=40, lo=16, hi=120, help_es="alto de la letra en px"),
         ParamSpec("fg", "color", default="accent", help_es=f"color del texto; {_COLOR_HELP}"),
         ParamSpec("bg", "color", default="dark", help_es=f"color del fondo; {_COLOR_HELP}"),
         ParamSpec("ring", "color", default="accent", help_es=f"color del anillo; {_COLOR_HELP}"),
     ),
-    name_es="Pildora de texto",
+    name_es="Píldora de texto",
     purpose_es="Una frase corta como nota al margen: la fuente, el dato, el nombre",
     avoid_es="No la uses para frases largas: no se leen en lo que dura en pantalla",
     cost="bajo",
-    cost_note_es="captura HTML ~40 ms por frame mientras esta en pantalla",
+    cost_note_es="captura HTML ~40 ms por frame mientras está en pantalla",
     since="S1.6",
 )
 
@@ -104,21 +104,21 @@ KINETIC = ComponentDef(
     big=True,
     params=(
         ParamSpec(
-            "lines", "list", True, lo=1, hi=4, item=_LINE, help_es="de 1 a 4 lineas de texto"
+            "lines", "list", True, lo=1, hi=4, item=_LINE, help_es="de 1 a 4 líneas de texto"
         ),
         _frac("y", 0.5, "centro vertical del bloque"),
-        ParamSpec("gap_px", "int", default=10, lo=0, hi=200, help_es="espacio entre lineas en px"),
+        ParamSpec("gap_px", "int", default=10, lo=0, hi=200, help_es="espacio entre líneas en px"),
         ParamSpec("italic", "bool", default=False, help_es="letra inclinada"),
-        ParamSpec("rotate_deg", "float", default=0, lo=-15, hi=15, help_es="giro de cada linea"),
+        ParamSpec("rotate_deg", "float", default=0, lo=-15, hi=15, help_es="giro de cada línea"),
         ParamSpec(
             "glitch", "bool", default=False, help_es="sombras de color que se juntan al entrar"
         ),
     ),
-    name_es="Texto cinetico",
-    purpose_es="El gancho o la frase que manda: varias lineas que entran una tras otra",
-    avoid_es="No lo uses mas de una vez cada pocos segundos: cansa",
+    name_es="Texto cinético",
+    purpose_es="El gancho o la frase que manda: varias líneas que entran una tras otra",
+    avoid_es="No lo uses más de una vez cada pocos segundos: cansa",
     cost="bajo",
-    cost_note_es="captura HTML ~55 ms por frame mientras esta en pantalla",
+    cost_note_es="captura HTML ~55 ms por frame mientras está en pantalla",
     since="S1.6",
 )
 
@@ -128,19 +128,19 @@ ENDCARD = ComponentDef(
     big=True,
     params=(
         ParamSpec(
-            "lines", "list", True, lo=1, hi=3, item=_LINE, help_es="de 1 a 3 lineas de texto"
+            "lines", "list", True, lo=1, hi=3, item=_LINE, help_es="de 1 a 3 líneas de texto"
         ),
-        ParamSpec("cta", "str", max_len=40, help_es="llamada a la accion bajo las lineas"),
+        ParamSpec("cta", "str", max_len=40, help_es="llamada a la acción bajo las líneas"),
         ParamSpec(
             "cta_at_f", "int", default=22, lo=0, help_es="frame del cue en que entra la llamada"
         ),
         _frac("y", 0.47, "centro vertical del bloque"),
     ),
     name_es="Cierre del video",
-    purpose_es="Despide y pide la accion: las lineas finales y la llamada a seguir",
-    avoid_es="No lo pongas antes de que termine la idea: tapa los subtitulos",
+    purpose_es="Despide y pide la acción: las líneas finales y la llamada a seguir",
+    avoid_es="No lo pongas antes de que termine la idea: tapa los subtítulos",
     cost="bajo",
-    cost_note_es="captura HTML ~55 ms por frame mientras esta en pantalla",
+    cost_note_es="captura HTML ~55 ms por frame mientras está en pantalla",
     since="S1.6",
 )
 
@@ -149,11 +149,11 @@ CAPTIONS = ComponentDef(
     js_files=("captions.js",),
     big=False,
     params=(),
-    name_es="Subtitulos",
+    name_es="Subtítulos",
     purpose_es="Las palabras que se dicen, de a pocas, con la activa resaltada",
     avoid_es="Es interno: se enciende en kcut.toml o en graphics.json, no se escribe como cue",
     cost="bajo",
-    cost_note_es="captura HTML ~45 ms por frame mientras hay un subtitulo en pantalla",
+    cost_note_es="captura HTML ~45 ms por frame mientras hay un subtítulo en pantalla",
     since="S1.6",
 )
 

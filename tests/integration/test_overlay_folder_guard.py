@@ -119,7 +119,13 @@ def test_overlay_folder_guard_build_changed_for_a_junction_after_the_source_is_m
     the junction nor read from it. The render cannot be cut in its middle with a rename: ffmpeg has
     `video.partial.mp4` open in `build/v1`, and Windows refuses to rename a folder with an open
     file in it (`PermissionError`, measured). The identity check in the middle of a blend is in
-    `tests/unit/test_overlay_folder_guard_identity.py`, for each of the four folders."""
+    `tests/unit/test_overlay_folder_guard_identity.py`, for each of the four folders.
+
+    001.36, point 7: what stops this case is `build_folder()` at the start of `_picture`, which
+    runs right after the `OverlaySource` is made and sees the junction; it is not the identity
+    check of the overlay (that one never runs: no frame has been blended yet). The identity check
+    is covered by the unit file named above, and `watch=` being wired into the render by
+    `tests/integration/test_overlay_watch_wired.py`."""
     frames = _captured(small, kcut_json, monkeypatch)
     build = small / BUILD
     for name in ("video.mp4", "render.mp4"):

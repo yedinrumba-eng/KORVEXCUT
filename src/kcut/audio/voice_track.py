@@ -32,6 +32,9 @@ SAMPLE_RATE = 48000
 FADE_SAMPLES = 240  # 5 ms at 48 kHz
 BLOCK_SAMPLES = 60 * SAMPLE_RATE  # the most a block holds: 60 s
 SPARE_BYTES = 1 << 30  # what has to stay free on the disk besides the voice track: 1 GiB
+# What `kcut mix` leaves in `build/vN` for each sample of the cut (001.37, point 4): seven files of
+# raw float32 (28 bytes), `mix.wav` of 16 bits (2) and the partial file in progress (4)
+MIX_BYTES_PER_SAMPLE = 34
 
 
 @dataclass(frozen=True)
@@ -81,6 +84,21 @@ def require_disk_space(folder: Path, edl: Edl, *, layer_bytes: int = 0) -> None:
         raise ProjectError(
             f"no hay espacio en el disco: faltan {needed - free} bytes ({asks} piden {needed}, "
             f"hay {free}) en {folder}"
+        )
+
+
+def require_mix_space(folder: Path, edl: Edl) -> None:
+    """ProjectError, which says how many bytes are missing, unless the disk of `folder` has room
+    for the mix of `edl` (`MIX_BYTES_PER_SAMPLE` for each sample of the cut) and `SPARE_BYTES` more
+    (001.37, point 4). It is asked before `kcut mix` writes anything: a video of 10 minutes takes
+    almost 1 GB, one of an hour about 6 GB, and a full disk used to be told after minutes of work.
+    The figures go before the path (001.30, point 4), as in `require_disk_space`."""
+    needed = edl.frames * samples_per_frame(edl.fps) * MIX_BYTES_PER_SAMPLE + SPARE_BYTES
+    free = shutil.disk_usage(folder).free
+    if free < needed:
+        raise ProjectError(
+            f"no hay espacio en el disco: faltan {needed - free} bytes (la mezcla y 1 GiB libre "
+            f"piden {needed}, hay {free}) en {folder}"
         )
 
 

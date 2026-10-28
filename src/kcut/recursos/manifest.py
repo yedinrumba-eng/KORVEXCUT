@@ -8,7 +8,7 @@ from typing import Any
 
 from kcut.errors import GateError, ProjectError
 from kcut.jsonio import MAX_MANIFEST_BYTES, read_json
-from kcut.paths import resolve_in_project, to_rel
+from kcut.paths import UNRESOLVABLE, resolve_in_project, to_rel
 from kcut.project import Project
 from kcut.schema_util import (
     SchemaError,
@@ -39,6 +39,7 @@ _KEYS = {
     "notes",
 }
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_SYNTAX_AT = re.compile(r"JSON mal formado en la línea (\d+), columna (\d+)")  # `read_json`
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,15 @@ class ResourceItem:
 
 def load_manifest(project: Project) -> list[ResourceItem]:
     """Every item of the manifest; a missing manifest means no resources. Errors raise."""
-    return [_parse_item(project, raw, join_path("items", i)) for i, raw in _raw_items(project)]
+    try:
+        return _load(project)
+    except SchemaError as exc:
+        raise project_error(project.layout.manifest.name, exc) from None
+
+
+def _load(project: Project) -> list[ResourceItem]:
+    """Every item, with the `SchemaError` of the first wrong one as it is (it has the `path`)."""
+    return [_item(project, raw, join_path("items", i)) for i, raw in _read_items(project)]
 
 
 def validate_manifest(project: Project) -> list[str]:
@@ -99,12 +108,9 @@ def require_approved(project: Project, rel: str) -> ResourceItem:
             "y sin nombres reservados de Windows"
         ) from None
     try:
-        items = load_manifest(project)
-    except ProjectError:
-        raise ProjectError(
-            "el manifiesto recursos/recursos.json no se puede leer o tiene una entrada inválida; "
-            "ábrelo y corrígelo"
-        ) from None
+        items = _load(project)
+    except ProjectError as exc:
+        raise ProjectError(_unreadable(exc)) from None
     for item in items:
         if os.path.normcase(item.file) != os.path.normcase(wanted):
             continue
@@ -119,22 +125,51 @@ def require_approved(project: Project, rel: str) -> ResourceItem:
     )
 
 
+def _unreadable(exc: ProjectError) -> str:
+    """The message for a manifest that cannot be used, with where it is wrong when that can be said
+    without quoting a value of the file (001.36, point 9): `items[N].<key>` (a `SchemaError.path`
+    keeps the keys that kcut knows and the indexes, and a key that it does not know is
+    `<clave desconocida>`), the line and the column of a JSON that cannot be read, or, for a `file`
+    that the system cannot resolve, that fixed text too (001.36 point 5)."""
+    where = _where(exc)
+    at = f" ({where})" if where else ""
+    return (
+        "el manifiesto recursos/recursos.json no se puede leer o tiene una entrada inválida"
+        f"{at}; ábrelo y corrígelo"
+    )
+
+
+def _where(exc: ProjectError) -> str:
+    if isinstance(exc, SchemaError):
+        if exc.detail_es == UNRESOLVABLE:  # a text of kcut, not of the file
+            return f"{exc.path}: {UNRESOLVABLE}"
+        return exc.path
+    found = _SYNTAX_AT.search(exc.message_es)
+    return f"línea {found[1]}, columna {found[2]}" if found else ""
+
+
 def _raw_items(project: Project) -> list[tuple[int, dict[str, Any]]]:
+    try:
+        return _read_items(project)
+    except SchemaError as exc:
+        raise project_error(project.layout.manifest.name, exc) from None
+
+
+def _read_items(project: Project) -> list[tuple[int, dict[str, Any]]]:
+    """The items as the file has them, each with its index; a file that is not JSON is a
+    ProjectError, and one that does not have the schema is a `SchemaError` (with its `path`)."""
     path = project.layout.manifest
     if not path.is_file():
         return []
-    try:
-        data = obj(read_json(path, MAX_MANIFEST_BYTES), "")
-        only_keys(data, {"schema", "items"}, "")
-        schema = req_str(data, "schema", "")
-        if schema != SCHEMA:
-            raise SchemaError("schema", f"se esperaba {SCHEMA} (vino {describe_value(schema)})")
-        return [
-            (i, _without_nulls(obj(item, join_path("items", i))))
-            for i, item in enumerate(req_list(data, "items", ""))
-        ]
-    except SchemaError as exc:
-        raise project_error(path.name, exc) from None
+    data = obj(read_json(path, MAX_MANIFEST_BYTES), "")
+    only_keys(data, {"schema", "items"}, "")
+    schema = req_str(data, "schema", "")
+    if schema != SCHEMA:
+        raise SchemaError("schema", f"se esperaba {SCHEMA} (vino {describe_value(schema)})")
+    return [
+        (i, _without_nulls(obj(item, join_path("items", i))))
+        for i, item in enumerate(req_list(data, "items", ""))
+    ]
 
 
 def _parse_item(project: Project, d: dict[str, Any], path: str) -> ResourceItem:

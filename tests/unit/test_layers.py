@@ -124,7 +124,7 @@ def test_layers_the_scan_finds_what_it_is_made_to_find(
 
 def test_layers_the_shared_code_lives_in_neutral_modules() -> None:
     from kcut import issues
-    from kcut.commands import edl, graphics, refuse, render, view
+    from kcut.commands import edl, listing, mix, refuse, render, view
     from kcut.ingest import cache_guard
     from kcut.render import compose, frame_fx, preview, proxy_file
 
@@ -136,7 +136,11 @@ def test_layers_the_shared_code_lives_in_neutral_modules() -> None:
     assert frame_fx.fx_context.__module__ == "kcut.render.frame_fx"
     assert "fx_context" in vars(compose) and compose.fx_context is frame_fx.fx_context
     assert issues.MAX_SHOWN == 50
-    assert edl.MAX_SHOWN is issues.MAX_SHOWN and graphics.MAX_SHOWN is issues.MAX_SHOWN
+    # 001.37, point 13: `graphics check` and `mix` list through `commands/listing.py` and no longer
+    # have a `MAX_SHOWN` of their own; the one `listing` cuts with is still the one of `issues`
+    # (was `graphics.MAX_SHOWN is issues.MAX_SHOWN`)
+    assert edl.MAX_SHOWN is issues.MAX_SHOWN and listing.MAX_SHOWN is issues.MAX_SHOWN  # 001.37
+    assert not hasattr(mix, "MAX_SHOWN")  # 001.37: it does not keep a second name either
     assert not hasattr(render, "_build_folder") and not hasattr(render, "_refuse")
     assert not hasattr(preview, "fx_context")  # it moved: preview does not keep a second name
 

@@ -51,6 +51,7 @@ from kcut.timebase import ALLOWED_FPS, MAX_TIME_MS
 _LANG = re.compile(r"[a-z]{2}")
 _MAX_HOURS = MAX_TIME_MS / 3_600_000  # 48.0: the same cap the inventory puts on stored times
 MAX_FILLER_WORDS = 5  # words of one `transcribe.fillers` entry (001.18, point 6)
+_MIN_DENOISE_NR = 0.01  # the least `afftdn` takes (S1.8b, 001.15); 0 leaves the filter out
 
 
 def load_config(path: Path) -> ProjectConfig:
@@ -230,13 +231,20 @@ def _audio(d: dict[str, Any]) -> AudioSection:
         "audio.voice",
     )
     path = "audio.voice"
+    denoise_nr = opt_float(voice, "denoise_nr", path, 10.0, 0.0, 40.0)
+    if 0.0 < denoise_nr < _MIN_DENOISE_NR:  # `afftdn` takes `nr >= 0.01`; 0 leaves it out (001.15)
+        raise SchemaError(
+            f"{path}.denoise_nr",
+            f"debe ser 0 (sin reducción de ruido) o de {_MIN_DENOISE_NR} a 40 "
+            f"(vino {describe_value(denoise_nr)})",
+        )
     return AudioSection(
         voice_lufs=opt_float(d, "voice_lufs", "audio", -16.0, -30.0, -10.0),
         target_lufs=opt_float(d, "target_lufs", "audio", -14.0, -24.0, -9.0),
         target_tp=opt_float(d, "target_tp", "audio", -1.5, -3.0, -0.5),
         voice=VoiceChain(
             highpass_hz=opt_int(voice, "highpass_hz", path, 80, 20, 300),
-            denoise_nr=opt_float(voice, "denoise_nr", path, 10.0, 0.0, 40.0),
+            denoise_nr=denoise_nr,
             denoise_nf=opt_float(voice, "denoise_nf", path, -40.0, -80.0, -20.0),
             comp_threshold_db=opt_float(voice, "comp_threshold_db", path, -18.0, -40.0, 0.0),
             comp_ratio=opt_float(voice, "comp_ratio", path, 3.0, 1.0, 20.0),

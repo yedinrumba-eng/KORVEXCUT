@@ -268,7 +268,9 @@ def write_f32_blocks(path: Path, blocks: Iterable[NDArray[np.float32]]) -> None:
     except PermissionError:
         raise ProjectError(f"cierra el archivo {path} en el reproductor y repite") from None
     except OSError as exc:
-        raise ProjectError(f"no pude escribir {path}: {exc}") from None
+        # 001.37, point 10: the reason goes before the path, as in `require_disk_space`: `cli`
+        # cuts a message to 300 characters and, in a deep folder, the cut took the reason away
+        raise ProjectError(f"no pude escribir ({_reason(exc)}) en {path}") from None
     finally:
         with contextlib.suppress(OSError):
             partial.unlink(missing_ok=True)

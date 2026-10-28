@@ -41,6 +41,13 @@ FORBIDDEN_JS = {
     "ServiceWorker": r"\b[Ss]erviceWorker\b",
     "BroadcastChannel": r"\bBroadcastChannel\b",
     "scheduler.": r"\bscheduler\s*\.",
+    # 001.36, point 6: the APIs of animation that bring a clock of their own. Bracket access with
+    # built names (`window["set" + "Timeout"]`) is accepted: this is a lint over the JS of kcut,
+    # not a defence against someone else's JS (the CSP without `'unsafe-eval'` stops `eval`)
+    "KeyframeEffect": r"\bKeyframeEffect\b",
+    "document.timeline": r"\bdocument\s*\.\s*timeline\b",
+    "new Animation": r"\bnew\s+Animation\b",
+    "getAnimations": r"\bgetAnimations\b",
 }
 # 001.35, point 2: and in the components (`gfx/web/components/*.js`, not `runtime.js`, which loads
 # images and fonts at start-up) nothing is left for later: no promise and no event callback
@@ -52,7 +59,10 @@ FORBIDDEN_COMPONENT_JS = {
     "addEventListener": r"\baddEventListener\b",
     ".on<event> =": r"\.\s*on[a-z]+\s*=(?!=)",
 }
-FORBIDDEN_CSS = {"transition": r"\btransition\b", "animation": r"\banimation\b"}
+# 001.36, point 6: no distinction of capitals, so `el.style.Animation` is caught too. 001.37, point
+# 7: and no word boundary either (`\b`), so `animationName`, `transitionProperty` and
+# `webkitAnimation` are caught: they are the JS names of the same CSS properties
+FORBIDDEN_CSS = {"transition": r"(?i)transition", "animation": r"(?i)animation"}  # 001.37
 # Text goes in with `textContent`: `innerText` and `document.write` are forbidden too (001.29)
 TEXT_RULE = r"\binnerText\b|\bdocument\s*\.\s*write"
 
@@ -178,12 +188,24 @@ def test_gfx_js_rules_the_checker_itself_catches_each_forbidden_api() -> None:
         "ServiceWorker": "navigator.serviceWorker.register(); const s = ServiceWorker;",  # 001.35
         "BroadcastChannel": "const c = new BroadcastChannel('x');",  # 001.35
         "scheduler.": "scheduler.postTask(() => spin());",  # 001.35
+        "KeyframeEffect": "const k = new KeyframeEffect(el, [], 100);",  # 001.36
+        "document.timeline": "const t = document . timeline.currentTime;",  # 001.36
+        "new Animation": "const a = new Animation(effect);",  # 001.36
+        "getAnimations": "el.getAnimations().forEach(f);",  # 001.36
     }
     assert samples.keys() == FORBIDDEN_JS.keys()
     for name, code in samples.items():
         assert re.search(FORBIDDEN_JS[name], code), name
     assert re.search(FORBIDDEN_CSS["transition"], ".a{transition:all 1s}")
     assert re.search(FORBIDDEN_CSS["animation"], ".a{animation:spin 1s}")
+    # 001.36, point 6: the two patterns do not tell capitals from small letters
+    assert re.search(FORBIDDEN_CSS["animation"], "el.style.Animation = 'spin 1s';")
+    assert re.search(FORBIDDEN_CSS["transition"], "el.style.Transition = 'all 1s';")
+    # 001.37, point 7: the two patterns have no word boundary, so the JS names of the properties
+    # and the prefixed ones are caught too
+    assert re.search(FORBIDDEN_CSS["animation"], "el.style.animationName = 'spin';")
+    assert re.search(FORBIDDEN_CSS["transition"], "el.style.transitionProperty = 'all';")
+    assert re.search(FORBIDDEN_CSS["animation"], "el.style.webkitAnimation = 'spin 1s';")
     assert not re.search(FORBIDDEN_JS["Date"], "const update = 1; // the updated state")
     # 001.34: the new names are whole words, and a name that only contains one is not caught
     assert not re.search(FORBIDDEN_JS["Worker"], "const coworker = 1; const workerCount = 2;")
@@ -213,6 +235,11 @@ def test_gfx_js_rules_the_new_names_are_whole_words() -> None:
     assert not re.search(FORBIDDEN_JS["Observer"], "const observer = 1; const Observers = 2;")
     assert not re.search(FORBIDDEN_JS["BroadcastChannel"], "const BroadcastChannels = 1;")
     assert not re.search(FORBIDDEN_JS["SharedWorker"], "const SharedWorkers = 1;")
+    # 001.36, point 6: the four APIs of animation are whole names too
+    assert not re.search(FORBIDDEN_JS["KeyframeEffect"], "const KeyframeEffects = 1;")
+    assert not re.search(FORBIDDEN_JS["document.timeline"], "const mydocument = document.title;")
+    assert not re.search(FORBIDDEN_JS["new Animation"], "const a = new AnimationFrameLike();")
+    assert not re.search(FORBIDDEN_JS["getAnimations"], "const getAnimationsCount = 1;")
 
 
 def test_gfx_js_rules_the_component_rules_catch_what_a_component_may_not_leave_for_later() -> None:

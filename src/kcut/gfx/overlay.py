@@ -81,7 +81,8 @@ class OverlaySource:
     `gfx/`) are the folders whose identity is then kept: before each PNG is looked at they are
     compared with an `lstat` each (`folder_identity`), and one that is not the folder that was seen
     is a ProjectError, and nothing of what it leads to is read. Without `watch` the whole `guard`
-    runs before each PNG, as it did (001.33)."""
+    runs before each PNG, as it did (001.33); so it does if the identity of a watched folder has
+    `st_ino == 0` (FAT, exFAT), which tells it from no other (001.36, point 8)."""
 
     def __init__(
         self,
@@ -105,6 +106,10 @@ class OverlaySource:
                 if seen is None:
                     raise ProjectError(FOLDER_CHANGED)
                 self._identities.append(seen)
+        # 001.36, point 8: FAT and exFAT have no inode, and `st_ino` is 0 in every folder, so the
+        # identity of such a folder would be the same as any other. A watched folder with 0 is
+        # not compared: the whole guard runs before each PNG, as it does without `watch`
+        self._by_identity = bool(self._watch) and all(ino != 0 for _, ino in self._identities)
         self._folder = index_path.parent
         self._frames = frozenset(index.frames)
         self._w, self._h = W, H
@@ -122,7 +127,7 @@ class OverlaySource:
         the message is `FOLDER_CHANGED`."""
         if self._guard is None:
             return
-        if not self._watch:
+        if not self._by_identity:  # no `watch`, or a folder whose identity says nothing
             self._guard()
             return
         for folder, seen in zip(self._watch, self._identities, strict=True):

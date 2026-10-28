@@ -41,6 +41,11 @@ ANIMATED_IMAGE = "la imagen está animada; los gráficos usan imágenes fijas"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 WEBP_ANIMATION_FLAG = 0x02  # the `A` bit of the flags byte of the `VP8X` chunk
 WEBP_IMAGE_DATA = (b"VP8 ", b"VP8L", b"ANMF")  # from the first of these on, nothing says "animated"
+# 001.36, point 4: the walk over the chunks of the header goes through at most the header chunk
+# (`IHDR`; the first chunk of a WebP) and this many after it. A PNG of 20 MiB made of 1.75 million
+# empty chunks cost 3 s each time a cue read it; one with more is a G09, with no path
+MAX_HEADER_CHUNKS = 64
+TOO_MANY_CHUNKS = "la imagen tiene demasiados bloques; vuelve a exportarla"
 
 
 def image_data_uri(project: Project, rel: str) -> str:
@@ -98,7 +103,10 @@ def _is_animated(data: bytes, image_format: str) -> bool:
       lengths, up to `IDAT` or `IEND`.
     - WebP: a `VP8X` chunk whose flags have the animation bit, or an `ANIM` chunk, among the chunks
       that come before the first frame or image (`VP8 `, `VP8L`, `ANMF`).
-    - Any other format has no animation."""
+    - Any other format has no animation.
+
+    The walk looks at no more than the first chunk and `MAX_HEADER_CHUNKS` after it: with more
+    before the image the file is a ProjectError (`TOO_MANY_CHUNKS`, G09; 001.36, point 4)."""
     if image_format == "PNG":
         return _png_has_actl(data)
     if image_format == "WEBP":
@@ -110,12 +118,16 @@ def _png_has_actl(data: bytes) -> bool:
     if data[: len(PNG_SIGNATURE)] != PNG_SIGNATURE:
         return False
     offset = len(PNG_SIGNATURE)
+    walked = 0
     while offset + 8 <= len(data):  # 4 bytes of length and 4 of type
         kind = data[offset + 4 : offset + 8]
         if kind == b"acTL":
             return True
         if kind in (b"IDAT", b"IEND"):
             return False
+        walked += 1
+        if walked > MAX_HEADER_CHUNKS + 1:  # `IHDR` and the cap after it (001.36, point 4)
+            raise ProjectError(TOO_MANY_CHUNKS)
         offset += 12 + int.from_bytes(data[offset : offset + 4], "big")  # length, type, data, CRC
     return False
 
@@ -124,6 +136,7 @@ def _webp_is_animated(data: bytes) -> bool:
     if data[:4] != b"RIFF" or data[8:12] != b"WEBP":
         return False
     offset = 12
+    walked = 0
     while offset + 8 <= len(data):  # 4 bytes of type and 4 of size
         kind = data[offset : offset + 4]
         size = int.from_bytes(data[offset + 4 : offset + 8], "little")
@@ -133,6 +146,9 @@ def _webp_is_animated(data: bytes) -> bool:
             return True
         if kind in WEBP_IMAGE_DATA:
             return False
+        walked += 1
+        if walked > MAX_HEADER_CHUNKS + 1:  # the first chunk and the cap after it (001.36)
+            raise ProjectError(TOO_MANY_CHUNKS)
         offset += 8 + size + (size & 1)  # a chunk of odd size has a pad byte
     return False
 

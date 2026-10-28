@@ -4,7 +4,8 @@ event: where an anchor points and whether the times fall inside the video are th
 
 Every problem is an `Issue`: A01 for a mistake in the shape of the file (the schema, a type, a key
 that is not known, one that is missing, `bus_gain_db` or a window's `gain_db` out of -24...+12, an
-`at` that is neither a whole number nor an anchor), A02 for a `type` that does not exist and A03
+`at` that is neither a whole number nor an anchor, more than `MAX_EVENTS` events or `MAX_WINDOWS`
+windows), A02 for a `type` that does not exist and A03
 for the parameters of an event (`gain`, `seed`, `freq`, `rate`, `dur_f`, `align`), which are
 checked with the `ParamSpec` of `params.py` and of each type in `sfx_library.py`. A message never
 repeats text of the file (it is Claude's, and Claude reads what is printed) and never names a key
@@ -20,6 +21,10 @@ from kcut.params import ParamSpec, check_params
 from kcut.schema_util import UNKNOWN_KEY, join_path
 
 SCHEMA = "kcut.sfx/1"
+# 001.36, point 1: with more, one A01 and not one event or window is looked at (as `MAX_CUES` of
+# graphics.json). 2000 events are enough for a video of 10 minutes with a hit every 8 frames
+MAX_EVENTS = 2000
+MAX_WINDOWS = 200
 GAIN_DB_RANGE = (-24.0, 12.0)  # `bus_gain_db` and the `gain_db` of each window
 ALIGNS = ("start", "center", "end")
 _TOP = frozenset({"schema", "bus_gain_db", "events", "windows"})
@@ -117,6 +122,9 @@ def _events(raw: object, issues: list[Issue]) -> tuple[SfxEventDoc, ...]:
         return ()
     if not isinstance(raw, list):
         issues.append(_a01("events", "debe ser una lista"))
+        return ()
+    if len(raw) > MAX_EVENTS:  # one issue, and no event is looked at
+        issues.append(_a01("events", f"hay más de {MAX_EVENTS} eventos; kcut no los revisa"))
         return ()
     found: list[SfxEventDoc] = []
     for i, item in enumerate(raw):
@@ -220,6 +228,9 @@ def _params(
 def _windows(raw: object, issues: list[Issue]) -> tuple[SfxWindowDoc, ...]:
     if not isinstance(raw, list):
         issues.append(_a01("windows", "debe ser una lista"))
+        return ()
+    if len(raw) > MAX_WINDOWS:  # one issue, and no window is looked at
+        issues.append(_a01("windows", f"hay más de {MAX_WINDOWS} ventanas; kcut no las revisa"))
         return ()
     found: list[SfxWindowDoc] = []
     for i, item in enumerate(raw):

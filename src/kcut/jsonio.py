@@ -19,6 +19,8 @@ MAX_JSON_BYTES = 64 * _MIB
 MAX_TOML_BYTES = 1 * _MIB  # `kcut.toml` (spec 001.16, point 9)
 MAX_SIDECAR_BYTES = 1 * _MIB  # `<work file>.json` next to a proxy or a wav16
 MAX_MANIFEST_BYTES = 4 * _MIB  # `recursos/manifest.json`
+MAX_SFX_BYTES = 1 * _MIB  # `edit/sfx.json`: 2000 events weigh far less (001.36, point 1)
+MAX_MUSIC_BYTES = 1 * _MIB  # `edit/music.json`
 
 
 def read_capped(path: Path, max_bytes: int) -> bytes:

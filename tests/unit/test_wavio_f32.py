@@ -178,3 +178,23 @@ class TestReadErrorIsNotAWriteError:
             write_f32_blocks(tmp_path / "v.f32", [np.zeros(2, dtype=np.float32)])
         assert "no pude leer" not in info.value.message_es
         assert list(tmp_path.iterdir()) == []
+
+
+def test_mix_disk_full_long_path_write_f32_says_the_reason_before_the_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """001.37, point 10: `no pude escribir ({motivo}) en {ruta}`, so the cut of the message to 300
+    characters, in a deep folder, takes away the end of the path and not the reason."""
+    deep = tmp_path / ("p" * 220)
+    deep.mkdir()
+
+    def full(src: object, dst: object) -> None:
+        raise OSError(28, "No space left on device", str(dst))
+
+    monkeypatch.setattr(os, "replace", full)
+    with pytest.raises(ProjectError) as info:
+        write_f32(deep / "music.f32", np.zeros(2, dtype=np.float32))
+    message = info.value.message_es
+    assert message == f"no pude escribir (No space left on device) en {deep / 'music.f32'}"
+    assert message[:300].count("No space left on device") == 1  # the reason survives the cut
+    assert list(deep.iterdir()) == []

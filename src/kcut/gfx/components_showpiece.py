@@ -60,7 +60,7 @@ STEPS = ComponentDef(
     ),
     avoid_es="No lo uses sin una pantalla debajo que muestre el paso: solo, no explica nada",
     cost="bajo",
-    cost_note_es="captura HTML ~35 ms por frame mientras esta en pantalla",
+    cost_note_es="captura HTML ~35 ms por frame mientras está en pantalla",
     since="S1.7",
 )
 
@@ -131,11 +131,11 @@ STICKER = ComponentDef(
         "y se va o vuela a otro lado"
     ),
     avoid_es=(
-        "No lo pongas encima de la cara ni uses una imagen que no este en recursos.json; "
-        "elige el punto mirando kcut frames y compruebalo con kcut graphics still"
+        "No lo pongas encima de la cara ni uses una imagen que no esté en recursos.json; "
+        "elige el punto mirando kcut frames y compruébalo con kcut graphics still"
     ),
     cost="medio",
-    cost_note_es="captura HTML con imagen y sombras ~55 ms por frame mientras esta en pantalla",
+    cost_note_es="captura HTML con imagen y sombras ~55 ms por frame mientras está en pantalla",
     since="S1.7",
 )
 
@@ -213,16 +213,16 @@ HOLO_BOARD = ComponentDef(
             help_es="de 0 a 2 puntos {x, y} de donde salen rayos a las esquinas del tablero",
         ),
     ),
-    name_es="Tablero holografico",
+    name_es="Tablero holográfico",
     purpose_es=(
         "Un tablero que nace entre las manos, con rejilla y barrido, "
         "y en el que se escribe una palabra"
     ),
     avoid_es=(
-        "No lo uses mas de una vez por video ni con palabras de mas de 12 letras: tapa la pantalla"
+        "No lo uses más de una vez por video ni con palabras de más de 12 letras: tapa la pantalla"
     ),
     cost="alto",
-    cost_note_es="captura HTML con sombras grandes y 3D ~85 ms por frame mientras esta en pantalla",
+    cost_note_es="captura HTML con sombras grandes y 3D ~85 ms por frame mientras está en pantalla",
     since="S1.7",
 )
 
@@ -248,7 +248,7 @@ GLOBE = ComponentDef(
     purpose_es="Un globo que gira: lo global, internet, un alcance, un lugar en el mundo",
     avoid_es="No lo pongas sobre la cara ni lo repitas: es un adorno, no la idea",
     cost="medio",
-    cost_note_es="captura HTML con canvas ~70 ms por frame mientras esta en pantalla",
+    cost_note_es="captura HTML con canvas ~70 ms por frame mientras está en pantalla",
     since="S1.7",
 )
 

@@ -12,6 +12,7 @@ from kcut.config.template import render_template
 from kcut.errors import ProjectError
 from kcut.timebase import MAX_TIME_MS
 from tests.unit.config_cases import HUGE_INT_CASES, PROMPT_FIELDS, RANGE_CASES
+from tests.unit.config_denoise_cases import TestDenoise as TestDenoise  # 001.15: 300-line rule
 from tests.unit.config_golden import GOLDEN_9X16
 
 

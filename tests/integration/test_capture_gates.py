@@ -11,9 +11,6 @@ from typing import Any
 import playwright.sync_api as sync_api
 import pytest
 
-from kcut.gfx.components import COMPONENTS
-from kcut.gfx.components_base import TITLE, ComponentDef
-from kcut.params import ParamSpec
 from kcut.render.lock import OutputLock
 from tests.integration.graphics_helpers import plant_words
 from tests.integration.render_small_cases import small, small_base
@@ -51,14 +48,10 @@ def test_capture_gates_the_lock_is_the_one_of_the_render(small: Path, kcut_json:
 def test_capture_gates_an_image_that_nobody_approved_is_exit_5_before_anything(
     small: Path, kcut_json: Run, monkeypatch: pytest.MonkeyPatch, command: str
 ) -> None:
-    picture = ComponentDef(
-        "picture", TITLE.js_files, False, (ParamSpec("image", "path", True),),
-        "Imagen", "una imagen aprobada", "nada", "bajo", "", "test",
-    )  # fmt: skip
-    monkeypatch.setitem(COMPONENTS, "picture", picture)
+    # 001.36, point 10: the real component with an image (it was a fake `picture` component)
     (small / "recursos").mkdir(exist_ok=True)
     (small / "recursos" / "logo.png").write_bytes(b"not even a picture")
-    cue = {"id": "foto", "component": "picture", "start": 0, "end": 30}
+    cue = {"id": "foto", "component": "sticker", "start": 0, "end": 30}
     _write(
         small,
         {

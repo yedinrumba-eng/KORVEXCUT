@@ -11,6 +11,7 @@ from kcut.errors import ProjectError
 from kcut.schema_util import describe_value as quoted
 
 CONFIG_NAME = "kcut.toml"
+UNRESOLVABLE = "la ruta no se puede resolver"  # `Path.resolve` failed (001.36, point 5)
 _RESERVED = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
     | {f"COM{i}" for i in range(1, 10)}
@@ -153,11 +154,18 @@ def log_path(
 
 
 def resolve_in_project(root: Path, rel: str) -> Path:
-    """Resolve a project-relative data path; anything that could leave the project is refused."""
+    """Resolve a project-relative data path; anything that could leave the project is refused.
+
+    A path that the system cannot resolve (`Path.resolve` raises `ValueError`, "path too long for
+    Windows", or `OSError`) is a ProjectError with a fixed message, which does not carry the path
+    (001.36, point 5): it used to leave as it came and the command ended in exit 10."""
     _reject_unsafe(rel)
     parts = _clean_parts(rel)
-    root_resolved = plain_path(root.resolve())
-    target = plain_path(root_resolved.joinpath(*parts).resolve())
+    try:
+        root_resolved = plain_path(root.resolve())
+        target = plain_path(root_resolved.joinpath(*parts).resolve())
+    except (ValueError, OSError):
+        raise ProjectError(UNRESOLVABLE) from None
     if not is_inside(root_resolved, target):
         raise ProjectError(f"la ruta {quoted(rel)} sale del proyecto")
     return target

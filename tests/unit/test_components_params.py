@@ -4,6 +4,7 @@ and the rules of their own that `validate_params` adds to `check_params` (a G03 
 and `components_params_holo.py`, collected below (300-line rule).
 """
 
+import re
 from typing import Any
 
 import pytest
@@ -156,3 +157,39 @@ def test_components_params_globe_color_and_unknown_parameters() -> None:
     assert _paths(_check("globe", {"color": "verde"})[1]) == [f"{PATH}.color"]
     assert len(_check("globe", {"radius": 3})[1]) == 1
     assert _paths(_check("globe", [])[1]) == [PATH]  # params that is not an object
+
+
+# 001.36, point 11: the texts of the catalog carry their accents. This is not a spell checker: it is
+# the list of the words that were written without one (and a text with one of them fails).
+_NO_ACCENT = (
+    r"titulo|fraccion|pildora|cinetico|holografico|subtitulos?|lineas?|accion|mas|detras"
+    r"|compruebalo|esta en pantalla|este en recursos"
+)
+
+
+def _texts(params: Any) -> list[str]:
+    found: list[str] = []
+    for spec in params:
+        found.append(spec.help_es)
+        if spec.item is not None:
+            found += _texts(spec.item)
+    return found
+
+
+def test_components_params_every_text_in_spanish_of_the_components_has_its_accents() -> None:
+    from kcut.gfx.components_base import BASE
+
+    pattern = rf"(?i)\b(?:{_NO_ACCENT})\b"
+    for component in (*BASE, *SHOWPIECE):
+        own = [component.name_es, component.purpose_es, component.avoid_es, component.cost_note_es]
+        for text in (*own, *_texts(component.params)):
+            assert text and not re.search(pattern, text), (component.id, text)
+
+
+def test_components_params_the_accent_check_finds_what_it_forbids() -> None:
+    pattern = rf"(?i)\b(?:{_NO_ACCENT})\b"
+    for bad in ("Titulo grande", "de 1 a 4 lineas", "no lo uses mas", "mientras esta en pantalla"):
+        assert re.search(pattern, bad), bad
+    for good in ("Título grande", "de 1 a 4 líneas", "no lo uses más", "mientras está en pantalla"):
+        assert not re.search(pattern, good), good
+    assert not re.search(pattern, "el masaje y la masa")  # whole words only
