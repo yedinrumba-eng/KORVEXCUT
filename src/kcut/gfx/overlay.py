@@ -8,12 +8,16 @@ validated, so each one is looked at again right before it is read (001.32, point
 longer a regular file with a single name (a hard link to something outside the project was put in
 its place) is refused, and its content does not get into the video. That look follows a junction in
 the folder, so the folders are looked at too, with the guard that the capture uses (`build/vN` and
-`gfx/`, 001.33 point 5): before the `lstat` of each PNG, `guard()` says if they are still the
-folders of the cache.
+`gfx/`, 001.33 point 5): the whole `guard()` runs once, when the source is made, and what it saw is
+kept as the identity of each folder (`os.lstat`: device and inode, and not a link or a reparse
+point). Before each PNG only those identities are compared, with an `lstat` each, which costs
+microseconds where the whole guard cost 1.6 ms a frame (001.35, point 6): a folder that is not the
+one that was seen is a ProjectError, and the whole guard says why when it can.
 """
 
 import os
-from collections.abc import Callable
+import stat
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import cv2
@@ -37,6 +41,25 @@ CHANGED = (
     "el PNG del frame {f} de la capa de gráficos cambió durante el render; "
     "corre kcut graphics capture --force"
 )
+FOLDER_CHANGED = (
+    "una carpeta de la caché de los gráficos cambió durante el render; corre kcut render otra vez"
+)
+
+Identity = tuple[int, int]
+
+
+def folder_identity(path: Path) -> Identity | None:
+    """`(st_dev, st_ino)` of the folder `path` itself (`os.lstat`: a link is not followed), or
+    `None` if it is not there or is a link or a reparse point (a junction on Windows). One `lstat`:
+    this is what is compared before each PNG (001.35, point 6)."""
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return None
+    reparse = getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    if stat.S_ISLNK(info.st_mode) or reparse or not stat.S_ISDIR(info.st_mode):
+        return None
+    return (info.st_dev, info.st_ino)
 
 
 def alpha_blend(base: Frame, bgra: Frame) -> Frame:
@@ -51,17 +74,37 @@ def alpha_blend(base: Frame, bgra: Frame) -> Frame:
 class OverlaySource:
     """The graphics of a video: `blend(base, out_f)` puts the PNG of frame `out_f` over `base`
     if the index of `index_path` has it, and gives `base` back as it is if it does not. The PNGs
-    are in the folder of the index and are `W x H`. `guard` (the render gives it the one of
-    `build/vN` and `gfx/`) is called before each PNG is looked at: a folder that became a link is
-    a ProjectError there, and nothing of what it leads to is read."""
+    are in the folder of the index and are `W x H`.
+
+    `guard` (the render gives it the one of `build/vN` and `gfx/`) is the whole check of the
+    folders. It runs once here, and `watch` (the render gives `.kcut`, `.kcut/build`, `build/vN` and
+    `gfx/`) are the folders whose identity is then kept: before each PNG is looked at they are
+    compared with an `lstat` each (`folder_identity`), and one that is not the folder that was seen
+    is a ProjectError, and nothing of what it leads to is read. Without `watch` the whole `guard`
+    runs before each PNG, as it did (001.33)."""
 
     def __init__(
-        self, index_path: Path, W: int, H: int, *, guard: Callable[[], None] | None = None
+        self,
+        index_path: Path,
+        W: int,
+        H: int,
+        *,
+        guard: Callable[[], None] | None = None,
+        watch: Sequence[Path] = (),
     ) -> None:
         index = read_index(index_path)
         if index is None:
             raise ProjectError(DAMAGED_INDEX)
         self._guard = guard
+        self._watch = tuple(watch)
+        self._identities: list[Identity] = []
+        if guard is not None:
+            guard()  # the whole check, once; what it saw is what is kept
+            for folder in self._watch:
+                seen = folder_identity(folder)
+                if seen is None:
+                    raise ProjectError(FOLDER_CHANGED)
+                self._identities.append(seen)
         self._folder = index_path.parent
         self._frames = frozenset(index.frames)
         self._w, self._h = W, H
@@ -72,16 +115,30 @@ class OverlaySource:
             return base_bgr
         return alpha_blend(base_bgr, self._decode(out_f))
 
+    def _folders_unchanged(self) -> None:
+        """ProjectError unless each folder of `watch` is still the one that `guard` saw when the
+        source was made (an `lstat` each). The whole `guard` is the one that says why, if the folder
+        became a link or leaves `.kcut/`; if it lets it pass (a real folder that is another one),
+        the message is `FOLDER_CHANGED`."""
+        if self._guard is None:
+            return
+        if not self._watch:
+            self._guard()
+            return
+        for folder, seen in zip(self._watch, self._identities, strict=True):
+            if folder_identity(folder) != seen:
+                self._guard()
+                raise ProjectError(FOLDER_CHANGED)
+
     def _decode(self, f: int) -> Frame:
         """The PNG of frame `f` as `(H, W, 4)` BGRA, decoded from its bytes (never `cv2.imread`:
         it fails on a path with letters outside ASCII, 001.15 T8). Its header is looked at first,
         so a PNG that says it is huge is not decoded. Before it is read, the folders are looked at
-        (`guard`) and then the name (`lone_file_reason` of `os.lstat`, so a link is not followed): a
-        PNG that is not a regular file with one name any more is `CHANGED`; one that is gone is
-        `DAMAGED`."""
+        (`_folders_unchanged`) and then the name (`lone_file_reason` of `os.lstat`, so a link is not
+        followed): a PNG that is not a regular file with one name any more is `CHANGED`; one that
+        is gone is `DAMAGED`."""
         path = self._folder / png_name(f)
-        if self._guard is not None:
-            self._guard()
+        self._folders_unchanged()
         try:
             reason = lone_file_reason(os.lstat(path))
         except OSError:

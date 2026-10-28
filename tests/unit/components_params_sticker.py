@@ -189,3 +189,23 @@ def test_components_params_sticker_path_points_are_checked_one_by_one() -> None:
     for bad in ("x", {"at_f": 0}, None):
         assert paths(check("sticker", _sticker(path=bad))[1]) == [f"{PATH}.path"], bad
     assert paths(check("sticker", _sticker(path=[3]))[1]) == [f"{PATH}.path[0]"]  # not an object
+
+
+def _points(count: int) -> list[dict[str, Any]]:
+    """`count` good points: `at_f` grows by one, and the feet stay in the middle of the picture."""
+    return [{"at_f": i, "x": 0.5, "y": 0.5} for i in range(count)]
+
+
+def test_components_params_sticker_path_cap_64_points_pass_and_65_is_one_g03() -> None:
+    """001.35, point 4 (S1.8a row 11): `path` has at most 64 points, and more is a G03 of the list
+    (one issue on `path`, not one for each point)."""
+    assert check("sticker", _sticker(path=_points(64)))[1] == []
+    issues = check("sticker", _sticker(path=_points(65)))[1]
+    assert paths(issues) == [f"{PATH}.path"]
+    assert messages(issues) == ["debe tener como máximo 64 elementos (tiene 65)"]
+
+
+def test_components_params_sticker_path_cap_a_huge_list_is_refused_unchecked() -> None:
+    """With 200 000 points the validation took 2.4 s: the count is looked at before the points."""
+    issues = check("sticker", _sticker(path=_points(200_000)))[1]
+    assert paths(issues) == [f"{PATH}.path"]

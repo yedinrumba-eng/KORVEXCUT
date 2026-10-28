@@ -107,8 +107,12 @@ def run(args: argparse.Namespace) -> int:
         video, raw, render = folder / "video.mp4", folder / "voice_raw.f32", folder / "render.mp4"
         overlay = None
         if layer is not None:  # each PNG is read minutes from now: its folders are looked at then
-            guard = folder_guard(project, folder, layer.index_path.parent)
-            overlay = OverlaySource(layer.index_path, edl.out_w, edl.out_h, guard=guard)
+            gfx = layer.index_path.parent
+            guard = folder_guard(project, folder, gfx)  # the whole check, once (001.35, point 6)
+            watch = (project.layout.cache, project.layout.build, folder, gfx)  # their identities
+            overlay = OverlaySource(
+                layer.index_path, edl.out_w, edl.out_h, guard=guard, watch=watch
+            )
         frames = _picture(project, edl, inventory, index, video, version, log, overlay)
         build_folder(project, version)  # looked at again before each write (001.27, point 4)
         workfiles._assert_in_cache(project, raw)

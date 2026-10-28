@@ -36,6 +36,14 @@ def assert_in_cache(project: Project, path: Path, *, label: str | None = None) -
     if under_crudo or not is_inside(cache, resolved):
         named = path if label is None else label
         raise ProjectError(f"{named} queda fuera de .kcut/: kcut no escribe, mueve ni borra ahí")
+    # 001.35, point 3: `cache` and `real` above are both the resolved `.kcut`, so a `.kcut` that
+    # became a link after the project was opened (a render takes minutes) compared with itself and
+    # passed. The folder as it is named is looked at too, as `check_layout_inside` does on open.
+    if os.path.islink(project.layout.cache) or os.path.isjunction(project.layout.cache):
+        raise ProjectError(
+            ".kcut es un enlace (symlink o junction): kcut no escribe, mueve ni borra ahí; "
+            "reemplázalo por una carpeta de verdad"
+        )
     return resolved
 
 

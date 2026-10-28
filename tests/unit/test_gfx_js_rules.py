@@ -30,6 +30,27 @@ FORBIDDEN_JS = {
     "outerHTML": r"\bouterHTML\b",
     "insertAdjacentHTML": r"\binsertAdjacentHTML\b",
     "eval(": r"\beval\s*\(",
+    # 001.35, point 2: the tasks that were still left to run after the `seek`. `Observer` has no
+    # `\b` in front on purpose: it catches ResizeObserver, IntersectionObserver, MutationObserver
+    # and PerformanceObserver, whose callbacks run during the photo with no limit
+    "Observer": r"Observer\b",
+    "queueMicrotask": r"\bqueueMicrotask\b",
+    "requestVideoFrameCallback": r"\brequestVideoFrameCallback\b",
+    ".animate(": r"\.\s*animate\s*\(",
+    "SharedWorker": r"\bSharedWorker\b",
+    "ServiceWorker": r"\b[Ss]erviceWorker\b",
+    "BroadcastChannel": r"\bBroadcastChannel\b",
+    "scheduler.": r"\bscheduler\s*\.",
+}
+# 001.35, point 2: and in the components (`gfx/web/components/*.js`, not `runtime.js`, which loads
+# images and fonts at start-up) nothing is left for later: no promise and no event callback
+FORBIDDEN_COMPONENT_JS = {
+    "Promise": r"\bPromise\b",
+    "async": r"\basync\b",
+    "await": r"\bawait\b",
+    ".then(": r"\.\s*then\s*\(",
+    "addEventListener": r"\baddEventListener\b",
+    ".on<event> =": r"\.\s*on[a-z]+\s*=(?!=)",
 }
 FORBIDDEN_CSS = {"transition": r"\btransition\b", "animation": r"\banimation\b"}
 # Text goes in with `textContent`: `innerText` and `document.write` are forbidden too (001.29)
@@ -62,6 +83,8 @@ def test_gfx_js_rules_the_web_folder_has_what_the_spec_lists() -> None:
 def test_gfx_js_rules_no_file_uses_a_forbidden_api(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     rules = FORBIDDEN_JS if path.suffix == ".js" else {}
+    if path.suffix == ".js" and path.parent.name == "components":  # 001.35
+        rules = rules | FORBIDDEN_COMPONENT_JS
     found = [name for name, pattern in rules.items() if re.search(pattern, text)]
     # `transition` and `animation` are forbidden in CSS, and the CSS of a component lives in its JS
     found += [name for name, pattern in FORBIDDEN_CSS.items() if re.search(pattern, text)]
@@ -147,6 +170,14 @@ def test_gfx_js_rules_the_checker_itself_catches_each_forbidden_api() -> None:
         "outerHTML": "el.outerHTML = x",
         "insertAdjacentHTML": "el.insertAdjacentHTML('beforeend', x)",
         "eval(": "eval('1')",
+        "Observer": "new ResizeObserver(() => spin()).observe(el);",  # 001.35
+        "queueMicrotask": "queueMicrotask(() => spin());",  # 001.35
+        "requestVideoFrameCallback": "video.requestVideoFrameCallback(tick);",  # 001.35
+        ".animate(": "el.animate([{opacity: 0}, {opacity: 1}], 100);",  # 001.35
+        "SharedWorker": "const w = new SharedWorker('w.js');",  # 001.35
+        "ServiceWorker": "navigator.serviceWorker.register(); const s = ServiceWorker;",  # 001.35
+        "BroadcastChannel": "const c = new BroadcastChannel('x');",  # 001.35
+        "scheduler.": "scheduler.postTask(() => spin());",  # 001.35
     }
     assert samples.keys() == FORBIDDEN_JS.keys()
     for name, code in samples.items():
@@ -159,3 +190,52 @@ def test_gfx_js_rules_the_checker_itself_catches_each_forbidden_api() -> None:
     assert not re.search(FORBIDDEN_JS["postMessage"], "const postMessages = 1;")
     assert not re.search(FORBIDDEN_JS["MessageChannel"], "const MessageChannels = 1;")
     assert not re.search(FORBIDDEN_JS["requestIdleCallback"], "const requestIdleCallbacks = 1;")
+
+
+@pytest.mark.parametrize(
+    "code",
+    [  # 001.35: the four observers that `Observer` has to catch
+        "new ResizeObserver(f)",
+        "new IntersectionObserver(f)",
+        "new MutationObserver(f)",
+        "new PerformanceObserver(f)",
+    ],
+)
+def test_gfx_js_rules_observer_catches_the_four_observers(code: str) -> None:
+    assert re.search(FORBIDDEN_JS["Observer"], code)
+
+
+def test_gfx_js_rules_the_new_names_are_whole_words() -> None:
+    # 001.35: a name that only contains one of them is not caught
+    assert not re.search(FORBIDDEN_JS["queueMicrotask"], "const queueMicrotasks = 1;")
+    assert not re.search(FORBIDDEN_JS[".animate("], "const animated = 1; el.animation = 2;")
+    assert not re.search(FORBIDDEN_JS["scheduler."], "const schedulers = 1;")
+    assert not re.search(FORBIDDEN_JS["Observer"], "const observer = 1; const Observers = 2;")
+    assert not re.search(FORBIDDEN_JS["BroadcastChannel"], "const BroadcastChannels = 1;")
+    assert not re.search(FORBIDDEN_JS["SharedWorker"], "const SharedWorkers = 1;")
+
+
+def test_gfx_js_rules_the_component_rules_catch_what_a_component_may_not_leave_for_later() -> None:
+    samples = {  # 001.35: one example of each
+        "Promise": "const p = Promise.resolve(1);",
+        "async": "const f = async () => 1;",
+        "await": "const v = await f();",
+        ".then(": "load().then(draw);",
+        "addEventListener": "el.addEventListener('load', draw);",
+        ".on<event> =": "img.onload = draw;",
+    }
+    assert samples.keys() == FORBIDDEN_COMPONENT_JS.keys()
+    for name, code in samples.items():
+        assert re.search(FORBIDDEN_COMPONENT_JS[name], code), name
+    assert re.search(FORBIDDEN_COMPONENT_JS[".on<event> ="], "el.onerror=fail;")
+    assert not re.search(FORBIDDEN_COMPONENT_JS[".on<event> ="], "if (a.once == 1) { b.one === 2 }")
+    assert not re.search(FORBIDDEN_COMPONENT_JS["async"], "const asyncCount = 1;")
+
+
+def test_gfx_js_rules_runtime_is_outside_the_component_rules() -> None:
+    """`runtime.js` loads images and fonts at start-up, so it keeps its promises and its `load`
+    listener: the component rules apply to the files of `components/` only (001.35)."""
+    runtime = (WEB / "runtime.js").read_text(encoding="utf-8")
+    assert any(re.search(pattern, runtime) for pattern in FORBIDDEN_COMPONENT_JS.values())
+    components = [p for p in _files() if p.suffix == ".js" and p.parent.name == "components"]
+    assert components and all(p.name != "runtime.js" for p in components)

@@ -12,9 +12,6 @@ from typing import Any
 
 import pytest
 
-from kcut.gfx.components import COMPONENTS
-from kcut.gfx.components_base import TITLE, ComponentDef
-from kcut.params import ParamSpec
 from tests.fixtures.synth_edl import write_edl_v1
 from tests.fixtures.synth_graphics import graphics_v1_document, write_graphics_v1
 from tests.integration.graphics_helpers import plant_words, tree_hash
@@ -204,19 +201,12 @@ class TestExitCodes:
         assert [(e["code"], e["path"]) for e in doc["errors"]] == [("G03", "cues[1].params.size")]
         assert [c["id"] for c in doc["cues"]] == ["gancho", "pill", "cierre"]  # the bad one is out
 
-    def test_graphics_check_codes_g10_is_exit_5(
-        self, cut: Path, kcut_json: Run, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        picture = ComponentDef(
-            "picture", TITLE.js_files, False, (ParamSpec("image", "path", True),),
-            "Imagen", "una imagen aprobada", "nada", "bajo", "", "test",
-        )  # fmt: skip
-        monkeypatch.setitem(COMPONENTS, "picture", picture)
+    def test_graphics_check_codes_g10_is_exit_5(self, cut: Path, kcut_json: Run) -> None:
         document = graphics_v1_document()
         document["cues"] = [
             {
                 "id": "foto",
-                "component": "picture",
+                "component": "sticker",  # 001.35: the real one (it was a fake `picture` component)
                 "start": 0,
                 "end": 30,
                 "params": {"image": "recursos/logo.png"},

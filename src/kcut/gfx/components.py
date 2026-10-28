@@ -21,9 +21,13 @@ __all__ = [
     "COMPONENTS",
     "ComponentDef",
     "page_component",
+    "time_warnings",
     "validate_params",
 ]
 CODE = "G03"
+# 001.35, point 9: a flight of the sticker that has less than this (hundredths of a second) left
+# before the end of the cue is not seen as a flight
+MIN_FLIGHT_CS = 12
 COMPONENTS: dict[str, ComponentDef] = {c.id: c for c in (*BASE, *SHOWPIECE) if c.id != CAPTIONS.id}
 
 
@@ -44,6 +48,41 @@ def validate_params(
     if rule is not None:
         issues.extend(rule(checked, path, brand))
     return checked, issues
+
+
+def time_warnings(
+    component: ComponentDef, params: dict[str, object], length_f: int, fps: int, path: str
+) -> list[Issue]:
+    """G03 warnings (001.35, point 9) for a time of `component` that falls where it will not be
+    seen: `steps.items[].at_f`, `holo_board.type_at_f` and `sticker.fly_to.at_f` at or after the
+    length of the cue (`length_f`, in frames: they count from its start), and a `fly_to` that has
+    less than 0.12 s before the end. They are warnings and not errors, because the cue can be made
+    longer later; `params` are the ones `validate_params` gave back, from a cue without errors, and
+    `path` is `cues[N].params`. The message names the parameter, and `Issue.path` finds it."""
+    issues: list[Issue] = []
+    times: list[tuple[str, str, object]] = []  # (name in the message, path inside `params`, value)
+    if component.id == "steps":
+        items = params.get("items")
+        for i, item in enumerate(items if isinstance(items, list) else []):
+            at_f = item.get("at_f") if isinstance(item, dict) else None
+            times.append((f"steps.items[{i}].at_f", f"items[{i}].at_f", at_f))
+    elif component.id == "holo_board":
+        times.append(("holo_board.type_at_f", "type_at_f", params.get("type_at_f")))
+    elif component.id == "sticker":
+        fly = params.get("fly_to")
+        at_f = fly.get("at_f") if isinstance(fly, dict) else None
+        times.append(("sticker.fly_to.at_f", "fly_to.at_f", at_f))
+    for name, inside, at_f in times:
+        if not isinstance(at_f, int) or isinstance(at_f, bool):
+            continue  # it did not pass `validate_params`: that already said so
+        where = join_path(path, inside)
+        if at_f >= length_f:
+            message = f"{name} cae en o después del final del cue; no se va a ver"
+            issues.append(Issue(CODE, "warning", where, message))
+        elif component.id == "sticker" and (length_f - at_f) * 100 < MIN_FLIGHT_CS * fps:
+            message = "el vuelo del sticker dura menos de 0.12 s"
+            issues.append(Issue(CODE, "warning", where, message))
+    return issues
 
 
 def _title(params: dict[str, Any], _path: str, brand: BrandSection) -> list[Issue]:

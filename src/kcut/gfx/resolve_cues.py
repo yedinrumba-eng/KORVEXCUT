@@ -18,7 +18,7 @@ from kcut.errors import GateError, ProjectError
 from kcut.gfx import assets
 from kcut.gfx.assets import image_data_uri
 from kcut.gfx.captions import hide_window
-from kcut.gfx.components import COMPONENTS, validate_params
+from kcut.gfx.components import COMPONENTS, time_warnings, validate_params
 from kcut.gfx.schema import CueDoc, GraphicsDoc
 from kcut.issues import Issue
 from kcut.params import ParamSpec
@@ -86,6 +86,10 @@ class Worker:
         failed = any(i.level == "error" for i in self._issues[before:])
         if span is None or failed:
             return None
+        length = span[1] - span[0]  # 001.35, point 9: times that fall where nobody will see them
+        self._issues.extend(
+            time_warnings(component, params, length, self._edl.fps, f"{where}.params")
+        )
         return ResolvedCue(cue.id, cue.component, span[0], span[1], params)
 
     def _span(self, start: object, end: object, path: str) -> tuple[int, int] | None:

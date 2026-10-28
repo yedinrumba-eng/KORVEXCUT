@@ -13,7 +13,7 @@ from PIL import Image
 
 from kcut.gfx import assets
 from kcut.project import Project
-from tests.unit.gfx_codes_images import _picture, _picture_doc, _saved
+from tests.unit.gfx_codes_images import _saved, _sticker_doc
 from tests.unit.gfx_resolve_fakes import (
     errors_of as _errors,
 )
@@ -65,7 +65,7 @@ def _planted(project: Project, name: str, data: bytes) -> str:
     rel = f"recursos/{name}"
     (project.root / rel).write_bytes(data)
     write_manifest(project, rel)
-    write_graphics(project, _picture_doc(rel))
+    write_graphics(project, _sticker_doc(rel))
     return rel
 
 
@@ -124,7 +124,6 @@ def test_gfx_codes_webp_header_huge_declared_sizes_are_g09_and_pillow_is_never_c
     """A file of 32 bytes that declares a canvas of hundreds of millions of pixels is G09 with the
     fixed text of the size, and `Image.open` is not called (a spy counts it). The lossy header
     cannot say 16384 (14 bits), so it says 16383, the most it can."""
-    _picture(monkeypatch)
     _planted(project, name, data)
     opened = _spy_open(monkeypatch)
     resolved = run_resolve(project)
@@ -157,7 +156,6 @@ def test_gfx_codes_webp_header_huge_declared_sizes_are_g09_and_pillow_is_never_c
 def test_gfx_codes_webp_header_a_header_that_is_none_of_the_three_is_g09_without_opening(
     project: Project, monkeypatch: pytest.MonkeyPatch, data: bytes
 ) -> None:
-    _picture(monkeypatch)
     _planted(project, "rara.webp", data)
     opened = _spy_open(monkeypatch)
     resolved = run_resolve(project)
@@ -183,14 +181,13 @@ def test_gfx_codes_webp_header_a_real_webp_of_64_by_64_is_not_g09(
     kind: bytes,
 ) -> None:
     """Real files of the three kinds that Pillow writes pass: they are opened, as WEBP only."""
-    _picture(monkeypatch)
     image = Image.new(mode, (64, 64), (255, 0, 0, 128)[: len(mode)])
     rel = _saved(project, "real.webp", image, "WEBP")  # lossy; RGBA gets an extended header
     if options:
         image.save(project.root / rel, format="WEBP", **options)
     assert (project.root / rel).read_bytes()[12:16] == kind  # the test covers what it says
     assert assets._webp_pixels((project.root / rel).read_bytes()) == 64 * 64
-    write_graphics(project, _picture_doc(rel))
+    write_graphics(project, _sticker_doc(rel))
     opened = _spy_open(monkeypatch)
     resolved = run_resolve(project)
     assert resolved.issues == [] and resolved.images[rel].startswith("data:image/webp;base64,")

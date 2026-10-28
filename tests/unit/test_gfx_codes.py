@@ -13,6 +13,7 @@ from kcut.errors import ProjectError
 from kcut.issues import Issue, exit_code
 from kcut.project import Project
 from tests.unit.edl_fakes import edit, parsed
+from tests.unit.gfx_codes_animated import *  # noqa: F403  (001.35: 300-line rule)
 from tests.unit.gfx_codes_images import *  # noqa: F403  (the images: 300-line rule)
 from tests.unit.gfx_codes_webp import *  # noqa: F403  (001.30: 300-line rule)
 from tests.unit.gfx_resolve_fakes import (

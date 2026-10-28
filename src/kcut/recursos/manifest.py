@@ -85,20 +85,36 @@ def validate_manifest(project: Project) -> list[str]:
 
 
 def require_approved(project: Project, rel: str) -> ResourceItem:
-    """The manifest entry of `rel`, or GateError (exit 5) if it is unlisted or unapproved."""
-    wanted = to_rel(project.root, resolve_in_project(project.root, rel))
-    for item in load_manifest(project):
+    """The manifest entry of `rel`, or GateError (exit 5) if it is unlisted or unapproved.
+
+    No message here repeats the path of the resource nor a text of the manifest (001.35, point 1):
+    the name of a file can be a person's (`recursos/Maria-809-555-1234.png`), and the caller says
+    which resource it is (`Issue.path`, the key of the file that names it). The messages of the
+    path check and of the manifest quote both, so they are replaced by fixed ones."""
+    try:
+        wanted = to_rel(project.root, resolve_in_project(project.root, rel))
+    except ProjectError:
+        raise ProjectError(
+            "la ruta del recurso no vale: relativa al proyecto, sin .., sin letra de unidad "
+            "y sin nombres reservados de Windows"
+        ) from None
+    try:
+        items = load_manifest(project)
+    except ProjectError:
+        raise ProjectError(
+            "el manifiesto recursos/recursos.json no se puede leer o tiene una entrada inválida; "
+            "ábrelo y corrígelo"
+        ) from None
+    for item in items:
         if os.path.normcase(item.file) != os.path.normcase(wanted):
             continue
         if not item.approved_by.strip():
-            raise GateError(
-                f"el recurso {wanted} no está aprobado: falta approved_by en el manifiesto"
-            )
+            raise GateError("el recurso no está aprobado: falta approved_by en el manifiesto")
         if not resolve_in_project(project.root, wanted).is_file():
-            raise ProjectError(f"el recurso aprobado {wanted} no existe en el proyecto")
+            raise ProjectError("el recurso aprobado no existe en el proyecto")
         return item
     raise GateError(
-        f"el recurso {wanted} no está en el manifiesto recursos/recursos.json: "
+        "el recurso no está en el manifiesto recursos/recursos.json: "
         "pide aprobación antes de usarlo"
     )
 

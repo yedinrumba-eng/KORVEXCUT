@@ -47,7 +47,7 @@ STEPS = ComponentDef(
             item=_STEP,
             help_es="de 1 a 8 pasos, en orden de at_f",
         ),
-        _frac("y", 0.136, "centro vertical del panel, fraccion del alto"),
+        _frac("y", 0.136, "centro vertical del panel, fracción del alto"),
         ParamSpec(
             "badge", "color", default="accent", help_es=f"color de la etiqueta; {_COLOR_HELP}"
         ),
@@ -76,14 +76,14 @@ _PATH_POINT = (
         "int",
         True,
         lo=0,
-        help_es="frame del cue en que los pies pasan por aqui (cada punto, mayor que el anterior)",
+        help_es="frame del cue en que los pies pasan por aquí (cada punto, mayor que el anterior)",
     ),
-    _req_frac("x", "pies: centro horizontal, fraccion del ancho"),
-    _req_frac("y", "pies: vertical, fraccion del alto"),
+    _req_frac("x", "pies: centro horizontal, fracción del ancho"),
+    _req_frac("y", "pies: vertical, fracción del alto"),
 )
 _FLY_TO = (
-    _req_frac("x", "donde cae: horizontal, fraccion del ancho"),
-    _req_frac("y", "donde cae: vertical, fraccion del alto"),
+    _req_frac("x", "dónde cae: horizontal, fracción del ancho"),
+    _req_frac("y", "dónde cae: vertical, fracción del alto"),
     ParamSpec("at_f", "int", True, lo=0, help_es="frame del cue en que sale volando"),
 )
 
@@ -96,32 +96,34 @@ STICKER = ComponentDef(
             "image",
             "path",
             True,
+            max_len=200,  # 001.35, point 1: a longer text is a G03, never looked up on the disk
             help_es="imagen en recursos/ (.png .webp .jpg), aprobada en recursos/recursos.json",
         ),
         ParamSpec("w_px", "int", default=280, lo=40, hi=900, help_es="ancho de la imagen en px"),
-        _frac("x", 0.5, "pies: centro horizontal, fraccion del ancho"),
-        _frac("y", 0.6, "pies: punto vertical, fraccion del alto"),
+        _frac("x", 0.5, "pies: centro horizontal, fracción del ancho"),
+        _frac("y", 0.6, "pies: punto vertical, fracción del alto"),
         ParamSpec(
             "path",
             "list",
+            hi=64,  # 001.35, point 4: with 200 000 points the validation took 2.4 s
             item=_PATH_POINT,
-            help_es="camino de los pies: puntos {at_f, x, y}, en linea recta de uno a otro",
+            help_es="camino de los pies: puntos {at_f, x, y}, en línea recta de uno a otro",
         ),
-        ParamSpec("enter", "str", default="drop", help_es="como entra: drop (cae y rebota) o pop"),
-        ParamSpec("idle", "str", default="bob", help_es="mientras esta: bob (flota) o none"),
-        ParamSpec("exit", "str", default="pop", help_es="como sale: none, pop o fly_to"),
+        ParamSpec("enter", "str", default="drop", help_es="cómo entra: drop (cae y rebota) o pop"),
+        ParamSpec("idle", "str", default="bob", help_es="mientras está: bob (flota) o none"),
+        ParamSpec("exit", "str", default="pop", help_es="cómo sale: none, pop o fly_to"),
         ParamSpec(
             "fly_to",
             "object",
             item=_FLY_TO,
-            help_es="adonde vuela {x, y, at_f}; obligatorio con exit=fly_to, sobra con otro exit",
+            help_es="adónde vuela {x, y, at_f}; obligatorio con exit=fly_to, sobra con otro exit",
         ),
         ParamSpec("glow", "bool", default=True, help_es="brillo bajo los pies y halo de color"),
         ParamSpec(
             "glow_color", "color", default="accent", help_es=f"color del brillo; {_COLOR_HELP}"
         ),
         ParamSpec("sparkles", "bool", default=True, help_es="siete destellos alrededor"),
-        ParamSpec("seed", "int", default=7, lo=1, help_es="semilla de los destellos (1 o mas)"),
+        ParamSpec("seed", "int", default=7, lo=1, help_es="semilla de los destellos (1 o más)"),
     ),
     name_es="Sticker",
     purpose_es=(
@@ -138,8 +140,8 @@ STICKER = ComponentDef(
 )
 
 _BEAM = (
-    _req_frac("x", "origen del rayo: horizontal, fraccion del ancho"),
-    _req_frac("y", "origen del rayo: vertical, fraccion del alto"),
+    _req_frac("x", "origen del rayo: horizontal, fracción del ancho"),
+    _req_frac("y", "origen del rayo: vertical, fracción del alto"),
 )
 
 HOLO_BOARD = ComponentDef(
@@ -163,7 +165,7 @@ HOLO_BOARD = ComponentDef(
             "int",
             True,
             lo=0,
-            help_es="frame del cue en que cae la ultima letra (las otras caen antes)",
+            help_es="frame del cue en que cae la última letra (las otras caen antes)",
         ),
         ParamSpec(
             "type_step_f",
@@ -179,7 +181,7 @@ HOLO_BOARD = ComponentDef(
             lo=0,
             hi=11,
             nullable=True,
-            help_es="letra en color de acento: sin ponerlo, la ultima; null, ninguna",
+            help_es="letra en color de acento: sin ponerlo, la última; null, ninguna",
         ),
         ParamSpec(
             "born",
@@ -187,7 +189,7 @@ HOLO_BOARD = ComponentDef(
             default={"x": 0.479, "y": 0.199},
             lo=0.0,
             hi=1.0,
-            help_es="de donde nace el tablero {x, y}, fraccion de la imagen",
+            help_es="de dónde nace el tablero {x, y}, fracción de la imagen",
         ),
         ParamSpec(
             "center",
@@ -195,9 +197,10 @@ HOLO_BOARD = ComponentDef(
             default={"x": 0.5, "y": 0.448},
             lo=0.0,
             hi=1.0,
-            help_es="donde queda el centro del tablero {x, y}, fraccion de la imagen",
+            help_es="dónde queda el centro del tablero {x, y}, fracción de la imagen",
         ),
-        ParamSpec("w_px", "int", default=860, lo=100, hi=2000, help_es="ancho del tablero en px"),
+        # 001.35, point 10: under about 140 px a 12-letter word spilled out of the board; from 300
+        ParamSpec("w_px", "int", default=860, lo=300, hi=2000, help_es="ancho del tablero en px"),
         ParamSpec("h_px", "int", default=500, lo=100, hi=2000, help_es="alto del tablero en px"),
         ParamSpec("color", "color", default="#6FF6FF", help_es=f"color del tablero; {_COLOR_HELP}"),
         ParamSpec(
@@ -228,18 +231,18 @@ GLOBE = ComponentDef(
     js_files=("globe.js",),
     big=False,
     params=(
-        _frac("x", 0.306, "centro horizontal, fraccion del ancho"),
-        _frac("y", 0.396, "centro vertical, fraccion del alto"),
+        _frac("x", 0.306, "centro horizontal, fracción del ancho"),
+        _frac("y", 0.396, "centro vertical, fracción del alto"),
         ParamSpec("r_px", "int", default=190, lo=40, hi=500, help_es="radio del globo en px"),
         ParamSpec("color", "color", default="accent", help_es=f"color del globo; {_COLOR_HELP}"),
         ParamSpec(
             "spin", "float", default=1.4, lo=0.0, hi=6.0, help_es="giro en radianes por segundo"
         ),
         ParamSpec(
-            "tilt", "float", default=0.38, lo=0.0, hi=1.2, help_es="inclinacion del eje, rad"
+            "tilt", "float", default=0.38, lo=0.0, hi=1.2, help_es="inclinación del eje, rad"
         ),
         ParamSpec("dots", "int", default=70, lo=0, hi=200, help_es="puntos sobre la superficie"),
-        ParamSpec("seed", "int", default=7, lo=1, help_es="semilla de los puntos (1 o mas)"),
+        ParamSpec("seed", "int", default=7, lo=1, help_es="semilla de los puntos (1 o más)"),
     ),
     name_es="Globo",
     purpose_es="Un globo que gira: lo global, internet, un alcance, un lugar en el mundo",

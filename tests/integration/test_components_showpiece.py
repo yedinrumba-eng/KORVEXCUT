@@ -29,6 +29,7 @@ from tests.fixtures.synth_edl import write_edl_v1
 from tests.fixtures.synth_graphics import LOGO, write_logo
 from tests.integration.capture_helpers import decode_png
 from tests.integration.showpiece_gate_cases import *  # noqa: F403  (row 3: 300-line rule)
+from tests.integration.showpiece_holo_cases import *  # noqa: F403  (001.35, row 17: 300 lines)
 from tests.integration.showpiece_order_cases import *  # noqa: F403  (row 4: 300-line rule)
 
 pytestmark = [pytest.mark.ffmpeg, pytest.mark.chromium, pytest.mark.slow]
@@ -229,10 +230,17 @@ def test_components_showpiece_holo_board_fills_its_rectangle(root: Path, tmp_pat
 def test_components_showpiece_holo_board_has_the_accent_when_the_last_letter_falls(
     root: Path, tmp_path: Path
 ) -> None:
-    resolved = _resolve(root, CUES["holo"])
-    shot = _shot(resolved, 270 + 30 + 2, tmp_path)  # start + type_at_f + 2
-    found = _accent_pixels(shot, resolved.brand["accent"], _board_box(resolved))
-    assert found > 0, "holo: ningun pixel del color accent en el tablero"
+    # 001.35, row 15: the bar and the cursor are `accent` too, so "more than 0" proved nothing. The
+    # comparison is the same shot with `accent_index: null` (no letter in accent): with the accent
+    # there are more pixels of its color than without it.
+    frame = 270 + 30 + 2  # start + type_at_f + 2
+    counts = {}
+    for name, extra in (("with", {}), ("without", {"accent_index": None})):
+        cue = CUES["holo"] | {"params": {"text": "HOLA", "type_at_f": 30, **extra}}
+        resolved = _resolve(root, cue)
+        shot = _shot(resolved, frame, tmp_path)
+        counts[name] = _accent_pixels(shot, resolved.brand["accent"], _board_box(resolved))
+    assert counts["with"] > counts["without"], f"holo: pixeles accent con y sin letra: {counts}"
 
 
 def test_components_showpiece_holo_board_accent_index_null_leaves_no_letter_in_accent(

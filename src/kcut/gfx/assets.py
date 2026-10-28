@@ -35,6 +35,12 @@ FORMATS = {".png": "PNG", ".webp": "WEBP", ".jpg": "JPEG", ".jpeg": "JPEG"}
 BAD_IMAGE = "Pillow no puede abrir la imagen: no es una imagen válida del formato de su extensión"
 TOO_MANY_PIXELS = "la imagen tiene más de 4096 x 4096 píxeles; kcut no la usa"
 FOLDER = "recursos/"
+# 001.35, point 5: Chromium plays an APNG or an animated WebP with its own clock, so the same time
+# would not give the same picture
+ANIMATED_IMAGE = "la imagen está animada; los gráficos usan imágenes fijas"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+WEBP_ANIMATION_FLAG = 0x02  # the `A` bit of the flags byte of the `VP8X` chunk
+WEBP_IMAGE_DATA = (b"VP8 ", b"VP8L", b"ANMF")  # from the first of these on, nothing says "animated"
 
 
 def image_data_uri(project: Project, rel: str) -> str:
@@ -61,6 +67,8 @@ def image_data_uri(project: Project, rel: str) -> str:
         raise ProjectError("la imagen tiene que ser .png, .webp, .jpg o .jpeg (SVG no se usa)")
     require_approved(project, normalized)
     data = _read(path)
+    if _is_animated(data, FORMATS[suffix]):  # from the header, before anything is decoded
+        raise ProjectError(ANIMATED_IMAGE)
     _opens(data, FORMATS[suffix])
     return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
 
@@ -79,6 +87,54 @@ def _read(path: Path) -> bytes:
         raise ProjectError("la imagen pesa más de 20 MB o cambió mientras se leía") from None
     except OSError:
         raise ProjectError("no pude leer la imagen") from None
+
+
+def _is_animated(data: bytes, image_format: str) -> bool:
+    """Does the header of `data` say it is an animation (001.35, point 5)? Only the chunk headers
+    are read, never the pixels, and a file that is not that format is not animated (`_opens` has
+    the word on it).
+
+    - PNG: a chunk `acTL` before the first `IDAT` (an APNG); the chunks are walked by their
+      lengths, up to `IDAT` or `IEND`.
+    - WebP: a `VP8X` chunk whose flags have the animation bit, or an `ANIM` chunk, among the chunks
+      that come before the first frame or image (`VP8 `, `VP8L`, `ANMF`).
+    - Any other format has no animation."""
+    if image_format == "PNG":
+        return _png_has_actl(data)
+    if image_format == "WEBP":
+        return _webp_is_animated(data)
+    return False
+
+
+def _png_has_actl(data: bytes) -> bool:
+    if data[: len(PNG_SIGNATURE)] != PNG_SIGNATURE:
+        return False
+    offset = len(PNG_SIGNATURE)
+    while offset + 8 <= len(data):  # 4 bytes of length and 4 of type
+        kind = data[offset + 4 : offset + 8]
+        if kind == b"acTL":
+            return True
+        if kind in (b"IDAT", b"IEND"):
+            return False
+        offset += 12 + int.from_bytes(data[offset : offset + 4], "big")  # length, type, data, CRC
+    return False
+
+
+def _webp_is_animated(data: bytes) -> bool:
+    if data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        return False
+    offset = 12
+    while offset + 8 <= len(data):  # 4 bytes of type and 4 of size
+        kind = data[offset : offset + 4]
+        size = int.from_bytes(data[offset + 4 : offset + 8], "little")
+        if kind == b"VP8X" and offset + 8 < len(data) and data[offset + 8] & WEBP_ANIMATION_FLAG:
+            return True
+        if kind == b"ANIM":
+            return True
+        if kind in WEBP_IMAGE_DATA:
+            return False
+        offset += 8 + size + (size & 1)  # a chunk of odd size has a pad byte
+    return False
 
 
 def _webp_pixels(data: bytes) -> int | None:

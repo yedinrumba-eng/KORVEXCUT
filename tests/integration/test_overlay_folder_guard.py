@@ -109,3 +109,46 @@ def test_overlay_folder_guard_the_render_gives_the_source_the_guard_of_its_folde
     assert "guard" in inspect.signature(OverlaySource.__init__).parameters
     source = inspect.getsource(render)
     assert "folder_guard(" in source and "OverlaySource(" in source
+
+
+def test_overlay_folder_guard_build_changed_for_a_junction_after_the_source_is_made_is_exit_3(
+    small: Path, kcut_json: Run, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """001.35, row 13: `build/vN` swapped for a junction right after the `OverlaySource` is made,
+    as `gfx/` is in the test above (S1.7-13): exit 3, no `video.mp4`, and nothing written through
+    the junction nor read from it. The render cannot be cut in its middle with a rename: ffmpeg has
+    `video.partial.mp4` open in `build/v1`, and Windows refuses to rename a folder with an open
+    file in it (`PermissionError`, measured). The identity check in the middle of a blend is in
+    `tests/unit/test_overlay_folder_guard_identity.py`, for each of the four folders."""
+    frames = _captured(small, kcut_json, monkeypatch)
+    build = small / BUILD
+    for name in ("video.mp4", "render.mp4"):
+        (build / name).unlink(missing_ok=True)
+    outside = tmp_path / "ajeno"
+    (outside / "gfx").mkdir(parents=True)
+    for f in frames:  # the layer that the junction leads to, with PNGs of the size of the video
+        (outside / "gfx" / png_name(f)).write_bytes(_red_png(1080, 1920))
+    before = tree_hash(outside)
+    swap = _swap(build, outside)
+    real_init: Callable[..., None] = OverlaySource.__init__
+    state = {"swapped": 0}
+
+    def init(self: OverlaySource, *args: Any, **kwargs: Any) -> None:
+        real_init(self, *args, **kwargs)  # the index is read and valid; the blend has not begun
+        state["swapped"] += 1
+        swap()
+
+    monkeypatch.setattr(OverlaySource, "__init__", init)
+    try:
+        code, doc, err = kcut_json("render", *project_args(small))
+    finally:
+        monkeypatch.undo()
+        remove_dir_link(build)
+        if build.with_name("v1-real").exists() and not build.exists():
+            build.with_name("v1-real").rename(build)
+    assert state["swapped"] == 1  # the junction went in where the test meant
+    assert code == 3 and doc["error"]["kind"] == "ProjectError", (doc, err)
+    message = doc["error"]["message"]
+    assert "queda fuera de .kcut/" in message or "enlace" in message or "cambió" in message
+    assert tree_hash(outside) == before  # nothing was written through the junction, nor read
+    assert not (build / "video.mp4").exists() and not list(build.glob("*.partial*"))

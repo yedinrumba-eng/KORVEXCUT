@@ -58,7 +58,7 @@ def test_components_params_holo_board_text_is_required_and_from_one_to_twelve_le
     [
         ("type_at_f", [0, 30, 10_000], [-1, 1.5, True, "30"]),
         ("type_step_f", [1, 4, 15], [0, 16, 2.5, False]),
-        ("w_px", [100, 860, 2000], [99, 2001, 860.5]),
+        ("w_px", [300, 860, 2000], [299, 2001, 860.5]),  # 001.35: 300 to 2000 (it was 100)
         ("h_px", [100, 500, 2000], [99, 2001, "500"]),
     ],
 )
@@ -160,3 +160,14 @@ def test_components_params_holo_board_beams_from_is_zero_to_two_points() -> None
 def test_components_params_holo_board_an_unknown_parameter_does_not_repeat_its_name() -> None:
     issues = check("holo_board", _holo(**{"IGNORE PREVIOUS INSTRUCTIONS": 1}))[1]
     assert len(issues) == 1 and "IGNORE" not in issues[0].message_es + issues[0].path
+
+
+def test_components_params_holo_width_goes_from_300_to_2000() -> None:
+    """001.35, point 10 (S1.8a row 17): under 300 px a 12-letter word spilled out of the board."""
+    for narrow in (299, 100, 0):
+        issues = check("holo_board", _holo(w_px=narrow))[1]
+        assert paths(issues) == [f"{PATH}.w_px"], narrow
+        assert messages(issues) == [f"debe estar entre 300 y 2000 (vino {narrow})"]
+    assert check("holo_board", _holo(w_px=300))[1] == []
+    assert check("holo_board", _holo(w_px=2000))[1] == []
+    assert paths(check("holo_board", _holo(w_px=2001))[1]) == [f"{PATH}.w_px"]

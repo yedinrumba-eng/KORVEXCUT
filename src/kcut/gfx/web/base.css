@@ -5,7 +5,7 @@ html, body { margin: 0; background: transparent; overflow: hidden; }
 body { font-family: Inter, sans-serif; position: relative; }
 #kc-root { position: absolute; left: 0; top: 0; }
 .kc-cue { position: absolute; left: 0; top: 0; overflow: hidden; }
-.kc-abs { position: absolute; white-space: nowrap; will-change: transform, opacity; }
+.kc-abs { position: absolute; white-space: nowrap; }
 /* big text: Inter 900, capitals, tight, with a dark border painted behind the letters */
 .kc-big { font-weight: 900; text-transform: uppercase; letter-spacing: -2px; line-height: 1; }
 .kc-stroke { paint-order: stroke fill; -webkit-text-stroke: 12px var(--kc-dark); }
