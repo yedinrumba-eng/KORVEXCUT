@@ -17,6 +17,7 @@ import pytest
 
 from kcut.errors import MissingDependency, ToolError
 from kcut.gfx import capture as gfx_capture
+from kcut.gfx import capture_net
 from kcut.gfx.capture import capture_stills, launch_options
 from tests.integration.capture_helpers import counting_server, decode_png, page_with
 
@@ -150,8 +151,9 @@ def test_capture_hardening_the_module_blocks_with_a_route_made_before_goto() -> 
     # the windows that the page opens, and it still comes before `goto`
     assert source.index('context.route("**/*"') < source.index("page.goto(")
     assert 'page.route("' not in source
-    assert "route.abort()" in source and "route.continue_()" in source
+    net = Path(capture_net.__file__).read_text(encoding="utf-8")  # 001.33: the handler lives here
+    assert "route.abort()" in net and "route.continue_()" in net  # 001.33
     # 001.31: it was `'("file://", "data:")' in source` (any `file://`); now it is the exact URI
     # of the page and `data:`, and the tuple of schemes is gone
     assert '("file://", "data:")' not in source
-    assert "page_file.as_uri()" in source and 'startswith("data:")' in source
+    assert "page_file.as_uri()" in source and 'startswith("data:")' in net  # 001.33

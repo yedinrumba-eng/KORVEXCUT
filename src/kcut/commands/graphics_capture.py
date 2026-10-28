@@ -13,7 +13,6 @@ Both take the lock `build-vN` (they use `gfx/` of that build, as `render` does),
 from __future__ import annotations
 
 import argparse
-import contextlib
 from pathlib import Path
 
 import cv2
@@ -49,7 +48,7 @@ from kcut.render.lock import OutputLock
 from kcut.render.preview import base_frame
 
 STILLS = "stills"  # `.kcut/build/vN/gfx/stills/`: where a still goes if `--out` is not given
-STILLS_WORK = "stills_work"  # the page of the stills and the PNGs as Chromium made them
+STILLS_WORK = "stills_work"  # the page of the stills (masked); Chromium's PNGs stay in memory
 MAX_STILLS = 60  # different frames that one call of `still` makes
 Frame = NDArray[np.uint8]
 
@@ -138,16 +137,18 @@ def _make_stills(
     args: argparse.Namespace,
     log: Path | None,
 ) -> list[dict[str, object]]:
-    """Chromium's PNG of each frame in `gfx/stills_work/` (nothing, if there is nothing to draw),
-    and from it the still of each frame. The folders of `gfx/` are checked before they are made and
-    before each PNG (`folder_guard`), and each target again before each still."""
+    """Chromium's PNG of each frame, in memory (nothing, if there is nothing to draw), and from it
+    the still of each frame. Only the masked page is written in `gfx/stills_work/`: the PNGs that
+    Chromium makes are never written there, so none is read back from a folder that could have
+    changed (001.33, point 2). The folders of `gfx/` are checked before they are made and before
+    the page is written (`folder_guard`), and each target again before each still."""
     gfx = build / GFX_DIR
     work_guard = folder_guard(project, build, gfx, gfx / STILLS_WORK)
     stills_guard = folder_guard(project, build, gfx, gfx / STILLS)
     if args.out is None:
         stills_guard()  # `gfx/stills/` that is a link or a file is told before Chromium starts
     ctx = fx_context(project, edl)
-    shots: dict[int, Path] = {}
+    shots: dict[int, bytes] = {}
     if not resolved.empty:
         progress = Progress("graphics still", len(frames), "frames")
         page = page_for(resolved, masked=True)  # the subtitles as Claude may read them
@@ -166,11 +167,6 @@ def _make_stills(
         write_bytes_atomic(target, data)
         made.append({"f": f, "png": to_rel(project.root, target)})
         out.line("OK", str(made[-1]["png"]))
-    if shots:
-        work_guard()
-    for shot in shots.values():  # what Chromium made is not kept: the still is
-        with contextlib.suppress(OSError):
-            shot.unlink()
     return made
 
 
@@ -231,20 +227,20 @@ def _still(
     edl: Edl,
     inventory: Inventory,
     f: int,
-    shot: Path | None,
+    shot: bytes | None,
     alpha: bool,
     ctx: FxContext,
     log: Path | None,
 ) -> bytes:
-    """The PNG of the still of frame `f`. `shot` is what Chromium made for it, `None` if there is
-    nothing to draw. With `alpha` it is that PNG as it is (RGBA); without, the graphics blended
-    over `base_frame`, as an RGB PNG of the size of the video."""
+    """The PNG of the still of frame `f`. `shot` is the bytes of what Chromium made for it, `None`
+    if there is nothing to draw. With `alpha` it is that PNG as it is (RGBA); without, the graphics
+    blended over `base_frame`, as an RGB PNG of the size of the video."""
     if alpha:
-        return _transparent(edl) if shot is None else shot.read_bytes()
+        return _transparent(edl) if shot is None else shot
     base = base_frame(project, edl, inventory, f, ctx, log=log)
     if shot is None:
         return _png(base)
-    bgra = cv2.imdecode(np.frombuffer(shot.read_bytes(), dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    bgra = cv2.imdecode(np.frombuffer(shot, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
     if bgra is None or bgra.dtype != np.uint8 or bgra.shape != (edl.out_h, edl.out_w, 4):
         raise ToolError("Chromium no entregó un PNG con alfa del tamaño del video")
     return _png(alpha_blend(base, np.asarray(bgra)))

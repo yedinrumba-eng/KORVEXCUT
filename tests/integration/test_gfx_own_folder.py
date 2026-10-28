@@ -240,8 +240,13 @@ class TestStill:
         outside: Path,
     ) -> None:
         work = stills_project / BUILD / "gfx" / "stills_work"
+        # 001.33: no PNG is written in `stills_work/` any more (the stills are in memory), so the
+        # hook that ran after the first PNG has nothing to wait for; the folder, which has to be
+        # there to be swapped, is changed for a junction when the shooter is made, right before the
+        # page is written in it
+        work.mkdir(parents=True, exist_ok=True)  # 001.33
         swap = _swap(work, outside)
-        install_fake_shooter(monkeypatch, Hooks(on_png=lambda n: swap() if n == 1 else None))
+        install_fake_shooter(monkeypatch, Hooks(on_init=swap))  # 001.33
         try:
             args = ("graphics", "still", "60", "85", *project_args(stills_project))
             code, doc, _ = kcut_json(*args)

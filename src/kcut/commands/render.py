@@ -22,7 +22,7 @@ from kcut.edl.files import find_edl
 from kcut.edl.gate import strategy_approved
 from kcut.edl.model import Edl
 from kcut.errors import GateError
-from kcut.gfx.layer import Layer, ensure_layer, layer_bytes, raise_for_errors
+from kcut.gfx.layer import Layer, ensure_layer, folder_guard, layer_bytes, raise_for_errors
 from kcut.gfx.overlay import OverlaySource
 from kcut.gfx.resolve import ResolvedGraphics, resolve
 from kcut.ingest import workfiles
@@ -105,7 +105,10 @@ def run(args: argparse.Namespace) -> int:
         layer = None if resolved is None else _layer(project, resolved, folder, version, notices)
         index = _mezzanines(project, edl, inventory, version, log, notices)
         video, raw, render = folder / "video.mp4", folder / "voice_raw.f32", folder / "render.mp4"
-        overlay = None if layer is None else OverlaySource(layer.index_path, edl.out_w, edl.out_h)
+        overlay = None
+        if layer is not None:  # each PNG is read minutes from now: its folders are looked at then
+            guard = folder_guard(project, folder, layer.index_path.parent)
+            overlay = OverlaySource(layer.index_path, edl.out_w, edl.out_h, guard=guard)
         frames = _picture(project, edl, inventory, index, video, version, log, overlay)
         build_folder(project, version)  # looked at again before each write (001.27, point 4)
         workfiles._assert_in_cache(project, raw)

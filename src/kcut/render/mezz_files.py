@@ -176,7 +176,10 @@ def build_mezz(project: Project, job: MezzJob, clip: Clip, fps: int, log: Path |
     mezzanine whose video ends before what the EDL reads (`need_end_f`) is a CheckFailed, and
     neither the file nor a sidecar is left; one that is shorter than its range but reaches what
     is read is kept, and its sidecar says how many frames it has (001.25 points 7 and 8, 001.26
-    point 1)."""
+    point 1). The target, the partial and the sidecar are looked at before the ffmpeg and again
+    right before `_land` and right before `land_sidecar` (001.33, point 3): the ffmpeg takes
+    minutes, and `.kcut/mezz` can be changed for a junction in them. The partial is deleted at
+    the end only if it is still in the cache (`_discard`, 001.34, point 3)."""
     dst = resolve_in_project(project.root, job.path)
     src = resolve_in_project(project.root, clip.file)
     partial = dst.with_name(f"{dst.stem}.{os.getpid()}.partial{dst.suffix}")
@@ -184,8 +187,8 @@ def build_mezz(project: Project, job: MezzJob, clip: Clip, fps: int, log: Path |
     # `mezz de a1`, not the path (001.31, point 8); from the name in the plan, as `dst` is where a
     # link in its place leads
     label = workfiles.work_label(Path(job.path))
-    for target in (dst, partial, sidecar):
-        workfiles._assert_in_cache(project, target, label=label)  # before touching the disk
+    targets = (dst, partial, sidecar)
+    _look(project, targets, label)  # before touching the disk
     dst.parent.mkdir(parents=True, exist_ok=True)
     count = job.end_f - job.start_f
     args = mezz_args(proc.tool_path("ffmpeg"), src, partial, job.chain, fps, job.start_f, count)
@@ -201,13 +204,15 @@ def build_mezz(project: Project, job: MezzJob, clip: Clip, fps: int, log: Path |
                 f"el EDL pide hasta {job.need_end_f}"
             )
         size = partial.stat().st_size
+        _look(project, targets, label)  # after the ffmpeg, right before the file is moved
         already = _land(partial, dst, job, clip, fps)
         if already is not None:
             return already
     finally:
-        discard_partial(partial)
+        _discard(project, partial, label)
     params = params_of(job, job.start_f, job.end_f, fps)
     data = {"qhash": clip.qhash, "params": params, "size_bytes": size, "frames": made}
+    _look(project, targets, label)  # right before the sidecar is written
     # through `<sidecar>.<pid>.tmp`, created new (001.27), and waiting if the other render has the
     # sidecar open: if the one that is there is fresh for the job, its entry is the one used
     seen = land_sidecar(
@@ -216,6 +221,23 @@ def build_mezz(project: Project, job: MezzJob, clip: Clip, fps: int, log: Path |
     if seen is not None:
         return seen
     return MezzEntry(dst, job.start_f, job.start_f + made, job.w, job.h)
+
+
+def _look(project: Project, targets: tuple[Path, ...], label: str) -> None:
+    """The guard of the cache for each of `targets`, named by `label` in the message."""
+    for target in targets:
+        workfiles._assert_in_cache(project, target, label=label)
+
+
+def _discard(project: Project, partial: Path, label: str) -> None:
+    """Delete `partial` (`discard_partial`), but only if it still passes the guard of the cache
+    (001.34, point 3): if the folder was changed for a link while the ffmpeg ran, the name is a
+    file of somebody else's folder, it stays where it is, and the error on its way goes out."""
+    try:
+        workfiles._assert_in_cache(project, partial, label=label)
+    except ProjectError:
+        return
+    discard_partial(partial)
 
 
 def _land(partial: Path, dst: Path, job: MezzJob, clip: Clip, fps: int) -> MezzEntry | None:

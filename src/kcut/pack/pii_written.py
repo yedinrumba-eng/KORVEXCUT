@@ -16,8 +16,9 @@ from dataclasses import dataclass
 MASKED = "{first}***@***.{tld}"
 _PHONE_RUN = re.compile(r"\d{7}")  # the shortest run of digits that is taken for a phone number
 _PHONE_DIGITS = 7
-# a file extension: a dot and up to 5 letters or digits, one of them a letter (`.mp4`, not `.5551`)
-_FILE_EXT = re.compile(r"\.(?=[A-Za-z0-9]{0,4}[A-Za-z])[A-Za-z0-9]{1,5}$")
+# a file extension: a dot and up to 5 letters or digits, one of them a letter (`.mp4`, not `.5551`);
+# public because `pii.py` uses this one and keeps no copy of it (001.33, point 7)
+FILE_EXT = re.compile(r"\.(?=[A-Za-z0-9]{0,4}[A-Za-z])[A-Za-z0-9]{1,5}$")
 TLDS = frozenset(
     {"com", "net", "org", "edu", "gov", "io", "co", "us", "do", "mx", "es", "info", "biz", "pr"}
     | {"uk", "ca", "cl", "dev", "app", "ai"}
@@ -148,7 +149,7 @@ def _stretch(text: str, begin: int) -> _Stretch:
     limit = len(text) if found == -1 else found
     name_end = limit
     if found == -1:  # the last stretch is the file name: its extension is not counted
-        ext = _FILE_EXT.search(text, begin, limit)
+        ext = FILE_EXT.search(text, begin, limit)
         name_end = limit if ext is None else ext.start()
     run: deque[int] = deque(maxlen=_PHONE_DIGITS)
     phone_from = -1

@@ -2,21 +2,23 @@
 technique of `piloto/capture.py`).
 
 `Shooter` is one Chromium with the page open: `shoot(f)` puts the page at frame `f` (`window.seek`,
-a pure function of the time, with a limit of time: `FRAME_TIMEOUT_S`) and takes the screenshot, with
-a transparent background. `capture` keeps the frames that have something drawn on them;
-`capture_stills` keeps all.
+a pure function of the time, with a limit of time: `FRAME_TIMEOUT_S`) and takes the photo
+(`Page.captureScreenshot` over CDP, 001.34 point 1), with a transparent background. `capture` keeps
+the frames that have something drawn on them; `capture_stills` keeps all, in memory.
 
 The page cannot ask for anything on the network: the route lets through only the page itself and
 `data:`, everything else is aborted before it leaves (spec 001.1, 001.31 point 10), the page has a
-Content-Security-Policy for what a route does not see, and Chromium runs with its sandbox
-(`launch_options`). What the page says about itself (`pageerror`, `console.error`) is an error of
-the capture. The caller has already checked that `work_dir` and `out_dir` are inside `.kcut/`, and
-`guard` (when it is given) is called again before each thing that is written in them (001.31 point
-2).
+Content-Security-Policy for what a route does not see, an init script takes WebRTC out of it
+(`capture_net`, 001.33 point 4) and Chromium runs with its sandbox (`launch_options`). What the page
+says about itself (`pageerror`, `console.error`) is an error of the capture. The caller has already
+checked that `work_dir` and `out_dir` are inside `.kcut/`, and `guard` (when it is given) is called
+again before each thing that is written in them (001.31 point 2).
 """
 
 import base64
 import contextlib
+import gc
+import logging
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import TracebackType
@@ -25,19 +27,20 @@ from typing import TYPE_CHECKING, Any, Self, cast
 from kcut.console import Progress
 from kcut.errors import MissingDependency, ToolError
 from kcut.gfx.capture_index import png_name
+from kcut.gfx.capture_net import NO_WEBRTC
+from kcut.gfx.capture_net import only_local as _only_local
 from kcut.gfx.capture_png import max_alpha, write_png
+from kcut.gfx.capture_pw import clean, playwright_error, short
 from kcut.gfx.resolve import ResolvedGraphics
 from kcut.gfx.seek import FrameTimeout, SeekError, evaluate_seek
 from kcut.jsonio import write_text_atomic
-from kcut.pack.pii import mask_text
 
 if TYPE_CHECKING:  # Playwright is imported where it is used: `kcut doctor` has to start without it
-    from playwright.sync_api import Page, Playwright, Route
+    from playwright.sync_api import Page, Playwright
 
 READY_TIMEOUT_MS = 20_000  # what the page has to load its fonts and its images
 FRAME_TIMEOUT_S = 30.0  # the most that the `seek` of one frame may take (001.31, point 4)
 MAX_REPORTED = 5  # page errors that a ToolError lists
-_MAX_ERROR_CHARS = 200
 WEBRTC_POLICY = "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"
 Guard = Callable[[], None]  # looks at the folders again; raises a ProjectError if they changed
 
@@ -100,18 +103,17 @@ def capture_stills(
     progress: Progress | None,
     *,
     guard: Guard | None = None,
-) -> dict[int, Path]:
-    """As `capture`, but every frame is written, empty ones too: `{frame: path of its PNG}`."""
-    found: dict[int, Path] = {}
+) -> dict[int, bytes]:
+    """As `capture`, but every frame is kept, empty ones too, and in memory: `{frame: its PNG}`.
+    Nothing that Chromium makes is written (001.33, point 2): `work_dir` gets only the page, and
+    the caller makes the stills from the bytes. The caller keeps the count small (`graphics still`
+    makes at most 60 frames). `out_dir` is not used any more: it stays so that the call is the one
+    it was."""
+    found: dict[int, bytes] = {}
     _check(guard)
-    out_dir.mkdir(parents=True, exist_ok=True)
     with Shooter(page_html, work_dir, fps, size, guard=guard) as shooter:
         for done, f in enumerate(frames, start=1):
-            path = out_dir / png_name(f)
-            png = shooter.shoot(f)
-            _check(guard)
-            write_png(path, png)
-            found[f] = path
+            found[f] = shooter.shoot(f)
             if progress is not None:
                 progress.update(done)
         shooter.finish()
@@ -147,7 +149,7 @@ class Shooter:
         self._browser: Any = None
         self._page: Page | None = None
         self._cdp: Any = None
-        self._playwright_error = _playwright_error()
+        self._playwright_error = playwright_error()
 
     def __enter__(self) -> Self:
         _check(self._guard)
@@ -172,10 +174,18 @@ class Shooter:
 
     def shoot(self, f: int) -> bytes:
         """The PNG of frame `f` (`window.seek(f / fps)`, at most `FRAME_TIMEOUT_S`, and the
-        screenshot). A page error that came with it is a ToolError, and so is a frame that does
-        not end: Chromium is closed by the `with` that this is called in."""
-        page, cdp = self._page, self._cdp
-        if page is None or cdp is None:
+        photo: `Page.captureScreenshot` over CDP with `optimizeForSpeed`, as in S1.6b). A page
+        error that came with it is a ToolError, and so is a frame that does not end: Chromium is
+        closed by the `with` that this is called in.
+
+        What is not cut (001.34, point 1): the photo has no limit of its own (CDP has none, and
+        `page.screenshot` costs 1.88 times more because it cannot ask for the fast PNG). A task
+        that the page leaves for after the `seek` and that blocks it needs the JavaScript of kcut
+        to leave it, and the rules of `gfx/web/` forbid that (`setTimeout`, `setInterval`,
+        `requestAnimationFrame`, `requestIdleCallback`, `MessageChannel`, `postMessage`,
+        `Worker`); a watchdog that kills Chromium by pid is the cure if it is ever needed."""
+        cdp = self._cdp
+        if self._page is None or cdp is None:
             raise ToolError("Shooter se usa dentro de un with")
         try:
             evaluate_seek(cdp, f / self._fps, FRAME_TIMEOUT_S, self._playwright_error)
@@ -199,24 +209,19 @@ class Shooter:
             raise self._failure("la página de gráficos dio errores")
 
     def _start(self, page_file: Path) -> None:
-        from playwright.sync_api import sync_playwright
-
         width, height = self._size
-        try:  # the driver may not start, as Chromium may not (001.31, point 11)
-            self._playwright = sync_playwright().start()
-            self._browser = self._playwright.chromium.launch(
-                **cast("dict[str, Any]", launch_options())
-            )
-        except (self._playwright_error, OSError) as exc:  # 001.32: a driver that is not there
+        failure = self._boot()
+        if failure is not None:  # the driver may not start, as Chromium may not (001.31, point 11)
             raise MissingDependency(
-                f"Chromium no arrancó ({_short(exc)}); corre kcut doctor para ver qué falta"
-            ) from None
+                f"Chromium no arrancó ({failure}); corre kcut doctor para ver qué falta"
+            )
         context = self._browser.new_context(
             viewport={"width": width, "height": height}, device_scale_factor=1
         )
-        # before any page: nothing goes to the network (001.1); only this page and `data:`
-        # (001.31). On the context, not on the page, so it covers the windows the page opens
-        # (001.32, point 5)
+        # before any page and before the route: no WebRTC in the page or in a window it opens
+        # (001.33, point 4), and nothing goes to the network (001.1) but the page and `data:`
+        # (001.31); on the context, not on the page, so the route covers the windows too (001.32)
+        context.add_init_script(NO_WEBRTC)
         context.route("**/*", _only_local(page_file.as_uri()))
         page = context.new_page()
         page.on("pageerror", lambda error: self._errors.append(str(error)))
@@ -233,6 +238,32 @@ class Shooter:
         except self._playwright_error as exc:
             raise self._failure("la página de gráficos no quedó lista", exc) from None
         self.finish()
+
+    def _boot(self) -> str | None:
+        """Start Playwright and launch Chromium. Why it could not (the first line of the error: a
+        driver that is not there is an `OSError`, 001.32), or `None` if it did. A driver that does
+        not start leaves a future of Playwright that nobody reads, and asyncio tells it in 47 lines
+        of traceback when that future is collected (`Future exception was never retrieved`): the
+        `asyncio` logger is kept quiet until it has been (001.33, point 6)."""
+        from playwright.sync_api import sync_playwright
+
+        asyncio_log = logging.getLogger("asyncio")
+        level = asyncio_log.level
+        asyncio_log.setLevel(logging.CRITICAL)
+        reason: str | None = None
+        try:
+            try:
+                self._playwright = sync_playwright().start()
+                self._browser = self._playwright.chromium.launch(
+                    **cast("dict[str, Any]", launch_options())
+                )
+            except (self._playwright_error, OSError) as exc:
+                reason = short(exc)
+            if reason is not None:
+                gc.collect()  # the future that was not read is collected here, with the log quiet
+        finally:
+            asyncio_log.setLevel(level)
+        return reason
 
     def _on_console(self, message: Any) -> None:
         if message.type == "error":
@@ -252,45 +283,7 @@ class Shooter:
         the numbers masked: it is text of a page that drew a transcript."""
         said = list(self._errors)
         if exc is not None:
-            said.append(_short(exc))
-        shown = "; ".join(_clean(text) for text in said[:MAX_REPORTED])
+            said.append(short(exc))
+        shown = "; ".join(clean(text) for text in said[:MAX_REPORTED])
         more = f" (y {len(said) - MAX_REPORTED} más)" if len(said) > MAX_REPORTED else ""
         return ToolError(f"{head}: {shown}{more}" if shown else head)
-
-
-def _playwright_error() -> type[Exception]:
-    """The base class of the errors of Playwright (imported here, when it is first needed). If the
-    package is not there, that is a MissingDependency (exit 7), not an internal error."""
-    try:
-        from playwright.sync_api import Error
-    except ImportError:
-        raise MissingDependency(
-            "falta el paquete playwright; corre kcut doctor para ver qué falta"
-        ) from None
-    return Error
-
-
-def _only_local(page_uri: str) -> "Callable[[Route], None]":
-    """The route that blocks the network: only the page itself (`page_uri`) and `data:` go through,
-    the rest is aborted. Another `file://` is aborted too, a UNC path included (001.31, point 10):
-    the page has everything it needs inside it. The URL is compared without telling capitals from
-    small letters (001.32, point 2): a Windows path does not, and Chromium writes the letter of
-    the drive in capitals and the host of a UNC path in small letters."""
-    page_key = page_uri.casefold()
-
-    def handler(route: "Route") -> None:
-        url = route.request.url
-        if url.casefold() == page_key or url.startswith("data:"):
-            route.continue_()
-        else:
-            route.abort()
-
-    return handler
-
-
-def _short(exc: Exception) -> str:
-    return str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
-
-
-def _clean(text: str) -> str:
-    return mask_text(text.strip().replace("\n", " ")[:_MAX_ERROR_CHARS], parts=False)

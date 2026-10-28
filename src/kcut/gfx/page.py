@@ -21,7 +21,9 @@ WEB = Path(__file__).resolve().parent / "web"
 FONTS = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 WEIGHTS = (600, 800, 900)
 # What the page may load (001.31, point 10): nothing, but the images and fonts that are inside it
-# as `data:`, and its own style and scripts. `page.route` does not see a WebSocket; this does.
+# as `data:`, and its own style and scripts. The block of the network is `context.route` (only the
+# page itself and `data:` go through), and it does not see a WebSocket: this policy does. Neither
+# one sees WebRTC: `capture.py` removes it with an init script (001.33, point 4).
 CSP = (
     '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; '
     "font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'\">"

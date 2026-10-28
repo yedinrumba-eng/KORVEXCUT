@@ -17,8 +17,8 @@ pytestmark = [pytest.mark.chromium, pytest.mark.slow]
 SIZE = (100, 100)
 
 
-def _stills(page: str, tmp_path: Path, frames: list[int] | None = None) -> None:
-    capture_stills(page, tmp_path, frames or [0], 30, SIZE, tmp_path / "out", None)
+def _stills(page: str, tmp_path: Path, frames: list[int] | None = None) -> dict[int, bytes]:
+    return capture_stills(page, tmp_path, frames or [0], 30, SIZE, tmp_path / "out", None)
 
 
 def test_capture_errors_a_console_error_is_a_tool_error_with_what_it_said(tmp_path: Path) -> None:
@@ -36,8 +36,8 @@ def test_capture_errors_a_page_error_is_a_tool_error_with_what_it_said(tmp_path:
 
 def test_capture_errors_a_console_log_or_warning_is_not_an_error(tmp_path: Path) -> None:
     body = '<script>console.log("hola"); console.warn("ojo"); console.info("x");</script>'
-    _stills(page_with(body), tmp_path)  # does not raise
-    assert (tmp_path / "out" / "000000.png").is_file()
+    found = _stills(page_with(body), tmp_path)  # does not raise
+    assert list(found) == [0] and found[0][:4] == b"\x89PNG"  # 001.33: it was a file in `out/`
 
 
 def test_capture_errors_the_list_is_cut_at_5_and_says_how_many_more(tmp_path: Path) -> None:
@@ -83,7 +83,9 @@ def test_capture_errors_a_page_that_fails_after_the_first_frame_stops_there(
     with pytest.raises(ToolError) as info:
         _stills(page, tmp_path, [0, 40, 41])  # frame 40 is second 1.33
     assert "tarde" in info.value.message_es
-    assert (tmp_path / "out" / "000000.png").is_file()  # what came before is kept
+    # 001.33: the stills are in memory, so there is no file of what came before; what is kept is
+    # that nothing is written, before or after the failure
+    assert not list(tmp_path.rglob("*.png"))  # 001.33
     assert not (tmp_path / "out" / "000041.png").exists()  # and nothing is made after the failure
 
 

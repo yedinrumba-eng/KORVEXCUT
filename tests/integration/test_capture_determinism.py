@@ -59,6 +59,7 @@ def test_capture_determinism_capture_stills_keeps_the_empty_ones_too(tmp_path: P
     out = tmp_path / "stills"
     found = capture_stills(sample_page(), tmp_path, [330, 50], FPS, (W, H), out, None)
     assert sorted(found) == [50, 330]
-    assert sorted(p.name for p in out.glob("*.png")) == ["000050.png", "000330.png"]
+    assert all(isinstance(data, bytes) for data in found.values())  # 001.33: in memory
+    assert not list(tmp_path.rglob("*.png"))  # 001.33: Chromium's PNGs are not written any more
     assert int(decode_png(found[330])[:, :, 3].max()) == 0
     assert int(decode_png(found[50])[:, :, 3].max()) > 0

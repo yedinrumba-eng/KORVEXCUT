@@ -6,10 +6,14 @@ PNG of the size of the video or that does not decode is a `ProjectError` that sa
 them again, never an `InternalError`. The render reads each PNG minutes after the index was
 validated, so each one is looked at again right before it is read (001.32, point 8): one that is no
 longer a regular file with a single name (a hard link to something outside the project was put in
-its place) is refused, and its content does not get into the video.
+its place) is refused, and its content does not get into the video. That look follows a junction in
+the folder, so the folders are looked at too, with the guard that the capture uses (`build/vN` and
+`gfx/`, 001.33 point 5): before the `lstat` of each PNG, `guard()` says if they are still the
+folders of the cache.
 """
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 import cv2
@@ -47,12 +51,17 @@ def alpha_blend(base: Frame, bgra: Frame) -> Frame:
 class OverlaySource:
     """The graphics of a video: `blend(base, out_f)` puts the PNG of frame `out_f` over `base`
     if the index of `index_path` has it, and gives `base` back as it is if it does not. The PNGs
-    are in the folder of the index and are `W x H`."""
+    are in the folder of the index and are `W x H`. `guard` (the render gives it the one of
+    `build/vN` and `gfx/`) is called before each PNG is looked at: a folder that became a link is
+    a ProjectError there, and nothing of what it leads to is read."""
 
-    def __init__(self, index_path: Path, W: int, H: int) -> None:
+    def __init__(
+        self, index_path: Path, W: int, H: int, *, guard: Callable[[], None] | None = None
+    ) -> None:
         index = read_index(index_path)
         if index is None:
             raise ProjectError(DAMAGED_INDEX)
+        self._guard = guard
         self._folder = index_path.parent
         self._frames = frozenset(index.frames)
         self._w, self._h = W, H
@@ -66,10 +75,13 @@ class OverlaySource:
     def _decode(self, f: int) -> Frame:
         """The PNG of frame `f` as `(H, W, 4)` BGRA, decoded from its bytes (never `cv2.imread`:
         it fails on a path with letters outside ASCII, 001.15 T8). Its header is looked at first,
-        so a PNG that says it is huge is not decoded. Before it is read, the name is looked at
-        (`lone_file_reason` of `os.lstat`, so a link is not followed): a PNG that is not a regular
-        file with one name any more is `CHANGED`; one that is gone is `DAMAGED`."""
+        so a PNG that says it is huge is not decoded. Before it is read, the folders are looked at
+        (`guard`) and then the name (`lone_file_reason` of `os.lstat`, so a link is not followed): a
+        PNG that is not a regular file with one name any more is `CHANGED`; one that is gone is
+        `DAMAGED`."""
         path = self._folder / png_name(f)
+        if self._guard is not None:
+            self._guard()
         try:
             reason = lone_file_reason(os.lstat(path))
         except OSError:

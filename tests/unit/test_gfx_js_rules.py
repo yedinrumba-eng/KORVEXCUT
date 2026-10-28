@@ -18,6 +18,12 @@ FORBIDDEN_JS = {
     "requestAnimationFrame": r"\brequestAnimationFrame\b",
     "setTimeout": r"\bsetTimeout\b",
     "setInterval": r"\bsetInterval\b",
+    # 001.34, point 1: the other ways to leave a task for after the `seek` (the photo has no limit
+    # of its own, so the rules are what keeps a deferred task from blocking the page)
+    "requestIdleCallback": r"\brequestIdleCallback\b",
+    "MessageChannel": r"\bMessageChannel\b",
+    "postMessage": r"\bpostMessage\b",
+    "Worker": r"\bWorker\b",
     "fetch(": r"\bfetch\s*\(",
     "XMLHttpRequest": r"\bXMLHttpRequest\b",
     "innerHTML": r"\binnerHTML\b",
@@ -131,6 +137,10 @@ def test_gfx_js_rules_the_checker_itself_catches_each_forbidden_api() -> None:
         "requestAnimationFrame": "requestAnimationFrame(tick)",
         "setTimeout": "setTimeout(f, 10)",
         "setInterval": "setInterval(f, 10)",
+        "requestIdleCallback": "requestIdleCallback(() => spin())",  # 001.34
+        "MessageChannel": "const ch = new MessageChannel();",  # 001.34
+        "postMessage": "window.postMessage('x', '*')",  # 001.34
+        "Worker": "const w = new Worker('w.js');",  # 001.34
         "fetch(": "fetch ('x')",
         "XMLHttpRequest": "new XMLHttpRequest()",
         "innerHTML": "el.innerHTML = x",
@@ -144,3 +154,8 @@ def test_gfx_js_rules_the_checker_itself_catches_each_forbidden_api() -> None:
     assert re.search(FORBIDDEN_CSS["transition"], ".a{transition:all 1s}")
     assert re.search(FORBIDDEN_CSS["animation"], ".a{animation:spin 1s}")
     assert not re.search(FORBIDDEN_JS["Date"], "const update = 1; // the updated state")
+    # 001.34: the new names are whole words, and a name that only contains one is not caught
+    assert not re.search(FORBIDDEN_JS["Worker"], "const coworker = 1; const workerCount = 2;")
+    assert not re.search(FORBIDDEN_JS["postMessage"], "const postMessages = 1;")
+    assert not re.search(FORBIDDEN_JS["MessageChannel"], "const MessageChannels = 1;")
+    assert not re.search(FORBIDDEN_JS["requestIdleCallback"], "const requestIdleCallbacks = 1;")

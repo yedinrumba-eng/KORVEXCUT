@@ -20,6 +20,13 @@ from kcut.project import Project
 from kcut.recursos.manifest import require_approved
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
+# All the images that go into one page, together (001.33, point 8): `page.html` carries each of them
+# as a data URI. Counted in the bytes of the images (the file), not in the characters of the URI:
+# 64 MiB hold three images of the cap above. The cue that crosses it is a G09 with this text.
+MAX_PAGE_IMAGE_BYTES = 64 * 1024 * 1024
+PAGE_IMAGES_TOO_BIG = (
+    "las imágenes de los gráficos pasan de 64 MiB en total; usa menos o más livianas"
+)
 MAX_ASSET_PIXELS = 4096 * 4096  # width x height, read from the header before the image is decoded
 WEBP_HEADER_BYTES = 30  # all the RIFF header of a WebP needs to say its size
 MIME = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
@@ -56,6 +63,13 @@ def image_data_uri(project: Project, rel: str) -> str:
     data = _read(path)
     _opens(data, FORMATS[suffix])
     return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
+
+
+def uri_bytes(uri: str) -> int:
+    """The bytes of the image that the data URI `uri` (`image_data_uri` gave it) carries: the
+    length of what is behind the comma, decoded, without the padding `=`."""
+    body = uri.split(",", 1)[1]
+    return len(body) // 4 * 3 - body.count("=", len(body) - 2)
 
 
 def _read(path: Path) -> bytes:

@@ -11,10 +11,11 @@ Collected from `test_pii_pack.py` (through `pii_cases_paths.py`), which is at th
 
 import pytest
 
+from kcut.pack import pii, pii_written
 from kcut.pack.pii import mask_pii, mask_text
 from kcut.transcribe.model import Word
 
-__all__ = ["TestPiiPathDottedPhone"]
+__all__ = ["TestPiiFileExtShared", "TestPiiPathDottedPhone"]
 
 
 class TestPiiPathDottedPhone:
@@ -72,3 +73,25 @@ class TestPiiPathDottedPhone:
         shown, ids = mask_pii([word])
         assert [w.text for w in shown] == ["***.***.**34"] and ids == {"a1:w0000"}
         assert mask_text("1.500.000", parts=False) == "*.***.*00"
+
+
+class TestPiiFileExtShared:
+    """001.33, point 7 (row 15): the regex of the extension of a file lives once, in
+    `pii_written.FILE_EXT`, and `pii.py` imports it instead of keeping a copy. Two copies that
+    nothing tied together could drift apart: rows 25, 34 and 35 depend on both being the same."""
+
+    def test_file_ext_shared_pii_uses_the_one_of_pii_written(self) -> None:
+        assert pii._EXTENSION is pii_written.FILE_EXT
+
+    def test_file_ext_shared_it_is_public_and_the_old_private_copy_is_gone(self) -> None:
+        assert not hasattr(pii_written, "_FILE_EXT")
+        assert pii_written.FILE_EXT.pattern == r"\.(?=[A-Za-z0-9]{0,4}[A-Za-z])[A-Za-z0-9]{1,5}$"
+
+    @pytest.mark.parametrize(
+        ("name", "is_ext"),
+        [(".mp4", True), (".3gp", True), (".1234", False), (".5551", False), (".abcdef", False)],
+    )
+    def test_file_ext_shared_a_letter_is_what_makes_it_an_extension(
+        self, name: str, is_ext: bool
+    ) -> None:
+        assert (pii_written.FILE_EXT.search(name) is not None) is is_ext

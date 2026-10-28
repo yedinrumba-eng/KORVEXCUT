@@ -1,8 +1,9 @@
 """A `Shooter` with no Chromium, for the tests of what `capture` and `graphics still` do with the
 folders and the disk (spec S1.6b round 1, 001.31 rows 20, 21, 23 and 24).
 
-It is the real `Shooter` (its `__enter__` writes `page.html`, `capture` and `capture_stills` write
-the PNGs, the guards run where they run in the product) with `_start`, `_stop` and `shoot` replaced:
+It is the real `Shooter` (its `__enter__` writes `page.html`, `capture` writes the PNGs and
+`capture_stills` keeps them in memory, 001.33; the guards run where they run in the product) with
+`_start`, `_stop` and `shoot` replaced:
 `shoot(f)` gives a PNG of the size of the video with one pixel that is not transparent, so every
 frame is kept. Hooks run at the moments a test needs to change the folders under a capture.
 """

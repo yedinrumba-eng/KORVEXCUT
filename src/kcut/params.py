@@ -21,7 +21,7 @@ from kcut.errors import InternalError
 from kcut.issues import Issue
 from kcut.schema_util import UNKNOWN_KEY, describe_value, join_path
 
-Kind = Literal["str", "int", "float", "bool", "color", "point", "path", "list"]
+Kind = Literal["str", "int", "float", "bool", "color", "point", "path", "list", "object"]
 BRAND_TOKENS = ("accent", "accent2", "dark", "light")
 _HEX = re.compile(r"#[0-9A-Fa-f]{6}")
 _BAD = object()  # a value that did not pass: it is not put in the result
@@ -35,10 +35,15 @@ class ParamSpec:
     - `color`: `#RRGGBB` or a token of the brand (`accent accent2 dark light`), returned as hex;
     - `point`: an object `{"x": number, "y": number}`, each between `lo` and `hi`;
     - `path`: a text with a path relative to the project (the file is checked by whoever uses it);
-    - `list`: between `lo` and `hi` objects, each one checked against the specs in `item`.
+    - `list`: between `lo` and `hi` objects, each one checked against the specs in `item`;
+    - `object` (001.34): one object whose keys are checked against the specs in `item`, as an
+      element of a `list` is; it comes back as a `dict` with its defaults applied, and a key that
+      is not in `item` is the usual error.
 
     `lo` and `hi` bound a number (or the count of a list). An optional parameter whose `default`
-    is `None` is left out of the result when it is not given."""
+    is `None` is left out of the result when it is not given. With `nullable` (001.34), a JSON
+    `null` is a valid value of any kind and comes back as `None` in the result: that is not the
+    same as not being given, which leaves the parameter out (or gives its default)."""
 
     name: str
     kind: Kind
@@ -49,6 +54,7 @@ class ParamSpec:
     max_len: int | None = None
     item: tuple[ParamSpec, ...] | None = None
     help_es: str = ""
+    nullable: bool = False
 
 
 def check_params(
@@ -112,6 +118,8 @@ def _check(
     issues: list[Issue],
 ) -> object:
     """`value` as the spec wants it, or `_BAD` (and an issue) if it does not pass."""
+    if value is None and spec.nullable:
+        return None
     kind = spec.kind
     if kind in ("str", "path"):
         return _text(spec, value, where, code, issues)
@@ -126,6 +134,8 @@ def _check(
         return _color(value, where, code, brand, issues)
     if kind == "point":
         return _point(spec, value, where, code, issues)
+    if kind == "object":
+        return _object(spec, value, where, code, brand, issues)
     return _items(spec, value, where, code, brand, issues)
 
 
@@ -200,6 +210,23 @@ def _point(spec: ParamSpec, value: object, where: str, code: str, issues: list[I
     axis = ParamSpec("", "float", True, None, spec.lo, spec.hi)
     xy = {k: _number(axis, value[k], join_path(where, k), code, issues) for k in ("x", "y")}
     return _BAD if _BAD in xy.values() else xy
+
+
+def _object(
+    spec: ParamSpec,
+    value: object,
+    where: str,
+    code: str,
+    brand: BrandSection | None,
+    issues: list[Issue],
+) -> object:
+    """An object against the specs in `item`, as an element of a list is (001.34): its keys are
+    located under `where`, and what it gives back has the defaults applied."""
+    if spec.item is None:
+        raise InternalError("check_params: un objeto necesita sus ParamSpec en item")
+    checked, problems = check_params(spec.item, value, where, code, brand)
+    issues.extend(problems)
+    return checked
 
 
 def _items(

@@ -2,16 +2,18 @@
 
 Nothing read from the cache is trusted, and every write, move or delete is checked first with
 `_assert_in_cache`: kcut never touches a path that resolves outside `.kcut/` (spec 0.9).
+
+Making a file (ffmpeg into a partial, then the move and the sidecar) lives in `workbuild.py`
+(001.33, point 3: 300-line rule); `_build`, `_land` and `work_label` are named here too.
 """
 
 import os
 import shutil
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
 
 from kcut import proc
-from kcut.errors import ProjectError, ToolError
+from kcut.errors import ProjectError
 from kcut.ff.args import proxy_args, wav_args
 from kcut.ff.color import CHAIN_VERSION, video_chain
 from kcut.ingest.cache_guard import assert_in_cache
@@ -19,9 +21,11 @@ from kcut.ingest.inventory import Clip, Notice
 from kcut.ingest.probe import VideoInfo
 from kcut.ingest.sidecar import SidecarState as SidecarState
 from kcut.ingest.sidecar import is_fresh as is_fresh
-from kcut.ingest.sidecar import land_sidecar, wait_to_land
 from kcut.ingest.sidecar import sidecar_path as sidecar_path
 from kcut.ingest.sidecar import sidecar_state as sidecar_state
+from kcut.ingest.workbuild import _build as _build
+from kcut.ingest.workbuild import _land as _land
+from kcut.ingest.workbuild import work_label as work_label
 from kcut.jsonio import refuse_directory
 from kcut.paths import resolve_in_project, same_path
 from kcut.project import Project
@@ -52,13 +56,6 @@ def job_timeout_s(duration_ms: int) -> float:
 def work_name(clip_id: str, slug: str, ext: str) -> str:
     """`a1_crudo-1.wav`: short, ASCII, no spaces (spec 0.10.8)."""
     return f"{clip_id}_{slug}.{ext}"
-
-
-def work_label(dst: Path) -> str:
-    """The phrase that names a work file in a message: its class and its clip (`wav48 de a1`),
-    never its name. The name has the slug of the original clip, which may hold a phone number
-    (001.28, point 2). The clip is what comes before the first `_` of the name."""
-    return f"{dst.parent.name} de {dst.name.split('_', 1)[0]}"
 
 
 def _label_of(target: Path, work_file: Path) -> str:
@@ -224,61 +221,6 @@ def _usable(dst: Path, qhash: str, params: dict[str, Any], notices: list[Notice]
         detail = f"{work_label(dst)}: el sidecar estaba dañado y se reconstruye"
         notices.append(Notice("cache_rebuilt", detail))
     return state == "fresh"
-
-
-def _build(
-    project: Project,
-    make_args: Callable[[Path], list[str]],
-    dst: Path,
-    job: tuple[str, dict[str, Any], float],
-    log: Path | None,
-) -> None:
-    """Run ffmpeg into `<name>.<pid>.partial.<ext>`, then replace `dst` and write its sidecar.
-
-    The partial has the pid, so two renders that make the same file do not write the same one and
-    each deletes only its own. If `dst` is fresh when the partial is done (the other one came
-    first) it is used as it is, and the sidecar is the other's (001.26, point 3). The sidecar goes
-    through `<sidecar>.<pid>.tmp`, created new, and is moved like the file, waiting if the other
-    render has it open (`land_sidecar`, 001.27 point 5, 001.31 point 1)."""
-    qhash, params, timeout_s = job
-    partial = dst.with_name(f"{dst.stem}.{os.getpid()}.partial{dst.suffix}")
-    label = work_label(dst)  # messages name the class and the clip, not the slug (001.30)
-    for target in (dst, partial, sidecar_path(dst)):
-        _assert_in_cache(project, target, label=label)  # before touching the disk
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        partial.unlink(missing_ok=True)
-        proc.run(make_args(partial), log=log, timeout_s=timeout_s)
-        if not partial.is_file():
-            raise ToolError(f"ffmpeg no produjo el {work_label(dst)}")
-        if not _land(partial, dst, qhash, params):
-            return
-    finally:
-        partial.unlink(missing_ok=True)
-    land_sidecar(
-        sidecar_path(dst),
-        {"qhash": qhash, "params": params},
-        lambda: True if is_fresh(dst, qhash, params) else None,
-        label=f"el sidecar del {label}",
-    )
-
-
-def _land(partial: Path, dst: Path, qhash: str, params: dict[str, Any]) -> bool:
-    """Put `partial` over `dst`: True if it was moved, False if `dst` was already fresh, before
-    or because the replace was refused (a reader has it open: on Windows ffmpeg and `wave` do not
-    share the delete), so the one that is there is the one to use."""
-    if is_fresh(dst, qhash, params):
-        return False
-    refuse_directory(dst, f"el {work_label(dst)}")
-    try:
-        os.replace(partial, dst)
-    except PermissionError:
-        try:  # waits for the other process, or for the reader to let go (001.29, point 1)
-            if wait_to_land(partial, dst, lambda: True if is_fresh(dst, qhash, params) else None):
-                return False
-        except PermissionError:
-            raise ProjectError(f"cierra el {work_label(dst)} en el reproductor y repite") from None
-    return True
 
 
 def _copy(src: Path, dst: Path) -> None:

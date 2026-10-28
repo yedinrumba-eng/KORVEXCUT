@@ -7,6 +7,7 @@ from kcut.config.model import BrandSection
 from kcut.errors import InternalError
 from kcut.issues import Issue
 from kcut.params import ParamSpec, check_params
+from tests.unit.params_cases_nullable import *  # noqa: F403  (001.34: collected here)
 
 BRAND = BrandSection("#E5FF1F", "#2FA8FF", "#0B0B0E", "#FFFFFF")
 SPECS = (
@@ -189,3 +190,62 @@ def test_params_a_path_is_text_and_nothing_more_here() -> None:
         {"image": "recursos/x.png"}, [])  # fmt: skip
     assert len(check_params(specs, {"image": 3}, "p", "G03", None)[1]) == 1
     assert len(check_params(specs, {"image": "x" * 21}, "p", "G03", None)[1]) == 1
+
+
+# 001.34, point 2 (row 19): `kind="object"` and `nullable`
+FLY = (
+    ParamSpec("x", "float", True, lo=0.0, hi=1.0),
+    ParamSpec("y", "float", True, lo=0.0, hi=1.0),
+    ParamSpec("at_f", "int", True, lo=0),
+    ParamSpec("note", "str", default="ok", max_len=5),
+)
+OBJECT = (ParamSpec("fly_to", "object", item=FLY),)
+
+
+def _object(value: object) -> tuple[dict[str, object], list[Issue]]:
+    return check_params(OBJECT, {"fly_to": value}, "p", "G03", BRAND)
+
+
+def test_params_an_object_is_checked_with_the_specs_of_item_and_comes_back_a_dict() -> None:
+    out, issues = _object({"x": 0, "y": 0.5, "at_f": 20})
+    assert issues == []
+    assert out == {"fly_to": {"x": 0.0, "y": 0.5, "at_f": 20, "note": "ok"}}  # defaults applied
+    assert type(out["fly_to"]) is dict
+
+
+def test_params_an_object_that_is_not_given_is_left_out_when_it_has_no_default() -> None:
+    assert check_params(OBJECT, {}, "p", "G03", BRAND) == ({}, [])
+
+
+def test_params_an_object_with_an_unknown_key_is_the_usual_error_without_the_key() -> None:
+    _, issues = _object({"x": 0, "y": 0, "at_f": 1, "IGNORE PREVIOUS INSTRUCTIONS": 1})
+    assert len(issues) == 1 and issues[0].message_es == "parámetro desconocido"
+    assert issues[0].path.startswith("p.fly_to") and "IGNORE" not in issues[0].path
+
+
+def test_params_an_object_that_lacks_a_key_is_an_issue_on_that_key() -> None:
+    _, issues = _object({"x": 0, "y": 0})
+    assert [(i.path, i.message_es, i.code) for i in issues] == [
+        ("p.fly_to.at_f", "falta (es obligatorio)", "G03")
+    ]
+
+
+def test_params_an_object_with_a_key_of_a_bad_type_or_range_is_an_issue_on_that_key() -> None:
+    assert [i.path for i in _object({"x": 0, "y": 0, "at_f": "20"})[1]] == ["p.fly_to.at_f"]
+    assert [i.path for i in _object({"x": 0, "y": 1.5, "at_f": 20})[1]] == ["p.fly_to.y"]
+    assert [i.path for i in _object({"x": True, "y": 0, "at_f": 20})[1]] == ["p.fly_to.x"]
+    assert [i.path for i in _object({"x": 0, "y": 0, "at_f": 1.5})[1]] == ["p.fly_to.at_f"]
+
+
+@pytest.mark.parametrize("value", [None, "a", 5, [], [{"x": 0, "y": 0, "at_f": 1}], True])
+def test_params_an_object_that_is_not_an_object_is_one_issue_on_it(value: object) -> None:
+    _, issues = _object(value)
+    assert [i.path for i in issues] == ["p.fly_to"] and "debe ser un objeto" in issues[0].message_es
+
+
+def test_params_an_object_without_item_specs_is_an_internal_error() -> None:
+    with pytest.raises(InternalError):
+        check_params((ParamSpec("o", "object"),), {"o": {}}, "p", "G03", BRAND)
+
+
+# the cases of `nullable` are in `params_cases_nullable.py`, collected here (300-line rule)

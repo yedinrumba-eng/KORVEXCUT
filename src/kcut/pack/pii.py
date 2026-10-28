@@ -28,6 +28,7 @@ from kcut.pack.pii_numbers import compose, mask_lettered, mask_run, number_runs
 from kcut.pack.pii_tokens import Tok, classify, tokenize
 from kcut.pack.pii_vocab import bridge_tokens
 from kcut.pack.pii_written import (
+    FILE_EXT,
     TLDS,
     Written,
     last_at_is_open,
@@ -41,9 +42,9 @@ from kcut.transcribe.model import Word
 UNMASKED = "PII sin enmascarar (privacy.mask_pii = false)"  # 001.24 point 8: lives here
 _WORD_SEPARATORS = re.compile(r"([\s_.\-]+)")  # what cuts a path into words (and `/` into folders)
 _PART_BREAK = re.compile(r"[_.\-]")  # of those, what also cuts it into parts
-# a file extension: a dot and up to 5 letters or digits, one of them a letter (`.mp4`, `.3gp`,
-# not `.1234`), the same rule as `pii_written._FILE_EXT` (001.32, point 4)
-_EXTENSION = re.compile(r"\.(?=[A-Za-z0-9]{0,4}[A-Za-z])[A-Za-z0-9]{1,5}$")
+# a file extension (`.mp4`, `.3gp`, not `.1234`): the one rule of `pii_written.FILE_EXT`, not a copy
+# of it (001.32, point 4; 001.33, point 7)
+_EXTENSION = FILE_EXT
 # a masked address with no tokens, or a stretch that is not an address with its tokens
 _Piece = tuple[str, list[Tok]]
 _CUT = "x0"  # stands for a `_` that does not join: letters and a digit cut a run of digits

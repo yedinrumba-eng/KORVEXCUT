@@ -15,9 +15,10 @@ from tests.unit.pii_cases_v7 import TestPiiPathEmailV5, TestPiiPathEmailV6  # 00
 from tests.unit.pii_cases_v8 import TestPiiPathEmailV7  # 001.30
 from tests.unit.pii_cases_v9 import TestPiiPathEmailV8  # 001.31
 from tests.unit.pii_cases_v10 import TestPiiPathEmailV9  # 001.32
-from tests.unit.pii_cases_v11 import TestPiiPathDottedPhone  # 001.32
+from tests.unit.pii_cases_v11 import TestPiiFileExtShared, TestPiiPathDottedPhone  # 001.32, 001.33
 
 __all__ = [
+    "TestPiiFileExtShared",
     "TestPiiPathContiguous",
     "TestPiiPathDottedPhone",
     "TestPiiPathEmail",

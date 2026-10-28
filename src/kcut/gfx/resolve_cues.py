@@ -15,6 +15,7 @@ from kcut.anchors import resolve_time
 from kcut.edl.kept import KeptWords
 from kcut.edl.model import Edl
 from kcut.errors import GateError, ProjectError
+from kcut.gfx import assets
 from kcut.gfx.assets import image_data_uri
 from kcut.gfx.captions import hide_window
 from kcut.gfx.components import COMPONENTS, validate_params
@@ -46,6 +47,7 @@ class Worker:
         self._edl = edl
         self._kept = kept
         self._issues = issues
+        self._image_bytes = 0  # what `images` weighs, as the page will carry it (001.33, point 8)
         self.images: dict[str, str] = {}
 
     def windows(self, doc: GraphicsDoc) -> list[tuple[int, int]]:
@@ -135,8 +137,16 @@ class Worker:
         if rel in self.images:
             return
         try:
-            self.images[rel] = image_data_uri(self._project, rel)
+            uri = image_data_uri(self._project, rel)
         except GateError as exc:
             self._issues.append(Issue("G10", "error", path, exc.message_es))
+            return
         except ProjectError as exc:
             self._issues.append(Issue("G09", "error", path, exc.message_es))
+            return
+        size = assets.uri_bytes(uri)
+        if self._image_bytes + size > assets.MAX_PAGE_IMAGE_BYTES:  # the cue that crosses it
+            self._issues.append(Issue("G09", "error", path, assets.PAGE_IMAGES_TOO_BIG))
+            return
+        self._image_bytes += size
+        self.images[rel] = uri

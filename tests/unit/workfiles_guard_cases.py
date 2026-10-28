@@ -108,7 +108,10 @@ class TestPlainPath:
         _Fake(monkeypatch, made=90)
         mezz_files.build_mezz(mezz_project, _job(), _a1(), FPS, None)
         name = _job().path.rsplit("/", 1)[1]
-        assert seen == [name, f"{name[:-4]}.{os.getpid()}.partial.mp4", f"{name}.json"]
+        three = [name, f"{name[:-4]}.{os.getpid()}.partial.mp4", f"{name}.json"]
+        # 001.33: the three are looked at again right before `_land` and right before the sidecar;
+        # 001.34 (row 20): and the partial once more between the two, before it is deleted
+        assert seen == [*three, *three, three[1], *three]  # 001.34 (it was `three * 3`)
 
     def test_in_cache_prefix_a_guard_that_says_no_is_believed_the_first_time(
         self, mezz_project: Project, monkeypatch: pytest.MonkeyPatch
