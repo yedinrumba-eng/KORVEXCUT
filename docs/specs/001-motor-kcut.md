@@ -122,6 +122,7 @@ tests/fixtures/showpiece_stills.py                                             S
 src/kcut/audio/sfx_synth.py  sfx_library.py  sfx_schema.py  sfx_events.py  sfx_bus.py  gain.py   S1.8a (sfx_events: 001.15)
 src/kcut/audio/chords.py  music_synth.py  music_file.py  music_schema.py       S1.8b
 src/kcut/audio/loudnorm.py  mix_graph.py  mixer.py                             S1.8b
+src/kcut/audio/music_model.py  music_schema_file.py                           S1.8b (partidos por la regla de 300 líneas; la síntesis no importa el esquema; 001.37)
 src/kcut/commands/mix.py                                                       S1.8b
 src/kcut/qa/__init__.py  streams.py  loudness.py  detect.py  transcript_diff.py  ear.py  contact.py  report.py  run.py   S1.9a (ear: 001.15)
 src/kcut/catalog/__init__.py  model.py  static_items.py  planned.py  collect.py               S1.9a
@@ -551,7 +552,7 @@ requeridos pasan, 1 si no.
 
 #### `src/kcut/doctor/checks.py` — CREAR
 - `@dataclass(frozen=True) class CheckResult: id: str; required: bool; ok: bool; detail: str; fix_es: str | None`.
-- `REQUIRED_FILTERS = ("zscale", "tonemap", "loudnorm", "ebur128", "sidechaincompress", "afftdn", "blackdetect", "freezedetect", "overlay", "acompressor", "highpass", "asplit", "anullsink", "amix", "aresample", "scale", "fps", "colorbalance", "curves", "vibrance", "vignette", "colorhold")`.
+- `REQUIRED_FILTERS = ("zscale", "tonemap", "loudnorm", "ebur128", "sidechaincompress", "afftdn", "blackdetect", "freezedetect", "overlay", "acompressor", "highpass", "asplit", "apad", "anullsink", "amix", "aresample", "scale", "fps", "colorbalance", "curves", "vibrance", "vignette", "colorhold")`.
 - `OPTIONAL_FILTERS = ("flite", "tonemap_opencl")`. `REQUIRED_ENCODERS = ("libx264", "aac", "pcm_s16le")`.
 - `run_all(model_name: str) -> list[CheckResult]` en este orden de ids:
   `python` (requerido: `sys.version_info[:2] == (3, 12)`; fix: "instala con py -3.12; ctranslate2 no soporta 3.14"),
@@ -2767,7 +2768,7 @@ y `parse_ebur128(stderr: str) -> EburMeasure(I: float | None, TP: float | None, 
 
 #### `src/kcut/audio/mix_graph.py` — CREAR (puro; lección 11) (S1.8b)
 `build_graph(has_music: bool, duck: bool, duck_cfg) -> tuple[str, int]` (filter_complex, nº de entradas):
-- voz + música + duck: `[0:a]asplit=2[vm][vs];[1:a][vs]sidechaincompress=threshold=T:ratio=R:attack=A:release=Rl:makeup=M:knee=K[md];[vm][md][2:a]amix=inputs=3:normalize=0:duration=first:dropout_transition=0[mix]`
+- voz + música + duck (001.37: `apad` en las dos entradas del compresor): `[0:a]asplit=2[vm][vs];[vs]apad[vsp];[1:a]apad[mp];[mp][vsp]sidechaincompress=threshold=T:ratio=R:attack=A:release=Rl:makeup=M:knee=K[md];[vm][md][2:a]amix=inputs=3:normalize=0:duration=first:dropout_transition=0[mix]`
 - voz + música sin duck: `[0:a][1:a][2:a]amix=inputs=3:normalize=0:duration=first:dropout_transition=0[mix]`
 - sin música: `[0:a][1:a]amix=inputs=2:normalize=0:duration=first:dropout_transition=0[mix]`
 Regla verificada por test: toda salida de `asplit` se consume; si alguna sobrara, va a `anullsink`.
@@ -2861,6 +2862,20 @@ música) · S1.8-8 → a-6 y b-10.
 | 21 | Paso 0 (001.36 punto 10): `tests/integration/test_capture_gates.py` deja el componente falso `picture` y usa el sticker | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_capture_gates.py -q` → exit 0 | ❌ |
 | 22 | Paso 0 (001.36 punto 11): todos los textos `_es` de `gfx/components_showpiece.py` y `gfx/components_base.py` (`name_es`, `purpose_es`, `avoid_es`, `cost_note_es`, `help_es`) llevan tildes | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_components_params.py tests/integration/test_components_base.py -q` → exit 0 | ❌ |
 | 23 | Paso 0 (001.36): toda aserción vieja que cambie en este paso lleva `# 001.36` y no se debilita; las filas 12–22 pasan con sus comandos; la suite completa da exit 0 | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider` → exit 0 | ❌ |
+| 24 | Ronda 1 (001.37 punto 1; el CRÍTICO y el ALTO del verificador): el grafo con ducking es el de 001.37, con `apad` en la voz que va al sidechain y en la música (`[vs]apad[vsp];[1:a]apad[mp];[mp][vsp]sidechaincompress=...`), y `amix` sigue cerrando con la voz (`duration=first`). Así `sidechaincompress` no ve el EOF de una de sus entradas antes que la otra y no bota la cola. Tests: el de la cadena exacta del grafo (fila 3) con la cadena nueva; un test que corre el grafo 20 veces sobre las mismas entradas fijas (voz a ráfagas, música fuerte hasta el final, SFX en cero) → las 20 salidas son iguales byte a byte y la última muestra de música distinta de cero está en la muestra `total − 1`, con el grafo viejo se ve fallar primero; el test de "segunda corrida igual" de `kcut mix` compara `voice_raw`, `music`, `sfx`, `voice_chain`, `voice`, `mix_pre` y `mix` **exactos** (sin tolerancia ni recorte del final), y su docstring dice lo que compara. La fila 5 da exit 0 en 5 corridas seguidas | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k duck_deterministic` → exit 0, y 5 veces `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_mix_synth.py -q` → exit 0 las 5 | ❌ |
+| 25 | Ronda 1 (001.37 punto 2): `audio/mixer.py` vuelve a mirar la carpeta antes de **cada** escritura, como `render`: `build_folder(project, version)` y `assert_in_cache(project, destino)` justo antes de cada `write_f32`, dentro de `make()` y dentro de `normalize()`. Test: un gancho que corre después de escribirse `voice.f32` cambia `.kcut/build/v1` por un junction a una carpeta de fuera de `.kcut/`, y otro a una carpeta señuelo dentro de `.kcut/` → exit 3 en los dos casos y las dos carpetas quedan vacías | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k mix_folder_guard` → exit 0 | ❌ |
+| 26 | Ronda 1 (001.37 punto 3): la medición final de `kcut mix` (`ebur128`, en `commands/mix.py` `_measure`) lleva `timeout_s` con la misma fórmula que `normalize`. Test: un espía de `proc.run` ve `timeout_s` en **toda** llamada a ffmpeg que hace `kcut mix` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k mix_timeouts` → exit 0 | ❌ |
+| 27 | Ronda 1 (001.37 punto 4): `kcut mix` mira el disco antes de mezclar: `MIX_BYTES_PER_SAMPLE = 34` (los ocho archivos de la mezcla y el parcial en curso) por muestra del corte, más `SPARE_BYTES`. Falta espacio → ProjectError (exit 3) `no hay espacio en el disco: faltan {N} bytes (la mezcla y 1 GiB libre piden {needed}, hay {free}) en {folder}`, con las cifras antes de la ruta (001.30 punto 4), antes de escribir nada. Tests: disco libre parcheado por debajo de lo que pide → exit 3 con `faltan <N>` exacto y nada escrito en `build/vN`; por encima → exit 0 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k mix_disk_space` → exit 0 | ❌ |
+| 28 | Ronda 1 (001.37 punto 5): un `MemoryError` en cualquier paso de la mezcla (`synth_music`, `apply_gain_windows`, `write_wav_s16_mono`, además del de `build_sfx_bus` de la fila 13) es ProjectError (exit 3) `no hay memoria para mezclar el audio`, no exit 10. Tests: `MemoryError` parcheado en cada uno → exit 3 con ese texto y sin parciales | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k mix_memory_error` → exit 0 | ❌ |
+| 29 | Ronda 1 (001.37 punto 6): los mensajes de `audio/music_schema.py` nunca repiten texto del archivo: un valor que no es número sale con `params._shown` (`<texto, N car.>` para un texto), como `sfx_schema`. `src_in_f`, `fade_in_f` y `fade_out_f` llevan `hi = 2 592 000` (12 h a 60 fps, el tope del EDL); más es M03. Tests: `"gain_db": "Maria 809-555-1234 …"` → M01 sin `Maria` ni dígitos; lo mismo en `synth.bpm` y `windows[0].gain_db`; `src_in_f = 10**18` → M03 exit 1, no ToolError 4 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k music_schema_no_echo` → exit 0 | ❌ |
+| 30 | Ronda 1 (001.37 punto 7): las reglas de CSS y JS de animación no exigen borde de palabra: `(?i)animation` y `(?i)transition` en cualquier `.js` o `.css` de `gfx/web/` (atrapan `animationName`, `transitionProperty`, `webkitAnimation`). El test de contraste trae esos tres. Si un archivo de `gfx/web/` tiene una de esas palabras, aunque sea en un comentario: se reescribe el comentario; si es código: BLOQUEADO con el archivo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_gfx_js_rules.py -q` → exit 0 | ❌ |
+| 31 | Ronda 1 (001.37 punto 8): ffmpeg abre el archivo de música con `-protocol_whitelist file` antes de `-i`. Test: los args de la decodificación de la música llevan `-protocol_whitelist`, `file` justo antes de `-i` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k music_file_protocols` → exit 0 | ❌ |
+| 32 | Ronda 1 (001.37 punto 9): `MAX_SFX_TOTAL_S` pasa de 600 a 1200 s. Test: 2000 eventos `kick` (unos 640 s) → sin A03 del total; los casos de la fila 13 se ajustan a 1200 con `# 001.37` (41 pads de 30 s → el A03 del total) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k sfx_budget` → exit 0 | ❌ |
+| 33 | Ronda 1 (001.37 punto 10): el mensaje de error de `write_f32` (y de toda escritura de la mezcla) lleva el motivo antes de la ruta: `no pude escribir ({motivo}) en {ruta}`. Test: un proyecto en una carpeta de 200 caracteres o más y `ENOSPC` parcheado en la escritura de `music.f32` → exit 3, y el mensaje que imprime `kcut` (ya recortado a 300) trae el motivo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k mix_disk_full_long_path` → exit 0 | ❌ |
+| 34 | Ronda 1 (001.37 punto 11): `ingest/partials.sweep_orphan_partials` también barre los parciales huérfanos de `.kcut/build/v*/` (los `<nombre>.<pid>.partial<ext>` de un pid que ya no vive, con las mismas reglas que en `mezz`, `wav16`, `wav48` y `proxy`). Test: un `voice.f32.<pid muerto>.partial` plantado en `build/v1` se borra en el siguiente `kcut mix`; uno de un pid vivo no | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k sweep_build_partials` → exit 0 | ❌ |
+| 35 | Ronda 1 (001.37 punto 12): en `kcut mix`, los avisos (`notices`) salen también cuando `sfx.json` o `music.json` traen errores (se imprimen antes de parar), y `kcut mix` no muestra el aviso `pii_unmasked` (no muestra texto). Tests: un `sfx.json` con un A01 y un aviso de `kept_words` → los dos en la salida; con `privacy.mask_pii = false` → sin `pii_unmasked` en la salida de `kcut mix` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k mix_notices` → exit 0 | ❌ |
+| 36 | Ronda 1 (001.37 punto 13): `_findings_json` y `_list` viven una vez, en `commands/listing.py` (nuevo), y los usan `commands/graphics.py` y `commands/mix.py`; `commands/edl.py` queda con el suyo. El docstring de `resolve_events` dice que pasado el total devuelve `[]` junto al A03 de nivel error | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k "graphics_check or mix_codes"` → exit 0, y revisión del diff | ❌ |
+| 37 | Cierre de la ronda 1 (001.37): toda aserción vieja que cambie lleva `# 001.37` y no se debilita; las filas 24–36 pasan con sus comandos; las filas 10 y 11 pasan; la suite completa da exit 0 | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider` → exit 0 | ❌ |
 
 Equivalencias: S1.8-3 → b-1 · S1.8-4 → b-3 (sin el esquema de sfx) · S1.8-5 → b-4 · S1.8-6 → b-5 ·
 S1.8-7 → b-6 · S1.8-8 → a-6 y b-10.
@@ -3036,6 +3051,13 @@ encuentre `tests`).
 | 8 | `kcut qa crudo/x.mp4` o `kcut qa edit/x.mp4` → exit 2 sin correr ffmpeg (T3); `qa/v1/report.json` plantado como symlink → exit 3 (T4) (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration/test_qa_synth.py -q -ra -k "only_salida or writable"` → exit 0 (skip con motivo si no se puede crear el enlace) | ❌ |
 | 9 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
 | 10 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 11 | Paso 0 (001.38 punto 1): `audio/loudnorm.parse_pass1` valida la medición contra los rangos que acepta la segunda pasada de ffmpeg, no solo que sea finita. Si `input_i` pasa de 0 LUFS (la mezcla viene demasiado fuerte), es CheckFailed (exit 1) `la mezcla pasa de 0 LUFS antes de normalizar; baja las ganancias de la música o de los efectos`. Cualquier otro campo fuera de rango (`input_tp` fuera de −99…99, `input_lra` fuera de 0…99, `input_thresh` fuera de −99…0) es ToolError `loudnorm dio una medición fuera de rango`, sin citar la salida de ffmpeg. Tests: un `music.json` con `gain_db: +6` y una ventana de +12, y un `sfx.json` con `bus_gain_db: +12` → exit 1 con ese texto, no exit 4 con el mensaje de ffmpeg; `parse_pass1` con cada campo fuera de rango → el ToolError | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k loudnorm_ranges` → exit 0 | ❌ |
+| 12 | Paso 0 (001.38 punto 2): la mezcla y el render miran la carpeta otra vez justo antes de `atomic_replace` y justo antes de borrar el parcial (`discard_partial`), en `audio/mixer.py` (`_through_partial`, `_to_wav`), `audio/loudnorm.normalize`, `audio/wavio.write_f32_blocks` y `commands/render.py`. Si la carpeta ya no es la suya, no se mueve ni se borra nada y sale el ProjectError del guard. `render/lock.atomic_replace` convierte **todo** `OSError` (no solo `PermissionError`) en ProjectError; el de `PermissionError` conserva su texto, y los demás dicen `no pude mover el archivo ({motivo})`. Tests: un gancho que corre al terminar ffmpeg cambia `.kcut/build/v1` por un junction a una carpeta de fuera donde se plantó `<archivo>.<pid>.partial` → exit 3 y el archivo plantado sigue ahí (mismo sha256); `os.replace` parcheado para dar `FileNotFoundError` → exit 3, no 10 | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k replace_guard` → exit 0 | ❌ |
+| 13 | Paso 0 (001.38 punto 3): `render/lock.prepare_partial` dice `no pude borrar ({motivo}) {ruta}`, con `motivo` = `strerror` (o el nombre de la clase), sin repetir la ruta. Test: un proyecto en una carpeta de 200 caracteres o más y `unlink` parcheado para dar `PermissionError` → el mensaje que imprime `kcut` (ya recortado a 300) trae el motivo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k prepare_partial_reason` → exit 0 | ❌ |
+| 14 | Paso 0 (001.38 punto 4): el tope de tiempo de ffmpeg sobre audio sale de una sola fórmula, `audio/loudnorm.audio_timeout_s`: `audio/mixer.py` y `audio/music_file.py` la usan y no tienen constantes propias. Test: `mixer` y `music_file` no definen `_TIMEOUT_FLOOR_S` ni `_TIMEOUT_PER_AUDIO_S`, y un espía de `proc.run` ve en cada llamada el `timeout_s` que da `audio_timeout_s` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k audio_timeout_shared` → exit 0 | ❌ |
+| 15 | Paso 0 (001.38 punto 5): `apad` entra en `REQUIRED_FILTERS` de `doctor/checks.py`, como dice §1.1 desde 001.38. Test: con la lista de filtros de ffmpeg parcheada sin `apad`, `kcut doctor` lo nombra como faltante | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k doctor_apad` → exit 0 | ❌ |
+| 16 | Paso 0 (001.38 punto 6): `kcut/params._shown` pasa a pública como `params.shown` (mismo cuerpo), y sus usos (`params.py`, `audio/music_schema.py` y los que haya) la importan con ese nombre; no queda `_shown` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_params.py tests/unit -q -k "params or music_schema"` → exit 0, y `git grep -nw "_shown" -- src` sin resultados | ❌ |
+| 17 | Paso 0 (001.38): toda aserción vieja que cambie en este paso lleva `# 001.38` y no se debilita; las filas 11–16 pasan con sus comandos; la suite completa da exit 0 | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider` → exit 0 | ❌ |
 
 Equivalencias: S1.9-1 → a-1 · S1.9-2 → a-2 · S1.9-3 → a-3 · S1.9-4 → a-4 · S1.9-9 → a-9 y b-6.
 
@@ -4779,3 +4801,75 @@ S1.8a cerró en `4e996cc`, en la primera revisión. El verificador y seguridad a
     - `title`, `label`, `endcard` y los subtítulos siguen reusando nodos entre `seek`s. Pasan el test de orden sin `will-change`; la cura de fondo es rearmarlos como `kinetic`.
     - `lowpass` es un bucle de Python, unos 0.1 s por segundo de audio. Vectorizarlo puede romper el bit a bit con el piloto.
 15. **Para el Gate 1 de spec 002**: `graphics check --json` muestra `params.image` con los dígitos tapados y la palabra visible (`recursos/Maria-********34.png`). Es la política vigente. Si también se tapa el nombre, lo decide Yedin con la deuda 34.
+
+### 001.37 — 28/10/2026 — ronda 1 de S1.8b
+
+El implementador hizo las filas 1–23 sin BLOQUEADO y avisó, sin tocar el spec (R2), que el grafo con ducking no era determinista. La suite dio `5729 passed, 4 skipped` en su corrida y en la del verificador.
+- Seguridad aprobó con 0 CRÍTICO, 0 ALTO, 4 MEDIO y varios BAJO, y dio por cerrados los 9 hallazgos de S1.8a.
+- El verificador devolvió con 1 CRÍTICO y 1 ALTO, de la misma raíz.
+
+Todo entra en esta ronda (filas 24–37). Lo que no es contrato lo decidió el coordinador.
+
+1. **CRÍTICO y ALTO — el grafo con ducking bota la cola de la música al azar** (fila 24).
+   - Con las mismas entradas, 100 corridas de ffmpeg 8.1.1 dieron 5 salidas distintas, y 61 perdieron la cola (hasta 0.49 s).
+   - El test de "segunda corrida igual" comparaba hasta `total − 16384` y aun así falló 1 de 8 veces. Con eso la fila 5, y la suite, salían rojas de vez en cuando.
+   - La causa probable es que `sidechaincompress` cierra al ver el EOF de una entrada y bota lo que tiene en su FIFO, y los hilos de ffmpeg deciden qué entrada llega primero.
+   - El arreglo que propuso el implementador (rellenar con 65 536 muestras y cortar con `-t`) funcionaba, pero el número es empírico. El verificador probó uno más limpio: `apad` en las dos entradas del compresor, 100 de 100 iguales. Así `amix`, que cierra con la voz, decide el largo. Sin `-t` y sin número mágico.
+   - La salida pasa a ser determinista, y el test lo exige exacto.
+2. **MEDIO de seguridad — escrituras de la mezcla sin volver a mirar la carpeta** (fila 25). Con `build/v1` cambiado por un junction mientras sintetiza, `music.f32` y `sfx.f32` cayeron fuera de `.kcut/`. Rompe el invariante de §0.9. `render` ya lo hace bien (001.27 punto 4).
+3. **MEDIO de seguridad — `_measure` sin timeout** (fila 26). Un ffmpeg colgado dejaba tomado el lock `build-vN`.
+4. **MEDIO de seguridad — `kcut mix` sin chequeo de disco** (fila 27).
+   - La mezcla deja unos 30 bytes por muestra en archivos finales, y unos 34 con el parcial en curso.
+   - Un video de 10 minutos ocupa casi 1 GB; uno de 1 hora, unos 6 GB.
+   - Con el disco lleno la mezcla fallaba bien, pero después de minutos de trabajo.
+5. **MEDIO de seguridad — memoria de la mezcla** (fila 28).
+   - La memoria crece con el largo: unos 6 GB para la música de 1 hora.
+   - Mezclar por bloques es un cambio más grande y va a la deuda. Aquí solo se convierte el `MemoryError` en un exit 3 claro.
+   - Los reels son cortos.
+6. **BAJO de seguridad — `music_schema` repetía hasta 37 caracteres del archivo, y `src_in_f` no tenía tope** (fila 29). Un `src_in_f` enorme llegaba a ffmpeg y salía como ToolError 4, con un número de 299 dígitos.
+7. **BAJO de seguridad — las reglas de animación con borde de palabra** (fila 30). `animationName` y `transitionProperty` pasaban.
+8. **BAJO de seguridad — `-protocol_whitelist`** (fila 31). ffmpeg 8.1.1 ya rechazaba un HLS disfrazado. El parámetro es endurecimiento barato.
+9. **BAJO de seguridad — el total de 600 s chocaba con eventos cortos** (fila 32). 2000 `kick` suman unos 640 s, y el spec decía que 2000 eventos alcanzan para un video de 10 minutos. Con 1200 s, el peor caso de CPU es de unos 70 s.
+10. **BAJO de seguridad — el motivo después de la ruta** (fila 33). Es el mismo caso que 001.30 punto 4: el recorte de 300 caracteres se comía el "No space left".
+11. **BAJO de seguridad — parciales huérfanos en `build/vN`** (fila 34). Un `mix` o un `render` matado a la fuerza dejaba ahí parciales de hasta 4 bytes por muestra, y el barrido no miraba esa carpeta.
+12. **BAJO del verificador — avisos que se perdían y un `pii_unmasked` que no aplica** (fila 35).
+13. **BAJO del verificador — helpers repetidos y el docstring de `resolve_events`** (fila 36). `commands/edl.py` usa otra elipsis (`…`), así que queda con el suyo.
+14. **Ratificado**: las decisiones (1)–(12) del implementador.
+    - El verificador las aceptó todas.
+    - El port de la música da 0 de diferencia con el piloto si se cuantiza truncando. El "1 paso" sale del `np.round` de `write_wav_s16_mono`.
+    - Las ventanas de música usan el rango de `gain_db` de sfx (−24 a +12).
+15. **A la deuda, sin código**:
+    - Mezclar por bloques, para que una hora de audio no esté entera en memoria. Cura de la fila 28.
+    - La aprobación del manifiesto (DS9) no guarda un hash del archivo, así que uno cambiado después de aprobarse sigue pasando.
+    - Partir `mixer.mix` (62 líneas) es opcional.
+16. **Para el Gate 1 de spec 002**: el log de `kcut mix` (`.kcut/logs/`) guarda la línea de comando con el nombre del archivo de música sin tapar, como todo `proc.run`. Claude no lee los logs, pero el nombre de una canción puede ser el de una persona. Va con la deuda 34.
+
+### 001.38 — 28/10/2026 — cierre de S1.8b y paso 0 de S1.9a
+
+S1.8b cerró en `a0ffe90`, en la segunda revisión. El verificador y seguridad aprobaron con 0 CRÍTICO y 0 ALTO.
+- **Suite:** `5788 passed, 4 skipped` en las corridas del implementador y del verificador.
+- **Ducking determinista.** Con `apad`, el grafo dio 60 de 60 corridas iguales (verificador) y 108 de 108 con 3 entradas distintas (seguridad). Diez `kcut mix` completos dieron los 8 archivos idénticos. El test de la fila 5 pasó 8 de 8.
+- **Pendiente:** entre los dos quedaron 1 MEDIO y 7 BAJO. Van aquí, al paso 0 de S1.9a (filas 11–17). Lo que no es contrato lo decidió el coordinador.
+
+1. **MEDIO de seguridad — una mezcla de más de 0 LUFS tumba `kcut mix`** (fila 11).
+   - Con ganancias que el esquema permite (`gain_db: +6` más una ventana de +12), la primera pasada mide +5 LUFS. ffmpeg rechaza ese `measured_I` en la segunda pasada, y salía exit 4 con su mensaje crudo.
+   - Es un error del plan, no de la herramienta, así que sale exit 1 con un texto que dice qué bajar.
+   - No se recorta la medición, porque normalizar con un valor falso daría un resultado equivocado sin avisar.
+2. **BAJO de los dos — el cambio de carpeta entre ffmpeg y `atomic_replace`** (fila 12).
+   - En esa ventana, `os.replace` y `discard_partial` seguían el junction.
+   - Solo se borraba un archivo con el nombre exacto del parcial, y un `FileNotFoundError` salía con exit 10.
+   - `render` tiene el mismo patrón y entra igual.
+3. **BAJO del verificador — `prepare_partial` con la ruta primero** (fila 13). Es el mismo caso que 001.30 punto 4.
+4. **BAJO del verificador — constantes de timeout repetidas** (fila 14).
+5. **BAJO del verificador — `apad` fuera de `REQUIRED_FILTERS`** (fila 15). Un ffmpeg sin `apad` pasaba `kcut doctor` y después caía en `kcut mix`. §1.1 lo suma.
+6. **BAJO del verificador — `params._shown` importado como privado** (fila 16). La fila S1.8b-29 lo pedía así.
+7. **Ratificado**: las decisiones (1)–(12) de la ronda 1. El verificador las aceptó todas.
+   - La fila S1.8b-29 se lee así: el tope de 2 592 000 frames va en `file_problems` y da M03. No es un `ParamSpec(hi=...)`, que habría dado M01.
+   - La fila S1.8b-34 se lee así: el barrido de `build/vN` decide solo por la edad del parcial (24 h), como en `mezz` y los wav. "Pid vivo" en el test es un parcial reciente. En Windows, `os.kill(pid, 0)` termina el proceso, y un parcial abierto no se deja borrar.
+8. **Corrección del spec**: 2000 `kick` suman unos 640 s (2000 × 15 360 / 48 000), no 615. Se corrige en la fila S1.8b-32 y en 001.37 punto 9.
+9. **Corrección del spec**: §1.1 suma `apad` a `REQUIRED_FILTERS`.
+10. **A la deuda, sin código**:
+    - Mezclar por bloques (de 001.37 punto 15).
+    - El hash del archivo en la aprobación del manifiesto (DS9).
+    - Partir `mixer.mix`, que es opcional.
+    - Seguridad no pudo probar un symlink de archivo en el barrido (falta el privilegio). Lo cubre `lone_file_reason`.
