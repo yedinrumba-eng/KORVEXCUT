@@ -35,9 +35,10 @@
 - [x] **S1.7** — Componentes de lucimiento (pasos, sticker, holograma, globo)
       · verificado: suite completa → 5082 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio) · A/B de screenshot contra `f8f728f`: 33.41 vs 33.30 ms/frame (1.003×, medido por el verificador) · primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO · paso 0 = filas 9–18 · BLOQUEADOs B1 y B2 decididos en 001.34; cierre en 001.35
       · pendiente para Yedin (no bloquea): mirar los 4 stills de S1.7 en `C:\Users\Yedin\AppData\Local\Temp\kcut-showpieces\qa\showpieces\` (`still_000240.png` pasos, `still_000195.png` mascota/sticker, `still_000292.png` holo, `still_000297.png` mundo/globo)
-- [x] **S1.8a** — (parte a de S1.8) Audio: voz, SFX sintetizados, música, ducking, loudness
+- [x] **S1.8a** — (parte a de S1.8) Audio: SFX sintetizados, esquema de `sfx.json`, eventos, bus y ganancia
       · verificado: suite completa → 5380 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio) · verificador: 18 casos con `array_equal`, maxdiff 0 (13 efectos portados bit a bit de `piloto/audio.py`) · primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO · paso 0 = filas 8–19 · cierre en 001.36 (punto 11: "pico ≤ 1" no es contrato por SFX suelto)
-- [ ] **S1.8b** — (parte b de S1.8) Audio: voz, SFX sintetizados, música, ducking, loudness
+- [x] **S1.8b** — (parte b de S1.8) Audio: música, loudnorm, ducking, mezcla y `kcut mix`
+      · verificado: suite completa → 5788 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio) · ducking 60/60 corridas idénticas (verificador) y 108/108 (seguridad) · diez corridas completas de `kcut mix` dieron los 8 archivos idénticos · fila 5 pasó 8/8 · diferencia 0 con la cuantización del piloto · revisión 1: seguridad aprobó, verificador con 1 CRÍTICO y 1 ALTO de la misma raíz → ronda 1 (001.37) · revisión 2: 0 CRÍTICO y 0 ALTO en ambos · paso 0 = filas 12–23 (001.36) · cierre en 001.38
 - [ ] **S1.9a** — (parte a de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
 - [ ] **S1.9b** — (parte b de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
 - [ ] **S1.10** — `kcut storyboard` (Puerta 1 visual)
@@ -68,6 +69,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 27/10/2026 | S1.6b | Captura de gráficos con Chromium headless (sandbox encendido, sin red por `context.route` y CSP, WebRTC sin UDP directo); cada cuadro se dibuja en una PNG de capa en `.kcut/build/vN/gfx/` con `index.json` por hash de página; `kcut render` mezcla la capa sobre el corte; `kcut graphics capture` y `kcut graphics still` (máx. 60 cuadros por llamada, timeout de 30 s por cuadro); el chequeo de disco cuenta la capa; cada carpeta de caché debe resolver a sí misma y se revisa antes de cada escritura, borrado y lectura de la capa (un hard link no es capa válida); sidecar de work file y mezzanine aterrizan igual que el archivo; módulos neutros `build_folder`, `refuse_edl`, `proxy_of`, `fx_context`; paso 0 = spec 001.30 (filas 13–18); 3 rondas de revisión: ronda 1 (verificador 1 ALTO de antes de S1.6b: con dos renders a la vez, Windows rechazaba el sidecar del wav48 mientras el otro render lo leía, 2 fallos en 14 corridas de S1.6a-17; seguridad 0 ALTO, 5 MEDIO, 6 BAJO) → 001.31 (filas 19–31); ronda 2 (verificador 1 ALTO: `OSError` al arrancar Playwright con driver faltante daba exit 10 en vez de 7) → 001.32 (filas 32–40; además, URL de página comparada distinguiendo mayúsculas, que rompía un host UNC; dígitos de teléfono tras cualquier separador en un nombre de archivo; `809.555.1234` como nombre de archivo sin extensión real); ronda 3: 0 CRÍTICO y 0 ALTO en ambos revisores; código en commit `f8f728f` y spec `b564a45` (001.33) pusheados, `origin/main` en `b564a45` | suite completa → 4918 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio, WinError 1314); fila S1.6a-17 (`-k workfiles_concurrent`) 10 de 10 en ronda 2 y 3 de 3 en ronda 3; verificador: 11 mutaciones en memoria, cada una rompe el test de su fila; ruff check, ruff format y mypy limpios; ningún .py pasa de 300 líneas (`ingest/workfiles.py` queda en 300, S1.7 paso 0 lo parte) |
 | 28/10/2026 | S1.7 | Componentes de lucimiento parametrizados: `steps`, `sticker`, `holo_board` y `globe`; cada uno reconstruye sus nodos en cada seek, así que un cuadro da los mismos píxeles sin importar qué se capturó antes (lección 36); `ParamSpec` gana `kind="object"` y `nullable` (`sticker.fly_to` y `holo_board.accent_index`); fixture `tests/fixtures/showpiece_stills.py` con 4 stills para revisión visual; paso 0 = filas 9–18, que cierra los hallazgos de la revisión de S1.6b (deuda 47); BLOQUEADOs B1 (timeout de screenshot con `page.screenshot`, 1.88× por cuadro: se mantuvo la captura CDP rápida y la amenaza la cierran las reglas de JS) y B2 (`fly_to` y `accent_index` no encajaban en `ParamSpec`) decididos por el coordinador en 001.34; código en commit `78a2b19` y spec 001.35 en `2a56b40`, pusheados (`origin/main` en `2a56b40`) | suite completa → 5082 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); A/B de screenshot contra `f8f728f`: 33.41 vs 33.30 ms/frame (1.003×), medido por el verificador; primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO |
 | 28/10/2026 | S1.8a | SFX sintetizados (la mitad SFX del audio): 13 efectos portados bit a bit de `piloto/audio.py`, biblioteca con defaults y notas de catálogo, esquema `edit/sfx.json` con códigos A01–A08, eventos resueltos contra el EDL (anclas de palabra y de fuente, `align`, defaults), bus de SFX sin normalización global, ventanas de ganancia con rampas y fixture `write_sfx_plan`; paso 0 = filas 8–19, que cierra los hallazgos de la revisión de S1.7 (deuda 48); criterio "pico ≤ 1" aclarado en 001.36 (punto 11); código en commit `4e996cc` y spec 001.36 en `1a95ef5`, pusheados (`origin/main` en `1a95ef5`) | suite completa → 5380 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); verificador: 18 casos con `array_equal`, maxdiff 0; primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO |
+| 28/10/2026 | S1.8b | Audio, la mitad música: acordes y síntesis portados de `piloto/music.py`, música de `recursos/` aprobada en el manifiesto con el gate M04, `edit/music.json` con códigos M01–M05, loudnorm de dos pasadas, grafo de mezcla con ducking, mezclador y `kcut mix`; paso 0 = filas 12–23 (cierra la deuda 51); revisión 1: seguridad aprobó, verificador con 1 CRÍTICO y 1 ALTO de la misma raíz (el grafo de ducking no era determinista: 5 salidas distintas en 100 corridas idénticas, y 61 perdieron hasta 0.49 s de la cola de la música) → ronda 1 (001.37: `apad` en las dos entradas del compresor, timeout en cada llamada a ffmpeg, chequeo de disco antes de mezclar, `MemoryError` da exit 3, `-protocol_whitelist file`, y los MEDIO/BAJO de seguridad); revisión 2: 0 CRÍTICO y 0 ALTO en ambos; código en commit `a0ffe90`, spec 001.36 en `1a95ef5` y 001.37–001.38 en `af7cb07`, pusheados (`origin/main` en `af7cb07`) | suite completa → 5788 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); ducking 60/60 corridas idénticas (verificador) y 108/108 (seguridad); diez corridas completas de `kcut mix` dieron los 8 archivos idénticos; fila 5 pasó 8/8; diferencia 0 con la cuantización del piloto |
 
 ---
 
@@ -396,6 +398,7 @@ Para el Gate 1 de spec 002:
 - (a) Claude no lee `.kcut/build/vN/gfx/` salvo `gfx/stills/`, porque `page.html` y las PNG de la capa llevan texto crudo para el MP4.
 - (b) Decidir si los precios con punto como separador de miles quedan visibles. Hoy `1.500.000` sale enmascarado como `*.***.*00` en la transcripción y en el texto plano; un test lo fija.
 - (c) `graphics check --json` muestra `params.image` con los dígitos enmascarados y la palabra visible (`recursos/Maria-********34.png`). Decidir en el Gate 1 si el nombre también se enmascara.
+- (d) El log de `kcut mix` (`.kcut/logs/`) guarda la línea de comando con el nombre del archivo de música sin enmascarar, como todo `proc.run`; el nombre de una canción puede ser el de una persona.
 
 - **Mitigado hoy por:** nada; el plugin todavía no existe.
 - **Cura real:** decidir el enmascarado de la consola en el Gate 1 de spec 002, con Yedin (spec 001.27 punto 13) — ~2-4 h.
@@ -423,13 +426,13 @@ Para el Gate 1 de spec 002:
 
 - **Mitigado hoy por:** los topes de 10 000 clips y 10 000 spans, que dan E01 (spec 001.24 punto 4). Un reel real tiene menos de 500.
 - **Cura real:** índice ordenado con `bisect` — ~1 h.
-- **Cuándo:** S1.8b, con `kcut mix` (S1.8a no tocó la voz).
+- **Cuándo:** S1.9b (`kcut build`), si el render de un EDL grande se mide lento.
 
 ### 38. `voice_blocks` es O(bloques × clips) ⚪
 
 - **Mitigado hoy por:** los mismos topes de la 37.
 - **Cura real:** barrido con los clips ordenados — ~1 h.
-- **Cuándo:** S1.8b, con `kcut mix` (S1.8a no tocó la voz).
+- **Cuándo:** S1.9b (`kcut build`), si el render de un EDL grande se mide lento.
 
 ### 39. `captions.hide` sin tope y `graphics check --json` sin tope de errores ✅ pagada
 
@@ -554,7 +557,7 @@ Lo que falta; todo va al paso 0 de S1.8a:
 - **Cura real:** quitarlo y actualizar unas 30 llamadas en tests, ~1 h.
 - **Cuándo:** la próxima vez que se toque `gfx/capture.py`.
 
-### 51. Hallazgos de la revisión de S1.8a que van al paso 0 de S1.8b 🟡
+### 51. Hallazgos de la revisión de S1.8a que van al paso 0 de S1.8b ✅ pagada
 
 Lo que falta; todo va al paso 0 de S1.8b:
 
@@ -572,7 +575,7 @@ Lo que falta; todo va al paso 0 de S1.8b:
 
 - **Mitigado hoy por:** ningún comando lee `sfx.json` todavía; la puerta se abre con `kcut mix` en S1.8b.
 - **Cura real:** filas 12–23 de S1.8b, ~6-8 h.
-- **Cuándo:** en curso, S1.8b paso 0.
+- **Cuándo:** pagada 28/10/2026 (S1.8b paso 0, commit `a0ffe90`).
 
 ### 52. `title`, `label`, `endcard` y los subtítulos siguen reutilizando nodos entre `seek`s ⚪
 
@@ -584,9 +587,38 @@ Lo que falta; todo va al paso 0 de S1.8b:
 ### 53. `lowpass` es un bucle de Python ⚪
 
 - **Riesgo:** unos 0.1 s por cada segundo de audio sintetizado.
-- **Mitigado hoy por:** ningún comando sintetiza SFX todavía; los topes del paso 0 de S1.8b (30 s por efecto, 600 s en total, en curso) lo acotan cuando entre `kcut mix`.
+- **Mitigado hoy por:** los topes de S1.8b (30 s por efecto, 1200 s en total) acotan la síntesis de `kcut mix`: el peor caso medido es de unos 95 s de CPU.
 - **Cura real:** vectorizarlo manteniendo la salida bit a bit con el piloto, o aceptar una tolerancia documentada, ~2 h.
 - **Cuándo:** si la síntesis de SFX sale lenta en `kcut mix`.
+
+### 54. Hallazgos de la revisión de S1.8b que van al paso 0 de S1.9a 🟡
+
+Lo que falta; todo va al paso 0 de S1.9a:
+
+- una mezcla de más de 0 LUFS tumba `kcut mix` con el mensaje crudo de ffmpeg;
+- el cambio de carpeta entre ffmpeg y `atomic_replace` (`os.replace` y `discard_partial` siguen el enlace, y un `FileNotFoundError` da exit 10);
+- `prepare_partial` con la ruta antes del motivo;
+- constantes de timeout repetidas;
+- `apad` fuera de `REQUIRED_FILTERS`;
+- `params._shown` importado como privado.
+
+- **Mitigado hoy por:** la mezcla fuerte solo pasa con ganancias extremas, y el cambio de carpeta pide un proceso local con timing de microsegundos.
+- **Cura real:** filas 11–17 de S1.9a, ~4-5 h.
+- **Cuándo:** en curso, S1.9a paso 0.
+
+### 55. La mezcla tiene el audio entero en memoria 🟡
+
+- **Riesgo:** unos 6 GB de RAM para la música de un video de 1 hora; un `MemoryError` hoy sale como exit 3 claro.
+- **Mitigado hoy por:** los reels son cortos; el `MemoryError` se convierte en ProjectError.
+- **Cura real:** sintetizar y mezclar por bloques, ~4 h.
+- **Cuándo:** antes del primer video largo (más de 10 minutos).
+
+### 56. La aprobación del manifiesto no guarda un hash del archivo ⚪
+
+- **Riesgo:** un archivo cambiado después de aprobarse (DS9) sigue pasando.
+- **Mitigado hoy por:** la aprobación la da una persona, y el archivo vive en `recursos/` del proyecto.
+- **Cura real:** guardar el sha256 al aprobar y compararlo al usar, ~2 h.
+- **Cuándo:** Gate 1 de spec 002, con el flujo de aprobación del plugin.
 
 ---
 
@@ -798,6 +830,18 @@ Lo que falta; todo va al paso 0 de S1.8b:
 - **Por qué engañaba:** el test pasaba midiendo el pico después de la ganancia por defecto de cada efecto, una lectura que el texto no decía y que solo se cumplía para los parámetros probados (`typing` con otras semillas da 1.068).
 - **Causa real:** el spec escribió una propiedad de la mezcla final (no hay clipping) como propiedad de cada SFX suelto.
 - **Fix:** el implementador mantuvo las fórmulas y lo marcó (R2); el coordinador corrigió la lectura en 001.36, punto 11: según DS4, el audio queda en f32 sin clipping hasta loudnorm, que es el que pone el tope.
+
+### 39. Un grafo de ffmpeg con dos entradas que terminan a destiempo no es determinista
+- **Síntoma:** el mismo `kcut mix` daba un `mix.wav` distinto de corrida en corrida, a veces sin la cola de la música; un test que comparaba con tolerancia fallaba 1 de cada 8 veces.
+- **Por qué engañaba:** el largo total y la loudness siempre daban bien, así que los criterios pasaban; el defecto solo se veía comparando dos corridas.
+- **Causa real:** `sidechaincompress` cierra al ver el EOF de una de sus entradas y bota lo que tiene en su FIFO, y los hilos de ffmpeg deciden cuál llega primero.
+- **Fix:** `apad` en las dos entradas del compresor, para que `amix` (que cierra con la voz) decida el largo. El test compara las dos corridas byte a byte.
+
+### 40. Un arreglo empírico con un número mágico no es una cota
+- **Síntoma:** rellenar las entradas con 16 384 muestras todavía fallaba 1 de 14 veces; con 65 536 pasaba.
+- **Por qué engañaba:** 30 de 30 corridas verdes parecían prueba suficiente.
+- **Causa real:** el corte podía llegar a 23 616 muestras, y nada garantizaba que 65 536 alcanzara siempre.
+- **Fix:** buscar el arreglo que quita la causa (`apad`), no el que agranda el margen.
 
 ---
 
