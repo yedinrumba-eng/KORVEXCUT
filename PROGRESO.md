@@ -32,7 +32,9 @@
       · verificado: suite completa → 4432 passed, 4 skipped in 1008.43 s (0:16:48), exit 0 (los 4 skips son de symlinks sin privilegio, WinError 1314, aceptados) · fila 17 (`-k workfiles_concurrent`) 3 corridas sueltas → 7 passed las 3 · ruff check, ruff format y mypy limpios · ningún .py pasa de 300 líneas · 2 rondas de revisión + paso 0 (001.27)
 - [x] **S1.6b** — (parte b de S1.6) Capa de gráficos: motor HTML `seek(t)` + componentes base + subtítulos · paso 0 = spec 001.30
       · verificado: suite completa → 4918 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio, WinError 1314) · fila S1.6a-17 (`-k workfiles_concurrent`) 10 de 10 en ronda 2 y 3 de 3 en revisión 3 · ruff check, ruff format y mypy limpios · ningún .py pasa de 300 líneas · 3 rondas de revisión + paso 0 (001.30); parches 001.31 a 001.33
-- [ ] **S1.7** — Componentes de lucimiento (pasos, sticker, holograma, globo)
+- [x] **S1.7** — Componentes de lucimiento (pasos, sticker, holograma, globo)
+      · verificado: suite completa → 5082 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio) · A/B de screenshot contra `f8f728f`: 33.41 vs 33.30 ms/frame (1.003×, medido por el verificador) · primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO · paso 0 = filas 9–18 · BLOQUEADOs B1 y B2 decididos en 001.34; cierre en 001.35
+      · pendiente para Yedin (no bloquea): mirar los 4 stills de S1.7 en `C:\Users\Yedin\AppData\Local\Temp\kcut-showpieces\qa\showpieces\` (`still_000240.png` pasos, `still_000195.png` mascota/sticker, `still_000292.png` holo, `still_000297.png` mundo/globo)
 - [ ] **S1.8a** — (parte a de S1.8) Audio: voz, SFX sintetizados, música, ducking, loudness
 - [ ] **S1.8b** — (parte b de S1.8) Audio: voz, SFX sintetizados, música, ducking, loudness
 - [ ] **S1.9a** — (parte a de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
@@ -63,6 +65,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 27/10/2026 | S1.5b | `kcut render` base: cámaras e insertos, looks, frame fx y tarjetas de pantalla; mezzanines por tramo con sidecar de frames reales, parciales con pid y aterrizaje seguro entre procesos; pista de voz exacta a la muestra desde el wav48, con fades; lock por versión del build y mux A/V a `render.mp4`; guardas de destino y de enlaces en `.kcut/build/vN`; prefijo `\\?\` quitado en la guarda de caché; paso 0 de 001.24 (deuda 33) incluido; 3 rondas de revisión (ronda 1: 1 ALTO del verificador y 2 ALTO de seguridad; ronda 2: 2 ALTO del verificador, seguridad aprobó; ronda 3: 0 CRÍTICO y 0 ALTO, aprobaron los dos); los BAJO de la ronda 3 van al paso 0 de S1.6a (001.27, puntos 1–9); commit `1d8cf00` pusheado a `origin/main`, que quedó en `a46223d` (specs 001.24–001.27: `5076880`, `6ee21f8`, `7651209`, `a46223d`) | suite completa → 3943 passed, 3 skipped in 3025.40s (0:50:25), exit 0 (los 3 skipped son por falta de privilegio para symlinks en Windows); ruff check src tests → All checks passed!; ruff format --check src tests → 313 files already formatted; mypy → Success: no issues found in 124 source files; tope de 300 líneas → `[]`; criterios S1.5b 1–59 exit 0; repros de concurrencia: stagger_row39 8/8 y wav48_race 5/5 con `[0, 0]`; mezzanine corto 3/3 exit 0 |
 | 27/10/2026 | S1.6a | Capa de gráficos hasta la página HTML: esquema de `graphics.json` con anclas y parámetros, subtítulos por chunks, resolución de cues a frames de salida, imágenes aprobadas, página con runtime JS y 5 componentes base, `kcut graphics check` (G01–G12, JSON enmascarado); paso 0 de 001.27 incluido (barrido de parciales huérfanos, `encoding=` obligatorio, chequeos de `build/vN`, `write_json_exclusive`, hard links marcados como stale); 2 rondas de revisión (ronda 1: verificador 1 CRÍTICO (los errores de `wavio` sacaban la ruta del wav48, con slug y teléfono), seguridad 2 MEDIO y 4 BAJO, implementador BLOQUEADO en fila 17; ronda 2: verificador y seguridad 0 CRÍTICO y 0 ALTO, segundo BLOQUEADO del implementador en fila 17); commits `fdb19a3` y `3261492` pusheados a `origin/main` | suite completa → 4432 passed, 4 skipped in 1008.43 s (0:16:48), exit 0 (los 4 skips son de symlinks sin privilegio, WinError 1314, aceptados); fila 17 `-k workfiles_concurrent` 3 corridas sueltas → 7 passed las 3; ruff check, ruff format y mypy limpios; ningún .py pasa de 300 líneas; verificación final del verificador |
 | 27/10/2026 | S1.6b | Captura de gráficos con Chromium headless (sandbox encendido, sin red por `context.route` y CSP, WebRTC sin UDP directo); cada cuadro se dibuja en una PNG de capa en `.kcut/build/vN/gfx/` con `index.json` por hash de página; `kcut render` mezcla la capa sobre el corte; `kcut graphics capture` y `kcut graphics still` (máx. 60 cuadros por llamada, timeout de 30 s por cuadro); el chequeo de disco cuenta la capa; cada carpeta de caché debe resolver a sí misma y se revisa antes de cada escritura, borrado y lectura de la capa (un hard link no es capa válida); sidecar de work file y mezzanine aterrizan igual que el archivo; módulos neutros `build_folder`, `refuse_edl`, `proxy_of`, `fx_context`; paso 0 = spec 001.30 (filas 13–18); 3 rondas de revisión: ronda 1 (verificador 1 ALTO de antes de S1.6b: con dos renders a la vez, Windows rechazaba el sidecar del wav48 mientras el otro render lo leía, 2 fallos en 14 corridas de S1.6a-17; seguridad 0 ALTO, 5 MEDIO, 6 BAJO) → 001.31 (filas 19–31); ronda 2 (verificador 1 ALTO: `OSError` al arrancar Playwright con driver faltante daba exit 10 en vez de 7) → 001.32 (filas 32–40; además, URL de página comparada distinguiendo mayúsculas, que rompía un host UNC; dígitos de teléfono tras cualquier separador en un nombre de archivo; `809.555.1234` como nombre de archivo sin extensión real); ronda 3: 0 CRÍTICO y 0 ALTO en ambos revisores; código en commit `f8f728f` y spec `b564a45` (001.33) pusheados, `origin/main` en `b564a45` | suite completa → 4918 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio, WinError 1314); fila S1.6a-17 (`-k workfiles_concurrent`) 10 de 10 en ronda 2 y 3 de 3 en ronda 3; verificador: 11 mutaciones en memoria, cada una rompe el test de su fila; ruff check, ruff format y mypy limpios; ningún .py pasa de 300 líneas (`ingest/workfiles.py` queda en 300, S1.7 paso 0 lo parte) |
+| 28/10/2026 | S1.7 | Componentes de lucimiento parametrizados: `steps`, `sticker`, `holo_board` y `globe`; cada uno reconstruye sus nodos en cada seek, así que un cuadro da los mismos píxeles sin importar qué se capturó antes (lección 36); `ParamSpec` gana `kind="object"` y `nullable` (`sticker.fly_to` y `holo_board.accent_index`); fixture `tests/fixtures/showpiece_stills.py` con 4 stills para revisión visual; paso 0 = filas 9–18, que cierra los hallazgos de la revisión de S1.6b (deuda 47); BLOQUEADOs B1 (timeout de screenshot con `page.screenshot`, 1.88× por cuadro: se mantuvo la captura CDP rápida y la amenaza la cierran las reglas de JS) y B2 (`fly_to` y `accent_index` no encajaban en `ParamSpec`) decididos por el coordinador en 001.34; código en commit `78a2b19` y spec 001.35 en `2a56b40`, pusheados (`origin/main` en `2a56b40`) | suite completa → 5082 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); A/B de screenshot contra `f8f728f`: 33.41 vs 33.30 ms/frame (1.003×), medido por el verificador; primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO |
 
 ---
 
@@ -483,7 +486,7 @@ Son `tests/unit/test_wavio.py` y `tests/unit/wavio_cases.py`. `tests/unit/test_l
 
 Pasa con una tarea del JS que la página dejó para después del frame anterior. `cdp.send` no tiene timeout, así que el lock `build-vN` queda tomado y Chromium al 100 %.
 
-- **Mitigado hoy por:** el JS de kcut no deja tareas diferidas; el `seek` es síncrono y la carga es un `Promise.all`. Además, S1.7 paso 0 fila 9 pone tope a la foto.
+- **Mitigado hoy por:** el JS de kcut prohíbe las APIs que dejan tareas diferidas (`setTimeout`, `setInterval`, `requestAnimationFrame`, `requestIdleCallback`, `MessageChannel`, `postMessage`, `Worker`); S1.8a paso 0 fila 9 agrega observers y promesas en componentes. La captura CDP no lleva timeout, por decisión 001.34 (`page.screenshot` costó 1.88×).
 - **Cura real:** un vigilante que mate el árbol de procesos de Chromium por pid al pasar el tope — ~2 h.
 - **Cuándo:** si un componente empieza a usar temporizadores.
 
@@ -496,7 +499,7 @@ Aceptadas en spec 001.32 punto 8.
 - **Cura real:** operar sobre handles en vez de rutas — ~4 h.
 - **Cuándo:** solo si kcut llega a correr donde otros escriben en `.kcut/`.
 
-### 47. Hallazgos de la revisión de S1.6b que van al paso 0 de S1.7 🟡
+### 47. Hallazgos de la revisión de S1.6b que van al paso 0 de S1.7 ✅ pagada
 
 Lo que falta; todo va al paso 0 de S1.7:
 
@@ -512,7 +515,41 @@ Lo que falta; todo va al paso 0 de S1.7:
 
 - **Mitigado hoy por:** ninguno se alcanza con el JS de kcut ni sin acceso local de escritura a `.kcut/`.
 - **Cura real:** filas 9-18 de S1.7, ~6-8 h en total.
-- **Cuándo:** en curso, S1.7 paso 0.
+- **Cuándo:** pagada 28/10/2026 (S1.7 paso 0, commit `78a2b19`). La foto de Chromium no lleva timeout: el tope con `page.screenshot` (fila 9) costó 1.88× por cuadro (B1, 001.34); se mantuvo la captura CDP rápida y la amenaza la cierran las reglas de JS.
+
+### 48. Hallazgos de la revisión de S1.7 que van al paso 0 de S1.8a 🟡
+
+Lo que falta; todo va al paso 0 de S1.8a:
+
+- la ruta de la imagen que se repite en los mensajes G10/G09 (PII), y ningún `max_len` en `image`;
+- observers, promesas y callbacks de eventos sin prohibir en el JS de la página;
+- `.kcut` en sí como junction que pasa `assert_in_cache`;
+- `sticker.path` sin tope;
+- entra un PNG o WebP animado;
+- el guardia del overlay cuesta 2.7 ms por cuadro;
+- los componentes base (`title`, `label`, `kinetic`, `endcard`) dependen del orden de captura (solo un still suelto difiere del cuadro del MP4, por antialiasing de bordes);
+- un chequeo débil de acento en un test;
+- tiempos de componente que caen después del fin del cue, sin aviso;
+- `holo_board.w_px` demasiado angosto por debajo de unos 300;
+- el componente falso `picture` que queda en dos tests.
+
+- **Mitigado hoy por:** la ruta de la imagen es texto que Claude mismo escribe en `graphics.json`; lo demás necesita acceso local de escritura a `.kcut/` o un cambio futuro en el JS, o no sale en el MP4.
+- **Cura real:** filas 8–19 de S1.8a, ~6-8 h.
+- **Cuándo:** en curso, S1.8a paso 0.
+
+### 49. `resolve_cues._use_images` no baja a los parámetros `object` ⚪
+
+- **Riesgo:** un componente futuro con una imagen dentro de un objeto no la embebería; la página pediría una ruta `file://` que el bloqueo de rutas impide, y la captura pararía con un ToolError.
+- **Mitigado hoy por:** ningún componente pone una imagen dentro de un objeto.
+- **Cura real:** recorrer también los parámetros `object`, ~30 min.
+- **Cuándo:** cuando un componente ponga una imagen dentro de un objeto.
+
+### 50. El parámetro `out_dir` de `capture_stills` ya no se usa ⚪
+
+- **Riesgo:** solo confusión.
+- **Mitigado hoy por:** nada lo lee.
+- **Cura real:** quitarlo y actualizar unas 30 llamadas en tests, ~1 h.
+- **Cuándo:** la próxima vez que se toque `gfx/capture.py`.
 
 ---
 
@@ -707,6 +744,18 @@ Lo que falta; todo va al paso 0 de S1.7:
 - **Causa real:** S1.6b estuvo sin commit durante 3 rondas, así que git no tenía copia.
 - **Fix:** el verificador comprobó con mutaciones que los tests de sus filas muerden. De ahora en adelante, antes de cada ronda de arreglos el coordinador copia al scratchpad los archivos sin rastrear del slice.
 
+### 36. "El mismo frame dos veces" no ve que el resultado depende del orden
+- **Síntoma:** `steps`, `sticker` y `holo_board` daban hasta 28 000 píxeles distintos para el mismo cuadro según qué cuadros había capturado Chromium antes, y `test_showpiece_deterministic` pasaba.
+- **Por qué engañaba:** capturar el mismo cuadro dos veces seguidas da píxeles idénticos; la dependencia solo aparece cuando entran otros cuadros en medio.
+- **Causa real:** Chromium guarda capas entre seeks, así que algunas sombras suaves se redibujan solo donde algo cambió (`will-change` es el sospechoso).
+- **Fix:** reconstruir los nodos del componente en cada seek, y un test que captura en dos Chromium, ascendente y descendente, con igualdad exacta (`test_showpiece_order_independent`). Los componentes base de S1.6 tienen el mismo defecto y van a S1.8a paso 0 fila 14.
+
+### 37. Medir antes de comprar una protección
+- **Síntoma:** el timeout de screenshot de S1.7 fila 9 casi duplicó el costo de cada cuadro (1.88×).
+- **Por qué engañaba:** un timeout parecía el arreglo obvio, y solo cubría la mitad del riesgo: una tarea diferida que bloquea la página después de la captura igual colgaba el siguiente seek.
+- **Causa real:** `page.screenshot` no expone `optimizeForSpeed`, y lo que cuesta es la compresión PNG.
+- **Fix:** quedarse con la captura CDP rápida y cerrar la amenaza en su origen con las reglas de JS, después de medir A/B contra el commit anterior.
+
 ---
 
 ## Descartado y por qué
@@ -721,3 +770,4 @@ Lo que falta; todo va al paso 0 de S1.7:
 | Descargar assets sin aprobación | Toda descarga necesita OK explícito; logos de marcas ajenas solo del kit oficial | 15/10/2026 |
 | Rastreo de manos y detección de caras (F2: `piloto/track.py`, YuNet/MediaPipe, blur automático de caras) | Yedin, 26/10/2026: "no lo usaremos, todo el que vaya a pertenecer será parte del video, tenemos que hacer muchos procesos básicos y ya". Quien sale en cámara forma parte del video (consentimiento en la entrevista); los componentes van sin rastreo y se posicionan a mano | 26/10/2026 |
 | pytest-xdist para paralelizar la suite | Midió 770.86 s contra 766.53 s sin xdist: ninguna ganancia, porque ffmpeg/x264 ya saturan la CPU. Además dio 20 fallos, por tiempos y por cp1252 (los workers arrancan sin `-X utf8`). Se quitó de `pyproject.toml` y se desinstaló | 27/10/2026 |
+| Tope de la foto con `page.screenshot(timeout=...)` (S1.7 fila 9 de 001.33) | Costaba 1.88 × por frame (37.0 contra 69.6 ms, A/B de 5 rondas): `page.screenshot` no expone `optimizeForSpeed`. Además solo cubría la mitad del riesgo; la amenaza se cierra en su origen con las reglas JS (spec 001.34 punto 1, lección 37) | 27/10/2026 |
