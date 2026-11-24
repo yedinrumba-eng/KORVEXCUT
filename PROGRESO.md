@@ -43,6 +43,7 @@
       · alcance entregado (resumen de cierre): `kcut qa` y `kcut catalog`, más el paso 0 desde la revisión de S1.8b; `kcut build` y e2e sintético van en S1.9b (filas 1–7)
       · verificado: suite completa → 6245 passed, 6 skipped in 5100.90 s (1:25:00), exit 0 (implementador, una vez y sin `-x`; corrida antes de la ronda 4; los 6 skips son de symlinks sin privilegio, WinError 1314) · ruff check, ruff format y mypy limpios · tope de 300 líneas → `[]` · 4 rondas de revisión · ronda 4 sin suite completa: unit 244 passed; `tests/integration -k qa_` 75 passed, 2 skipped · cierre en 001.47
 - [ ] **S1.9b** — (parte b de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
+      · paso 0 cerrado 24/11/2026 (filas 8–24 de 001.47 a 001.50; commits `c6a66e0` y `ae44f21`, con push): suite completa → 6278 passed, 6 skipped in 3836.07 s (1:03:56), exit 0 · basetemp 0.3 GiB · pendiente: fila 25 del spec 001.50 y filas 1–7
 - [ ] **S1.10** — `kcut storyboard` (Puerta 1 visual)
 
 Cada slice se cierra con sus criterios del spec en ✅ y la salida real pegada.
@@ -72,7 +73,8 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 28/10/2026 | S1.7 | Componentes de lucimiento parametrizados: `steps`, `sticker`, `holo_board` y `globe`; cada uno reconstruye sus nodos en cada seek, así que un cuadro da los mismos píxeles sin importar qué se capturó antes (lección 36); `ParamSpec` gana `kind="object"` y `nullable` (`sticker.fly_to` y `holo_board.accent_index`); fixture `tests/fixtures/showpiece_stills.py` con 4 stills para revisión visual; paso 0 = filas 9–18, que cierra los hallazgos de la revisión de S1.6b (deuda 47); BLOQUEADOs B1 (timeout de screenshot con `page.screenshot`, 1.88× por cuadro: se mantuvo la captura CDP rápida y la amenaza la cierran las reglas de JS) y B2 (`fly_to` y `accent_index` no encajaban en `ParamSpec`) decididos por el coordinador en 001.34; código en commit `78a2b19` y spec 001.35 en `2a56b40`, pusheados (`origin/main` en `2a56b40`) | suite completa → 5082 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); A/B de screenshot contra `f8f728f`: 33.41 vs 33.30 ms/frame (1.003×), medido por el verificador; primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO |
 | 28/10/2026 | S1.8a | SFX sintetizados (la mitad SFX del audio): 13 efectos portados bit a bit de `piloto/audio.py`, biblioteca con defaults y notas de catálogo, esquema `edit/sfx.json` con códigos A01–A08, eventos resueltos contra el EDL (anclas de palabra y de fuente, `align`, defaults), bus de SFX sin normalización global, ventanas de ganancia con rampas y fixture `write_sfx_plan`; paso 0 = filas 8–19, que cierra los hallazgos de la revisión de S1.7 (deuda 48); criterio "pico ≤ 1" aclarado en 001.36 (punto 11); código en commit `4e996cc` y spec 001.36 en `1a95ef5`, pusheados (`origin/main` en `1a95ef5`) | suite completa → 5380 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); verificador: 18 casos con `array_equal`, maxdiff 0; primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO |
 | 28/10/2026 | S1.8b | Audio, la mitad música: acordes y síntesis portados de `piloto/music.py`, música de `recursos/` aprobada en el manifiesto con el gate M04, `edit/music.json` con códigos M01–M05, loudnorm de dos pasadas, grafo de mezcla con ducking, mezclador y `kcut mix`; paso 0 = filas 12–23 (cierra la deuda 51); revisión 1: seguridad aprobó, verificador con 1 CRÍTICO y 1 ALTO de la misma raíz (el grafo de ducking no era determinista: 5 salidas distintas en 100 corridas idénticas, y 61 perdieron hasta 0.49 s de la cola de la música) → ronda 1 (001.37: `apad` en las dos entradas del compresor, timeout en cada llamada a ffmpeg, chequeo de disco antes de mezclar, `MemoryError` da exit 3, `-protocol_whitelist file`, y los MEDIO/BAJO de seguridad); revisión 2: 0 CRÍTICO y 0 ALTO en ambos; código en commit `a0ffe90`, spec 001.36 en `1a95ef5` y 001.37–001.38 en `af7cb07`, pusheados (`origin/main` en `af7cb07`) | suite completa → 5788 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); ducking 60/60 corridas idénticas (verificador) y 108/108 (seguridad); diez corridas completas de `kcut mix` dieron los 8 archivos idénticos; fila 5 pasó 8/8; diferencia 0 con la cuantización del piloto |
-| 24/11/2026 | S1.9a | `kcut qa` (streams, loudness, intervalos de negro y de congelado, pase de Whisper cuyas palabras se comparan con las conservadas, hoja de contacto con gráficos; todo enmascarado según D19, y la hoja saca frames del proxy con la máscara encendida); el EDL pasa por el mismo gate que `render`, `mix` y `graphics` antes de medir (`refuse_edl` movido a `src/kcut/edl/refuse.py`); `kcut catalog`; `matte_captions` sale del catálogo (decisión de Yedin, 23/11/2026); paso 0 desde la revisión de S1.8b; 4 rondas de revisión (en la 3: seguridad 0 CRÍTICO, 0 ALTO, 0 MEDIO y 1 BAJO; verificador 1 ALTO solo de test; ronda 4: 3 tests nuevos sin cambiar aserciones, verificador sin hallazgos); commits `aa6b71c` y `7deb8e4` en `main`, sin push | suite completa → 6245 passed, 6 skipped in 5100.90 s (1:25:00), exit 0 (antes de la ronda 4; los 6 skips son de symlinks sin privilegio, WinError 1314) · ruff check → All checks passed! · ruff format → 557 files already formatted · mypy → Success: no issues found in 189 source files · tope de 300 líneas → `[]` · ronda 4 sin suite completa: unit 244 passed; `tests/integration -k qa_` 75 passed, 2 skipped · Whisper real con los alineamientos raros del BAJO: solo palabras sintéticas |
+| 24/11/2026 | S1.9a | `kcut qa` (streams, loudness, intervalos de negro y de congelado, pase de Whisper cuyas palabras se comparan con las conservadas, hoja de contacto con gráficos; todo enmascarado según D19, y la hoja saca frames del proxy con la máscara encendida); el EDL pasa por el mismo gate que `render`, `mix` y `graphics` antes de medir (`refuse_edl` movido a `src/kcut/edl/refuse.py`); `kcut catalog`; `matte_captions` sale del catálogo (decisión de Yedin, 23/11/2026); paso 0 desde la revisión de S1.8b; 4 rondas de revisión (en la 3: seguridad 0 CRÍTICO, 0 ALTO, 0 MEDIO y 1 BAJO; verificador 1 ALTO solo de test; ronda 4: 3 tests nuevos sin cambiar aserciones, verificador sin hallazgos); commits `aa6b71c` y `7deb8e4` en `main`, con push (`7504878..c3bcb7c`) | suite completa → 6245 passed, 6 skipped in 5100.90 s (1:25:00), exit 0 (antes de la ronda 4; los 6 skips son de symlinks sin privilegio, WinError 1314) · ruff check → All checks passed! · ruff format → 557 files already formatted · mypy → Success: no issues found in 189 source files · tope de 300 líneas → `[]` · ronda 4 sin suite completa: unit 244 passed; `tests/integration -k qa_` 75 passed, 2 skipped · Whisper real con los alineamientos raros del BAJO: solo palabras sintéticas |
+| 24/11/2026 | S1.9b (paso 0) | Cierre del paso 0 de S1.9b (filas 8–24 de 001.47 a 001.50): hoja de contacto con PNG uno a uno, `kcut qa` vuelve a mirar los enlaces de `salida/` antes de cada herramienta, `console.clean` pública y `qa/report._safe` borrado, `limit_s` obligatorio, `KeptWords.hidden` sin default, `refuse_edl(remedy=)`, tests de tiempo con `process_time`, `tests/tmp_cleanup.remove_tree`, comentarios D23 → D24; commits `c6a66e0` y `ae44f21`, con push (`c3bcb7c..ae44f21`); revisión 2 (filas 20–24): seguridad y verificador aprobados, 0 CRÍTICO, 0 ALTO, 1 BAJO (fila 25 del spec 001.50, pendiente) | suite completa con `--durations=30` → 6278 passed, 6 skipped in 3836.07s (1:03:56), exit 0 (los 6 skips son symlinks sin privilegio, WinError 1314); basetemp al final 0.3 GiB (antes 25.9 GiB); disco antes de la suite 105.6 GB libres |
 
 ---
 
@@ -623,23 +625,23 @@ Lo que falta; todo va al paso 0 de S1.9a:
 - **Cura real:** guardar el sha256 al aprobar y compararlo al usar, ~2 h.
 - **Cuándo:** Gate 1 de spec 002, con el flujo de aprobación del plugin.
 
-### 57. La suite completa deja 25.9 GiB en el basetemp y tarda 85 minutos 🟡
+### 57. La suite completa deja 25.9 GiB en el basetemp y tarda 85 minutos ✅ pagada
 
 Antes dejaba 46.4 GiB y tardaba unos 57 minutos.
 
 - **Mitigado hoy por:** `tmp_path_retention_policy = "failed"`, una suite a la vez y comprobar el disco antes.
 - **Cura real:** las fixtures de módulo y de sesión borran su carpeta (fila 17 del spec 001.47), y se mide con `--durations=30` (fila 18). ~3 h.
-- **Cuándo:** paso 0 de S1.9b.
+- **Cuándo:** pagada 24/11/2026 (paso 0 de S1.9b, filas 17–18, commit `c6a66e0`): 0.3 GiB y 64 min.
 
-### 58. Disco justo para la suite de cierre de S1.9b 🟡
+### 58. Disco justo para la suite de cierre de S1.9b ✅ pagada
 
 Hay 36.5 GB libres y la suite de cierre del paso 0 de S1.9b pide al menos 40 GB. Unos 15 GB se fueron entre el 23 y el 24/11/2026, fuera del repo y de las carpetas de esta sesión.
 
 - **Mitigado hoy por:** el implementador para si no hay disco.
 - **Cura real:** que Yedin libere espacio.
-- **Cuándo:** antes de la suite de cierre del paso 0 de S1.9b.
+- **Cuándo:** pagada 24/11/2026: había 105.6 GB libres al correr la suite de la fila 18.
 
-### 59. Los BAJO de las revisiones de S1.9a ⚪
+### 59. Los BAJO de las revisiones de S1.9a ✅ pagada
 
 Lo que falta; todo va al paso 0 de S1.9b (spec 001.47, filas 8 a 18):
 
@@ -655,7 +657,23 @@ Lo que falta; todo va al paso 0 de S1.9b (spec 001.47, filas 8 a 18):
 
 - **Mitigado hoy por:** ninguno se dispara en un uso normal. Los dos de PII piden un corte justo dentro de un número dicho con muletillas, y los demás son de mensaje, de memoria o de un enlace cambiado a mitad de corrida.
 - **Cura real:** paso 0 de S1.9b. ~4 h.
-- **Cuándo:** paso 0 de S1.9b.
+- **Cuándo:** pagada 24/11/2026 (paso 0 de S1.9b, commit `c6a66e0`). Quedan aceptados por diseño el residuo de menos de 7 dígitos y el de correos dichos (spec 001.47 punto 7 y 001.49 punto 6).
+
+### 60. La suite completa tarda 64 minutos ⚪
+
+Lo más lento son los setups de render real: `tests/e2e/test_av_sync.py` (94.0 s) y `tests/integration/test_render_graphics.py` (87.6 s); después, tests de mezzanine de `tests/integration/test_render_synth.py` (18 a 78 s cada uno).
+
+- **Mitigado hoy por:** una suite completa por cierre de slice, y tests dirigidos con `-k` en las rondas.
+- **Cura real:** compartir los renders de esas fixtures o achicar sus medios sintéticos, midiendo antes — ~3 h.
+- **Cuándo:** cuando estorbe; no antes de cerrar F1.
+
+### 61. El tamaño del video del reporte de QA se lee al final ⚪
+
+`file_mb` del reporte de `kcut qa` se lee con un `stat` al final de la corrida, no en el momento de la mirada de antes de ffprobe.
+
+- **Mitigado hoy por:** solo se escapa un número (MB con un decimal) de un archivo que se tiene que llamar `vN.mp4`, sin contenido ni PII; y pide cambiar `salida/` por un junction a mitad de la corrida.
+- **Cura real:** fila 25 del spec 001.50 — ~1 h.
+- **Cuándo:** primero en las filas 1–7 de S1.9b.
 
 ---
 
@@ -903,6 +921,12 @@ Lo que falta; todo va al paso 0 de S1.9b (spec 001.47, filas 8 a 18):
 - **Por qué engañaba:** en Linux, `sha256sum` escribe dos espacios. El `grep` solo casaba la línea `DELETED` del snapshot, así que parecía que el snapshot estaba mal hecho.
 - **Causa real:** `sha256sum` en Windows pone el marcador `*` de binario entre el hash y la ruta.
 - **Fix:** filtrar con `' \*(src/|...)'`.
+
+### 45. Pedir "la misma ruta" no cierra un TOCTOU si la ruta siempre es la misma
+- **Síntoma:** la fila 20 (001.49) pidió que `file_mb` saliera de la ruta de la mirada de antes de ffprobe. Se cumplió a la letra, pero la revisión 2 encontró que el `stat` seguía al final de la corrida.
+- **Por qué engañaba:** el código, el comentario y el spec decían "misma mirada", y el mutante del verificador ("`file_mb` desde la mirada temprana") era equivalente: `_video_path` siempre devuelve la misma ruta (`<raíz>/salida/vN.mp4`), así que ningún test podía caer.
+- **Causa real:** el spec nombró de dónde sale el dato (la ruta, que no cambia) y no el momento en que se toma. Lo que cambia entre la mirada y el uso es el archivo, no la ruta.
+- **Fix:** en un TOCTOU, el spec nombra el momento en que se toma el dato, no la variable de la que sale. El tamaño se lee justo en la mirada (fila 25 del spec 001.50, deuda 61).
 
 ---
 
