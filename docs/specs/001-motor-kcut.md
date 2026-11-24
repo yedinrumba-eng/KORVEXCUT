@@ -3124,7 +3124,8 @@ Equivalencias: S1.9-1 → a-1 · S1.9-2 → a-2 · S1.9-3 → a-3 · S1.9-4 → 
 | 15 | Paso 0 (001.47 punto 8; BAJO del verificador de 001.46): `refuse_edl` gana el parámetro por nombre `remedy`, con valor por defecto `corre kcut edl check y corrígelos`, el texto de hoy, así que `render`, `mix` y `graphics` no cambian. `qa/run.py` pasa `remedy="corre kcut build otra vez"` cuando el EDL rechazado es el snapshot `qa/vN/inputs/edl-vN.json`. Test (`qa_edl_gate`): un snapshot con un `look` que no existe → el `CheckFailed` termina en `corre kcut build otra vez`; un `edit/edl-v1.json` rechazado conserva el texto de hoy | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k qa_edl_gate` → exit 0 | ❌ |
 | 16 | Paso 0 (001.47 punto 9; de 001.46 punto 4): los topes de tiempo de `tests/unit/test_pii_perf.py` miden el tiempo de CPU del proceso (`time.process_time()`), no `time.monotonic()`. Así la carga de otro proceso no cuenta. Los topes no cambian (2.0 s, 20.0 s y los demás), y cada línea cambiada lleva `# 001.47` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_perf.py -q` → exit 0 | ❌ |
 | 17 | Paso 0 (001.47 punto 10; de 001.45 punto 3): toda fixture de alcance `class`, `module`, `package` o `session`, y todo test, que cree una carpeta con `tmp_path_factory.mktemp` la borra al cerrar su alcance, con una sola función nueva `remove_tree(path)` en `tests/tmp_cleanup.py`. Esa función también borra archivos de solo lectura, y si algo no se deja borrar no falla: lo avisa con `warnings.warn`. Medido en la suite completa de la fila 18: primero el desglose de lo que queda en el basetemp, la suma por carpeta de primer nivel, y se pegan las 15 más pesadas; después la medición, que da menos de 10 GiB | `.venv/Scripts/python.exe -I -X utf8 -c "import os,sys; t=sys.argv[1]; r={e.name: sum(os.lstat(os.path.join(d,f)).st_size for d,_,fs in os.walk(e.path) for f in fs) for e in os.scandir(t) if e.is_dir(follow_symlinks=False)}; [print(round(v/2**30,2), k) for k,v in sorted(r.items(), key=lambda x: -x[1])[:15]]" <basetemp>`, y después `.venv/Scripts/python.exe -I -X utf8 -c "import os,sys; t=sys.argv[1]; s=sum(os.lstat(os.path.join(d,f)).st_size for d,_,fs in os.walk(t) for f in fs); print(round(s/2**30,1)); sys.exit(0 if s<10*2**30 else 1)" <basetemp>` → un número menor que 10, exit 0 | ❌ |
-| 18 | Cierre del paso 0 (001.47): toda aserción vieja que cambie lleva `# 001.47` y no se debilita; las filas 8–17 pasan con sus comandos; las filas 6 y 7 pasan. Antes de la suite completa, el disco tiene al menos 40 GB libres; si no, se para y se reporta sin correrla. La suite completa da exit 0, corrida una vez sin `-x`, con `--durations=30` (se pegan los 30 renglones) y con `--basetemp` fuera del repo. Después se corren las dos mediciones de la fila 17 | `.venv/Scripts/python.exe -I -X utf8 -c "import shutil; f=shutil.disk_usage('C:/').free; print(round(f/1e9,1)); raise SystemExit(0 if f>=40e9 else 1)"` → exit 0; revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider --durations=30 --basetemp=<basetemp>` → exit 0 | ❌ |
+| 19 | Paso 0 (001.48): los comentarios que llaman D23 a la salida de `matte_captions` (`src/kcut/catalog/planned.py` y `tests/unit/test_catalog.py`) dicen D24. D23 es el reloj de fuente. Solo cambian comentarios | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,re,sys; bad=[str(p) for p in (pathlib.Path('src/kcut/catalog/planned.py'), pathlib.Path('tests/unit/test_catalog.py')) if re.search(r'\bD23\b', p.read_text(encoding='utf-8'))]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 18 | Cierre del paso 0 (001.47): toda aserción vieja que cambie lleva `# 001.47` y no se debilita; las filas 8–17 y 19 pasan con sus comandos; las filas 6 y 7 pasan. Antes de la suite completa, el disco tiene al menos 40 GB libres; si no, se para y se reporta sin correrla. La suite completa da exit 0, corrida una vez sin `-x`, con `--durations=30` (se pegan los 30 renglones) y con `--basetemp` fuera del repo. Después se corren las dos mediciones de la fila 17 | `.venv/Scripts/python.exe -I -X utf8 -c "import shutil; f=shutil.disk_usage('C:/').free; print(round(f/1e9,1)); raise SystemExit(0 if f>=40e9 else 1)"` → exit 0; revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider --durations=30 --basetemp=<basetemp>` → exit 0 | ❌ |
 
 Equivalencias: S1.9-5 → b-1 · S1.9-6 → b-2 · S1.9-7 → b-3 · S1.9-8 → b-4 · S1.9-9 → a-9 y b-6.
 
@@ -5003,7 +5004,7 @@ El implementador hizo las filas 1–20, y la suite dio `6189 passed, 5 skipped` 
 
 ### 001.42 — 23/11/2026 — `matte_captions` fuera del catálogo
 
-Yedin respondió la pregunta de 001.41 punto 13: sí, `matte_captions` sale. Pide segmentar a la persona en cada frame, la misma clase de visión sobre la persona que D22 descartó (rastreo de manos, detección de caras, blur de caras). Queda como D23 y por R6 no se re-propone. Entra en la ronda 1 de S1.9a como fila 32, y la fila 31 la cubre.
+Yedin respondió la pregunta de 001.41 punto 13: sí, `matte_captions` sale. Pide segmentar a la persona en cada frame, la misma clase de visión sobre la persona que D22 descartó (rastreo de manos, detección de caras, blur de caras). Queda como D23 (001.48: es D24; D23 ya era el reloj de fuente) y por R6 no se re-propone. Entra en la ronda 1 de S1.9a como fila 32, y la fila 31 la cubre.
 
 ### 001.43 — 23/11/2026 — ronda 2 de S1.9a
 
@@ -5107,7 +5108,7 @@ S1.9a cerró en `aa6b71c`, en la ronda 4.
 - **Ronda 4** (001.46): agregó tres tests, sin cambiar ninguna aserción. El verificador aprobó sin hallazgos, y sus dos mutantes ahora caen.
 - **Suite:** `6245 passed, 6 skipped in 5100.90s (1:25:00)` en la corrida del implementador (fila 37). Es sobre el mismo `src/` y el mismo `pyproject.toml` del commit; los hashes de la fila 39 dan exit 0.
 - **La suite no se repitió**, porque el disco tiene 36.5 GB libres (001.45 punto 2 y 001.46 punto 3). Después de la ronda 4 corrieron enteros los módulos tocados: `244 passed` en unit, y `75 passed, 2 skipped` en `tests/integration -k qa_`.
-- **Pendiente:** 10 BAJO y mediciones. Van aquí, al paso 0 de S1.9b (filas 8–18). Lo que no es contrato lo decidió el coordinador.
+- **Pendiente:** 8 BAJO, los tests de tiempo y las mediciones de la suite. Van aquí, al paso 0 de S1.9b (filas 8–18). Lo que no es contrato lo decidió el coordinador.
 
 1. **La hoja pide los PNG de uno en uno** (fila 8; 001.43 punto 7).
 2. **Los enlaces de `salida/` se miran otra vez antes de cada herramienta** (fila 9; 001.43 punto 7).
@@ -5128,3 +5129,12 @@ S1.9a cerró en `aa6b71c`, en la ronda 4.
     - Si no se llega, el desglose dice dónde está el peso y el coordinador decide con ese dato.
     - El tiempo de la suite (de unos 57 min a 85) se mira con `--durations=30` en la misma corrida (fila 18).
 11. **El disco antes de la suite de la fila 18** es de al menos 40 GB libres. Hoy hay 36.5, así que el implementador para ahí si nadie libera espacio.
+
+### 001.48 — 24/11/2026 — `matte_captions` es D24
+
+Al cerrar S1.9a, el archivador encontró que `HANDOFF.md` ya tenía un D23: "un solo reloj de fuente", del coordinador, 25/10/2026, spec 001.15.
+1. **La decisión de Yedin del 23/11/2026** (`matte_captions` fuera del catálogo, 001.42) es D24. 001.42 la llamó D23 por error.
+2. **Dónde quedó el error.**
+   - El mensaje del commit `aa6b71c` también dice D23, y no se reescribe.
+   - Los comentarios de `src/kcut/catalog/planned.py` y `tests/unit/test_catalog.py` se corrigen en la fila 19 del paso 0 de S1.9b.
+3. **Corrección de 001.47:** lo pendiente son 8 BAJO (6 de 001.43 punto 7 y 2 de 001.46 punto 4), más los tests de tiempo y las mediciones de la suite. No son 10 BAJO.

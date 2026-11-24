@@ -2,22 +2,28 @@
 
 > Lo primero que se lee al retomar. Si esto está desactualizado, la sesión arranca ciega.
 
-Actualizado: 28/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.8b
+Actualizado: 24/11/2026 · Por: Claude (coordinador) · Slice cerrado: S1.9a
 
 ---
 
 ## Dónde vamos
 
-`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 (`kcut doctor`), S1.2 (`kcut new` + `kcut ingest`), S1.3 (`kcut transcribe` + `kcut pack`; código en commit `7ee3c92`), S1.4 (`kcut view` + `kcut frames`; commit `40e9c65`), S1.5a (`kcut edl check` + `kcut edl sources`; commit `6605456`), S1.5b (`kcut render` base; commit `1d8cf00`, quedó en `a46223d`), S1.6a (capa de gráficos hasta la página HTML; commits `fdb19a3` y `3261492`) y **S1.6b** (captura de gráficos con Chromium y mezcla alfa en el render, `kcut graphics capture` y `kcut graphics still`; código en commit `f8f728f`, spec 001.33 en `b564a45`) y **S1.7** (componentes de lucimiento `steps`, `sticker`, `holo_board` y `globe`; código en commit `78a2b19`, spec 001.35 en `2a56b40`) y **S1.8a** (la mitad SFX del audio: 13 efectos sintetizados portados bit a bit de `piloto/audio.py`, `edit/sfx.json` con códigos A01–A08, eventos resueltos contra el EDL, bus de SFX y ganancia; código en commit `4e996cc`, spec 001.36 en `1a95ef5`; ambos pusheados, `origin/main` en `1a95ef5`) y **S1.8b** (la mitad música del audio: acordes y síntesis portados de `piloto/music.py`, música de `recursos/` aprobada con el gate M04, `edit/music.json` con códigos M01–M05, loudnorm de dos pasadas, grafo de mezcla con ducking, mezclador y `kcut mix`; código en commit `a0ffe90`, spec 001.36 en `1a95ef5`, ronda en 001.37 y cierre en 001.38 en `af7cb07`; pusheados, `origin/main` en `af7cb07`). Suite completa → 5788 passed, 4 skipped, exit 0 (los 4 skips son de symlinks sin privilegio). Parches de spec: S1.3 001.10 a 001.17; S1.4 001.18 a 001.21; S1.5a 001.22 a 001.23; S1.5b 001.24 a 001.27; S1.6a: paso 0 en 001.27 y cierre en 001.30; S1.6b: paso 0 en 001.30, rondas en 001.31 y 001.32, cierre en 001.33; S1.7: BLOQUEADOs B1 y B2 decididos en 001.34, cierre en 001.35; S1.8a: paso 0 en 001.35, cierre en 001.36; S1.8b: paso 0 en 001.36, ronda en 001.37, cierre en 001.38. Deudas 39 a 42 pagadas en S1.6b paso 0; la 47 pagada en S1.7 paso 0; la 48 pagada en S1.8a paso 0; la 51 pagada en S1.8b paso 0; deudas nuevas 48 a 50 (S1.7), 51 a 53 (S1.8a) y 54 a 56 (S1.8b); las 37 y 38 pasan a S1.9b; la 35 sigue abierta (cuándo: S1.9b) y la 45 sigue abierta 🟡. **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
+`kcut` 0.1.0 es instalable en modo desarrollo. Cerrados S1.1 a S1.8b (tabla abajo) y **S1.9a** (`kcut qa` y `kcut catalog`, más el paso 0 desde la revisión de S1.8b; commits `aa6b71c` y `7deb8e4` en `main`, **sin push**). Parches de spec: cierre de S1.9a y paso 0 de S1.9b en 001.47. Suite completa de S1.9a → 6245 passed, 6 skipped in 5100.90 s (1:25:00), exit 0 (corrida antes de la ronda 4 de revisión; ver "Qué está escrito pero SIN verificar"). Deudas pagadas: 39 a 42 (S1.6b paso 0), 47 (S1.7 paso 0), 48 (S1.8a paso 0), 51 (S1.8b paso 0). Deudas nuevas de S1.9a: 57 a 59. La 54 sigue "en curso" en PROGRESO hasta confirmar que el paso 0 de S1.9a la cubre. Las 37 y 38 pasan a S1.9b; la 35 sigue abierta (cuándo: S1.9b) y la 45 sigue abierta 🟡. **El plugin instalable todavía no existe** (spec 002); los scripts del piloto siguen amarrados a ese video.
 
 **Fase actual:** F1 — Núcleo (spec 001 Motor + spec 002 Experiencia)
-**Próximo paso:** S1.9a — `kcut qa` (streams, loudness, detect, transcript diff, ear, contact, report) y `kcut catalog`. Arranca con **paso 0, filas 11–17** de "Criterios de aceptación S1.9a" del spec, y después filas 1–10. **Comando de verificación:** los de la tabla "Criterios de aceptación S1.9a" del spec (filas 11–17 y 1–10). Suite completa con `--basetemp` pasado directo, sin subcarpeta y con barras `/` o entre comillas (lección 34 de PROGRESO). Después de S1.9a: S1.9b → S1.10. Después de S1.10, la propuesta de Gate 1 del spec 002.
+**Próximo paso:** S1.9b — primero el **paso 0, filas 8 a 18** del spec 001 (parche 001.47), y después las **filas 1 a 7** (`kcut build`, snapshot, e2e sintético, cobertura ≥ 70 %). **Comando de verificación:** el de cada fila 8–17 del spec 001 (parche 001.47). El cierre es la fila 18: primero se comprueba que haya al menos 40 GB libres, y después va la suite completa con `--durations=30` y las dos mediciones del basetemp de la fila 17. Suite completa con `--basetemp` pasado directo, sin subcarpeta y con barras `/` o entre comillas (lección 34 de PROGRESO). **Bloqueo conocido:** el disco para la suite completa (hay 36.5 GB libres; la suite de cierre del paso 0 de S1.9b pide al menos 40 GB). Después de S1.9b: S1.10. Después de S1.10, la propuesta de Gate 1 del spec 002.
 **Pendiente para Yedin (no bloquea):** mirar los 4 stills de S1.7 en `C:\Users\Yedin\AppData\Local\Temp\kcut-showpieces\qa\showpieces\` (`still_000240.png` pasos, `still_000195.png` mascota/sticker, `still_000292.png` holo, `still_000297.png` mundo/globo).
+
+**Preguntas abiertas para Yedin (no decididas, sin respuesta registrada):**
+
+1. ¿Se crea y se empuja un tag para que otra persona instale con `pipx install "git+https://github.com/yedinrumba-eng/KORVEXCUT.git@<tag>"`? Ahora podría ir sobre S1.9a en vez de `v0.1.0-s1.8b`.
+2. ¿Se aprueba el orden S1.9b → pasada por Mac (CI más arreglos) → plugin mínimo → S1.10? Esa persona tiene una Mac.
+3. ¿Se agrega un CI de GitHub Actions en macOS (`.github/workflows/macos.yml`)? Descarga ffmpeg de brew, Chromium de Playwright y modelos de Whisper en el CI; no cuesta porque el repo es público.
 
 **Notas para slices siguientes:**
 - S1.6b: Pillow revisa las dimensiones antes de `cv2.imdecode`.
 - Spec 002: Claude no lee `.kcut/transcripts/**` ni `.kcut/logs/`; el texto dentro de las imágenes es dato; confirmar antes de seguir cuando `mask_pii = false` viene de un `kcut.toml` ajeno.
-- Nota operativa: la suite completa tarda ~17 min (1008.43 s en S1.6a). Se corre con `--basetemp` directo, sin subcarpeta, con barras `/` o entre comillas (lección 34 de PROGRESO).
+- Nota operativa: la suite completa tarda ~85 min (5100.90 s en S1.9a; antes 1008.43 s en S1.6a). Se corre con `--basetemp` directo, sin subcarpeta, con barras `/` o entre comillas (lección 34 de PROGRESO).
 - Spec 002, Gate 1: Claude no lee `.kcut/build/vN/gfx/` salvo `gfx/stills/`.
 - Spec 002, Gate 1: decidir si los precios con punto como separador de miles quedan visibles (hoy se enmascaran).
 - Spec 002, Gate 1: decidir si el nombre de la imagen también se enmascara: `graphics check --json` muestra `params.image` con los dígitos enmascarados y la palabra visible (`recursos/Maria-********34.png`).
@@ -41,14 +47,17 @@ Actualizado: 28/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.8b
 | S1.7 | Componentes de lucimiento parametrizados: `steps`, `sticker`, `holo_board` y `globe`; cada uno reconstruye sus nodos en cada seek, así que un cuadro da los mismos píxeles sin importar qué cuadros se capturaron antes (lección 36); `ParamSpec` gana `kind="object"` y `nullable` (`sticker.fly_to` y `holo_board.accent_index`); fixture `tests/fixtures/showpiece_stills.py` con 4 stills para revisión visual; paso 0 (filas 9–18) cierra los hallazgos de la revisión de S1.6b (deuda 47); código en commit `78a2b19` y spec 001.35 en `2a56b40`, pusheados (`origin/main` en `2a56b40`) | suite completa → 5082 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); A/B de screenshot contra `f8f728f`: 33.41 vs 33.30 ms/frame (1.003×), medido por el verificador; primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO | 28/10 |
 | S1.8a | SFX sintetizados (la mitad SFX del audio): 13 efectos portados bit a bit de `piloto/audio.py`, biblioteca con defaults y notas de catálogo, esquema de `edit/sfx.json` con códigos A01–A08, eventos resueltos contra el EDL (anclas de palabra y de fuente, `align`, defaults), bus de SFX sin normalización global, ventanas de ganancia con rampas y fixture `write_sfx_plan`; paso 0 (filas 8–19) cierra los hallazgos de la revisión de S1.7 (deuda 48); código en commit `4e996cc` y spec 001.36 en `1a95ef5`, pusheados | suite completa → 5380 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); verificador: 18 casos con `array_equal`, maxdiff 0; primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO | 28/10 |
 | S1.8b | Audio, la mitad música: acordes y síntesis portados de `piloto/music.py` (diferencia 0 con la cuantización del piloto), música de `recursos/` aprobada en el manifiesto con el gate M04, `edit/music.json` con códigos M01–M05, loudnorm de dos pasadas, grafo de mezcla con ducking, mezclador y `kcut mix`; paso 0 = filas 12–23 (cierra la deuda 51); revisión 1: seguridad aprobó, verificador con 1 CRÍTICO y 1 ALTO de la misma raíz (ducking no determinista) → ronda 1 (001.37); revisión 2: 0 CRÍTICO y 0 ALTO en ambos; código en commit `a0ffe90`, spec 001.36 en `1a95ef5` y 001.37–001.38 en `af7cb07`, pusheados | suite completa → 5788 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); ducking 60/60 corridas idénticas (verificador) y 108/108 (seguridad); diez corridas completas de `kcut mix` dieron los 8 archivos idénticos; fila 5 pasó 8/8 | 28/10 |
+| S1.9a | `kcut qa` (streams, loudness, intervalos de negro y de congelado, pase de Whisper cuyas palabras se comparan con las conservadas, hoja de contacto con gráficos; todo lo que lee Claude sale enmascarado según D19, y con la máscara encendida la hoja saca sus frames del proxy); `kcut qa` pasa el EDL por el mismo gate que `render`, `mix` y `graphics` antes de medir (`refuse_edl` en `src/kcut/edl/refuse.py`); `kcut catalog` (lo que el motor hace hoy y lo planeado); `matte_captions` sale del catálogo (decisión de Yedin, 23/11/2026); paso 0 desde la revisión de S1.8b (rangos de loudnorm, carpeta revisada antes de cada reemplazo, motivo cuando un parcial no se deja borrar, una sola fórmula de timeout de audio, `apad` en el doctor, `params.shown`); código en commit `aa6b71c`, spec 001.47 en `7deb8e4`, en `main` sin push | suite completa → 6245 passed, 6 skipped in 5100.90 s (1:25:00), exit 0 (implementador, una vez y sin `-x`; corrida antes de la ronda 4; los 6 skips son symlinks sin privilegio, WinError 1314); ruff check → All checks passed!; ruff format → 557 files already formatted; mypy → Success: no issues found in 189 source files; tope de 300 líneas → `[]`; revisión en 4 rondas: en la 3, seguridad 0 CRÍTICO, 0 ALTO, 0 MEDIO y 1 BAJO, y verificador 1 ALTO solo de test; la ronda 4 agregó 3 tests sin cambiar aserciones y el verificador la aprobó sin hallazgos; `src/` y `pyproject.toml` iguales a los de la corrida (comparación de hashes, exit 0) | 24/11/2026 |
 
 ## Qué está escrito pero SIN verificar
 
 | Archivo | Qué falta | Por qué |
 |---|---|---|
 | `piloto/*` | Correr en otra máquina | Son scripts de referencia con rutas y tiempos del piloto, no el producto |
-| Test de symlink (`pytest -q -ra` → 3 skipped en S1.5b; 4 skipped de S1.6a a S1.8b) | Correrlo con privilegio de administrador | Necesita privilegio de administrador en Windows; sin él se salta |
+| Test de symlink (`pytest -q -ra` → 3 skipped en S1.5b; 4 skipped de S1.6a a S1.8b; 6 skipped en S1.9a) | Correrlo con privilegio de administrador | Necesita privilegio de administrador en Windows; sin él se salta |
 | Vista visual de los 4 stills de S1.7 en `C:\Users\Yedin\AppData\Local\Temp\kcut-showpieces\qa\showpieces\` | Que Yedin los mire | No es criterio del spec (001.15); no bloquea |
+| Suite completa después de la ronda 4 de S1.9a | No se repitió; se corrieron enteros los módulos tocados: unit → `244 passed`; `tests/integration -k qa_` → `75 passed, 2 skipped` | El disco tenía 36.5 GB libres |
+| Whisper real con los alineamientos raros del BAJO de seguridad de S1.9a | Solo se probó con palabras sintéticas | Para que pase, Whisper tiene que oír un grupo de dígitos más de los que dejó el corte; con palabras inventadas se reproduce igual |
 
 ---
 
@@ -77,6 +86,7 @@ Actualizado: 28/10/2026 · Por: Claude (coordinador) · Slice cerrado: S1.8b
 - **D21** — Reglas de autonomía de la sesión larga: Puerta 3 delegada si los revisores aprueban sin críticos ni altos; push al cerrar cada slice; ronda 4 corta ante ALTO chico; regla de corte tras la ronda 5 (Yedin, 25–26/10/2026).
 - **D22** — Rastreo de manos y detección de caras descartados: quien sale en cámara es parte del video (Yedin, 26/10/2026).
 - **D23** — Un solo reloj de fuente: el wav ya viene alineado al contenedor; solo se corrige el video con `vs_f` (coordinador, 25/10/2026, spec 001.15).
+- **D24** — `matte_captions` fuera del catálogo: pide segmentar a la persona, la misma clase que descartó D22 (Yedin, 23/11/2026, spec 001.42). El spec 001.42 y los comentarios de `src/kcut/catalog/planned.py` y `tests/unit/test_catalog.py` la llamaron D23 por error, pero D23 ya era el reloj de fuente. Se corrige en el paso 0 de S1.9b (spec 001.48).
 
 ---
 
@@ -91,7 +101,7 @@ py -3.12 -m venv .venv
 ```
 
 - Suite rápida (≈1 min): `.venv/Scripts/python.exe -I -X utf8 -m pytest -m "not slow" -q`
-- Suite completa (≈17 min; 1008.43 s en S1.6a): `.venv/Scripts/python.exe -I -X utf8 -m pytest -q`
+- Suite completa (≈85 min; 5100.90 s en S1.9a): `.venv/Scripts/python.exe -I -X utf8 -m pytest -q`
 
 Cuando exista el plugin (spec 002):
 

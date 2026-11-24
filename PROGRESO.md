@@ -39,7 +39,9 @@
       · verificado: suite completa → 5380 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio) · verificador: 18 casos con `array_equal`, maxdiff 0 (13 efectos portados bit a bit de `piloto/audio.py`) · primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO · paso 0 = filas 8–19 · cierre en 001.36 (punto 11: "pico ≤ 1" no es contrato por SFX suelto)
 - [x] **S1.8b** — (parte b de S1.8) Audio: música, loudnorm, ducking, mezcla y `kcut mix`
       · verificado: suite completa → 5788 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio) · ducking 60/60 corridas idénticas (verificador) y 108/108 (seguridad) · diez corridas completas de `kcut mix` dieron los 8 archivos idénticos · fila 5 pasó 8/8 · diferencia 0 con la cuantización del piloto · revisión 1: seguridad aprobó, verificador con 1 CRÍTICO y 1 ALTO de la misma raíz → ronda 1 (001.37) · revisión 2: 0 CRÍTICO y 0 ALTO en ambos · paso 0 = filas 12–23 (001.36) · cierre en 001.38
-- [ ] **S1.9a** — (parte a de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
+- [x] **S1.9a** — (parte a de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
+      · alcance entregado (resumen de cierre): `kcut qa` y `kcut catalog`, más el paso 0 desde la revisión de S1.8b; `kcut build` y e2e sintético van en S1.9b (filas 1–7)
+      · verificado: suite completa → 6245 passed, 6 skipped in 5100.90 s (1:25:00), exit 0 (implementador, una vez y sin `-x`; corrida antes de la ronda 4; los 6 skips son de symlinks sin privilegio, WinError 1314) · ruff check, ruff format y mypy limpios · tope de 300 líneas → `[]` · 4 rondas de revisión · ronda 4 sin suite completa: unit 244 passed; `tests/integration -k qa_` 75 passed, 2 skipped · cierre en 001.47
 - [ ] **S1.9b** — (parte b de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
 - [ ] **S1.10** — `kcut storyboard` (Puerta 1 visual)
 
@@ -70,6 +72,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 28/10/2026 | S1.7 | Componentes de lucimiento parametrizados: `steps`, `sticker`, `holo_board` y `globe`; cada uno reconstruye sus nodos en cada seek, así que un cuadro da los mismos píxeles sin importar qué se capturó antes (lección 36); `ParamSpec` gana `kind="object"` y `nullable` (`sticker.fly_to` y `holo_board.accent_index`); fixture `tests/fixtures/showpiece_stills.py` con 4 stills para revisión visual; paso 0 = filas 9–18, que cierra los hallazgos de la revisión de S1.6b (deuda 47); BLOQUEADOs B1 (timeout de screenshot con `page.screenshot`, 1.88× por cuadro: se mantuvo la captura CDP rápida y la amenaza la cierran las reglas de JS) y B2 (`fly_to` y `accent_index` no encajaban en `ParamSpec`) decididos por el coordinador en 001.34; código en commit `78a2b19` y spec 001.35 en `2a56b40`, pusheados (`origin/main` en `2a56b40`) | suite completa → 5082 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); A/B de screenshot contra `f8f728f`: 33.41 vs 33.30 ms/frame (1.003×), medido por el verificador; primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO |
 | 28/10/2026 | S1.8a | SFX sintetizados (la mitad SFX del audio): 13 efectos portados bit a bit de `piloto/audio.py`, biblioteca con defaults y notas de catálogo, esquema `edit/sfx.json` con códigos A01–A08, eventos resueltos contra el EDL (anclas de palabra y de fuente, `align`, defaults), bus de SFX sin normalización global, ventanas de ganancia con rampas y fixture `write_sfx_plan`; paso 0 = filas 8–19, que cierra los hallazgos de la revisión de S1.7 (deuda 48); criterio "pico ≤ 1" aclarado en 001.36 (punto 11); código en commit `4e996cc` y spec 001.36 en `1a95ef5`, pusheados (`origin/main` en `1a95ef5`) | suite completa → 5380 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); verificador: 18 casos con `array_equal`, maxdiff 0; primera revisión: verificador y seguridad aprobaron, 0 CRÍTICO y 0 ALTO |
 | 28/10/2026 | S1.8b | Audio, la mitad música: acordes y síntesis portados de `piloto/music.py`, música de `recursos/` aprobada en el manifiesto con el gate M04, `edit/music.json` con códigos M01–M05, loudnorm de dos pasadas, grafo de mezcla con ducking, mezclador y `kcut mix`; paso 0 = filas 12–23 (cierra la deuda 51); revisión 1: seguridad aprobó, verificador con 1 CRÍTICO y 1 ALTO de la misma raíz (el grafo de ducking no era determinista: 5 salidas distintas en 100 corridas idénticas, y 61 perdieron hasta 0.49 s de la cola de la música) → ronda 1 (001.37: `apad` en las dos entradas del compresor, timeout en cada llamada a ffmpeg, chequeo de disco antes de mezclar, `MemoryError` da exit 3, `-protocol_whitelist file`, y los MEDIO/BAJO de seguridad); revisión 2: 0 CRÍTICO y 0 ALTO en ambos; código en commit `a0ffe90`, spec 001.36 en `1a95ef5` y 001.37–001.38 en `af7cb07`, pusheados (`origin/main` en `af7cb07`) | suite completa → 5788 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); ducking 60/60 corridas idénticas (verificador) y 108/108 (seguridad); diez corridas completas de `kcut mix` dieron los 8 archivos idénticos; fila 5 pasó 8/8; diferencia 0 con la cuantización del piloto |
+| 24/11/2026 | S1.9a | `kcut qa` (streams, loudness, intervalos de negro y de congelado, pase de Whisper cuyas palabras se comparan con las conservadas, hoja de contacto con gráficos; todo enmascarado según D19, y la hoja saca frames del proxy con la máscara encendida); el EDL pasa por el mismo gate que `render`, `mix` y `graphics` antes de medir (`refuse_edl` movido a `src/kcut/edl/refuse.py`); `kcut catalog`; `matte_captions` sale del catálogo (decisión de Yedin, 23/11/2026); paso 0 desde la revisión de S1.8b; 4 rondas de revisión (en la 3: seguridad 0 CRÍTICO, 0 ALTO, 0 MEDIO y 1 BAJO; verificador 1 ALTO solo de test; ronda 4: 3 tests nuevos sin cambiar aserciones, verificador sin hallazgos); commits `aa6b71c` y `7deb8e4` en `main`, sin push | suite completa → 6245 passed, 6 skipped in 5100.90 s (1:25:00), exit 0 (antes de la ronda 4; los 6 skips son de symlinks sin privilegio, WinError 1314) · ruff check → All checks passed! · ruff format → 557 files already formatted · mypy → Success: no issues found in 189 source files · tope de 300 líneas → `[]` · ronda 4 sin suite completa: unit 244 passed; `tests/integration -k qa_` 75 passed, 2 skipped · Whisper real con los alineamientos raros del BAJO: solo palabras sintéticas |
 
 ---
 
@@ -591,7 +594,7 @@ Lo que falta; todo va al paso 0 de S1.8b:
 - **Cura real:** vectorizarlo manteniendo la salida bit a bit con el piloto, o aceptar una tolerancia documentada, ~2 h.
 - **Cuándo:** si la síntesis de SFX sale lenta en `kcut mix`.
 
-### 54. Hallazgos de la revisión de S1.8b que van al paso 0 de S1.9a 🟡
+### 54. Hallazgos de la revisión de S1.8b que van al paso 0 de S1.9a ✅ pagada
 
 Lo que falta; todo va al paso 0 de S1.9a:
 
@@ -604,7 +607,7 @@ Lo que falta; todo va al paso 0 de S1.9a:
 
 - **Mitigado hoy por:** la mezcla fuerte solo pasa con ganancias extremas, y el cambio de carpeta pide un proceso local con timing de microsegundos.
 - **Cura real:** filas 11–17 de S1.9a, ~4-5 h.
-- **Cuándo:** en curso, S1.9a paso 0.
+- **Cuándo:** pagada 24/11/2026 (S1.9a paso 0, filas 11–17, commit `aa6b71c`).
 
 ### 55. La mezcla tiene el audio entero en memoria 🟡
 
@@ -619,6 +622,40 @@ Lo que falta; todo va al paso 0 de S1.9a:
 - **Mitigado hoy por:** la aprobación la da una persona, y el archivo vive en `recursos/` del proyecto.
 - **Cura real:** guardar el sha256 al aprobar y compararlo al usar, ~2 h.
 - **Cuándo:** Gate 1 de spec 002, con el flujo de aprobación del plugin.
+
+### 57. La suite completa deja 25.9 GiB en el basetemp y tarda 85 minutos 🟡
+
+Antes dejaba 46.4 GiB y tardaba unos 57 minutos.
+
+- **Mitigado hoy por:** `tmp_path_retention_policy = "failed"`, una suite a la vez y comprobar el disco antes.
+- **Cura real:** las fixtures de módulo y de sesión borran su carpeta (fila 17 del spec 001.47), y se mide con `--durations=30` (fila 18). ~3 h.
+- **Cuándo:** paso 0 de S1.9b.
+
+### 58. Disco justo para la suite de cierre de S1.9b 🟡
+
+Hay 36.5 GB libres y la suite de cierre del paso 0 de S1.9b pide al menos 40 GB. Unos 15 GB se fueron entre el 23 y el 24/11/2026, fuera del repo y de las carpetas de esta sesión.
+
+- **Mitigado hoy por:** el implementador para si no hay disco.
+- **Cura real:** que Yedin libere espacio.
+- **Cuándo:** antes de la suite de cierre del paso 0 de S1.9b.
+
+### 59. Los BAJO de las revisiones de S1.9a ⚪
+
+Lo que falta; todo va al paso 0 de S1.9b (spec 001.47, filas 8 a 18):
+
+- la hoja pide los PNG uno a uno;
+- los enlaces de `salida/` se miran otra vez antes de cada herramienta;
+- una palabra con salto de línea en un solo renglón;
+- `console.clean` es pública;
+- `limit_s` es obligatorio;
+- "ciérrala y repite";
+- las muletillas dentro de un número cuentan como tapadas;
+- el remedio `kcut build` para el snapshot rechazado;
+- los tests de tiempo con `process_time`.
+
+- **Mitigado hoy por:** ninguno se dispara en un uso normal. Los dos de PII piden un corte justo dentro de un número dicho con muletillas, y los demás son de mensaje, de memoria o de un enlace cambiado a mitad de corrida.
+- **Cura real:** paso 0 de S1.9b. ~4 h.
+- **Cuándo:** paso 0 de S1.9b.
 
 ---
 
@@ -843,6 +880,30 @@ Lo que falta; todo va al paso 0 de S1.9a:
 - **Causa real:** el corte podía llegar a 23 616 muestras, y nada garantizaba que 65 536 alcanzara siempre.
 - **Fix:** buscar el arreglo que quita la causa (`apad`), no el que agranda el margen.
 
+### 41. El disco lleno parece un test intermitente
+- **Síntoma:** una suite completa cayó al 46 % con `I/O operation on closed file` y 109 fallos de tests que escriben archivos.
+- **Por qué engañaba:** parecía inestabilidad de los tests, pero era el disco: el basetemp había llegado a 46.4 GiB.
+- **Causa real:** el basetemp llenó el disco.
+- **Fix:** `tmp_path_retention_policy = "failed"`, comprobar el disco antes de la suite, una suite a la vez y borrar el basetemp al terminar.
+
+### 42. Cambiar una aserción por una regla nueva puede borrar la cobertura de una regla vieja
+- **Síntoma:** tres aserciones pasaron a `[tapado]` y dos mutantes que sacaban el número crudo pasaban la suite en verde.
+- **Por qué engañaba:** el cambio era legítimo, así que nadie veía que se perdía una prueba.
+- **Causa real:** esas tres aserciones eran las únicas que probaban que el texto oído sale enmascarado.
+- **Fix:** cuando una aserción cambia, se agrega el caso que compensa y se prueba con un mutante que lo tumba.
+
+### 43. El spec mandó a un módulo neutro a llamar una función que vivía en `commands/`
+- **Síntoma:** el implementador paró con BLOQUEADO.
+- **Por qué engañaba:** la llamada parecía natural, porque `render`, `mix` y `graphics` ya llamaban a `refuse_edl`. Pero los tres viven dentro de `commands/`, y la regla de capas no la hace cumplir Python: solo la vigila un test.
+- **Causa real:** el spec pedía que un módulo neutro llamara una función de `commands/`, y `test_layers` prohíbe importar comandos desde fuera de `commands/`.
+- **Fix:** antes de especificar una llamada, mirar dónde vive la función; el código compartido va en módulos neutros (`edl/refuse.py`).
+
+### 44. `sha256sum` en Windows escribe `<hash> *<ruta>`, no dos espacios
+- **Síntoma:** `sha256sum -c` daba `no properly formatted SHA256 checksum lines found`, y un `grep` que buscaba dos espacios no casaba nada.
+- **Por qué engañaba:** en Linux, `sha256sum` escribe dos espacios. El `grep` solo casaba la línea `DELETED` del snapshot, así que parecía que el snapshot estaba mal hecho.
+- **Causa real:** `sha256sum` en Windows pone el marcador `*` de binario entre el hash y la ruta.
+- **Fix:** filtrar con `' \*(src/|...)'`.
+
 ---
 
 ## Descartado y por qué
@@ -858,3 +919,4 @@ Lo que falta; todo va al paso 0 de S1.9a:
 | Rastreo de manos y detección de caras (F2: `piloto/track.py`, YuNet/MediaPipe, blur automático de caras) | Yedin, 26/10/2026: "no lo usaremos, todo el que vaya a pertenecer será parte del video, tenemos que hacer muchos procesos básicos y ya". Quien sale en cámara forma parte del video (consentimiento en la entrevista); los componentes van sin rastreo y se posicionan a mano | 26/10/2026 |
 | pytest-xdist para paralelizar la suite | Midió 770.86 s contra 766.53 s sin xdist: ninguna ganancia, porque ffmpeg/x264 ya saturan la CPU. Además dio 20 fallos, por tiempos y por cp1252 (los workers arrancan sin `-X utf8`). Se quitó de `pyproject.toml` y se desinstaló | 27/10/2026 |
 | Tope de la foto con `page.screenshot(timeout=...)` (S1.7 fila 9 de 001.33) | Costaba 1.88 × por frame (37.0 contra 69.6 ms, A/B de 5 rondas): `page.screenshot` no expone `optimizeForSpeed`. Además solo cubría la mitad del riesgo; la amenaza se cierra en su origen con las reglas JS (spec 001.34 punto 1, lección 37) | 27/10/2026 |
+| `matte_captions` en el catálogo de `kcut catalog` | Pide segmentar a la persona: la misma clase que lo descartado en D22 (rastreo de manos y detección de caras). Decisión de Yedin (D24) | 23/11/2026 |
