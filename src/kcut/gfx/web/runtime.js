@@ -86,6 +86,8 @@
     ];
     Promise.all(loading).then(() => {
       window.kcutReady = true;
+      // for the capture, which waits for this mark and not for the variable (001.52)
+      document.documentElement.setAttribute("data-kcut-ready", "");
     });
   }
 

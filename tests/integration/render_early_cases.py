@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 
 from kcut.commands import render as render_command
+from kcut.pipeline import picture  # 001.51: the picture steps live here now
 from tests.fixtures.links import make_dir_link, remove_dir_link
 from tests.integration.render_small_cases import mezz_files
 from tests.integration.view_frames_helpers import Run, project_args
@@ -55,8 +56,9 @@ class TestRenderDestEarly:
         def late(*_a: object, **_k: object) -> None:
             pytest.fail("the render went on after a folder at a destination")
 
-        for stage in ("ensure_mezz", "plan_mezz", "compose_video", "write_voice"):
-            monkeypatch.setattr(render_command, stage, late)
+        for stage in ("ensure_mezz", "plan_mezz", "compose_video"):
+            monkeypatch.setattr(picture, stage, late)  # 001.51: it was `render_command`
+        monkeypatch.setattr(render_command, "write_voice", late)
         started = {p.name for p in (small / BUILD).iterdir()}
         code, doc, _ = kcut_json("render", "--no-graphics", *project_args(small))
         assert code == 3 and doc["error"]["kind"] == "ProjectError", doc
@@ -69,13 +71,13 @@ class TestRenderDestEarly:
         (small / BUILD / "render.mp4").unlink()
         (small / BUILD / "render.mp4").mkdir()
         seen: list[str] = []
-        real = render_command.prepare_partial
+        real = picture.prepare_partial  # 001.51: it was `render_command.prepare_partial`
 
         def spy(path: Path) -> None:
             seen.append(path.name)
             real(path)
 
-        monkeypatch.setattr(render_command, "prepare_partial", spy)
+        monkeypatch.setattr(picture, "prepare_partial", spy)  # 001.51
         code, _, _ = kcut_json("render", "--no-graphics", *project_args(small))
         assert code == 3 and seen == []  # not even `video.partial.mp4` was prepared
         assert not (small / BUILD / "video.partial.mp4").exists()

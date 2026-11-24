@@ -14,8 +14,8 @@ from typing import Any
 
 import pytest
 
-from kcut.commands import render
 from kcut.gfx.capture_index import INDEX_NAME
+from kcut.pipeline import picture as render  # 001.51: `folder_guard` is called from here now
 from tests.integration.fake_shooter import install_fake_shooter
 from tests.integration.render_small_cases import small, small_base
 from tests.integration.view_frames_helpers import Run, project_args

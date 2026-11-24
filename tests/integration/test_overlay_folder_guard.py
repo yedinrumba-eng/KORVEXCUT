@@ -101,10 +101,11 @@ def test_overlay_folder_guard_gfx_changed_for_a_junction_after_the_source_is_mad
 
 
 def test_overlay_folder_guard_the_render_gives_the_source_the_guard_of_its_folders() -> None:
-    """`OverlaySource` takes a `guard` and `commands/render.py` builds it with `folder_guard`."""
+    """`OverlaySource` takes a `guard`; `pipeline/picture.py` (001.51: it was `commands/render.py`)
+    builds it with `folder_guard`, and `commands/render.py` gets it from there."""
     import inspect
 
-    from kcut.commands import render
+    from kcut.pipeline import picture as render  # 001.51
 
     assert "guard" in inspect.signature(OverlaySource.__init__).parameters
     source = inspect.getsource(render)

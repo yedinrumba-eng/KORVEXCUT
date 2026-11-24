@@ -22,6 +22,8 @@ from kcut.gfx.page import build_page
 
 W, H, FPS = 1080, 1920, 30
 Bgra = NDArray[np.uint8]
+# what `runtime.js` does next to `window.kcutReady = true`: the capture waits for this mark (001.52)
+READY_MARK = 'document.documentElement.setAttribute("data-kcut-ready", "");'
 
 
 def decode_png(source: Path | bytes) -> Bgra:
@@ -107,7 +109,8 @@ def page_with(body: str) -> str:
     graphics themselves (what the page is allowed to ask for)."""
     return (
         '<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0">'
-        f"{body}<script>window.kcutReady = true; window.seek = () => true;</script></body></html>"
+        f"{body}<script>window.kcutReady = true; {READY_MARK} window.seek = () => true;</script>"
+        "</body></html>"
     )
 
 

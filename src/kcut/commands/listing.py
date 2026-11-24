@@ -7,6 +7,7 @@ lines are cut with another ellipsis.
 from collections.abc import Sequence
 
 from kcut.console import Out
+from kcut.findings import finding_lines
 from kcut.issues import MAX_SHOWN, Issue
 
 
@@ -27,9 +28,7 @@ def findings_json(
 
 
 def list_findings(out: Out, tag: str, issues: Sequence[Issue]) -> None:
-    """The first `MAX_SHOWN` findings, one line each, and how many more there are."""
-    for issue in issues[:MAX_SHOWN]:
-        where = f" {issue.path}" if issue.path else ""
-        out.line(tag, f"{issue.code}{where}: {issue.message_es}")
-    if len(issues) > MAX_SHOWN:
-        out.line(tag, f"... y {len(issues) - MAX_SHOWN} más")
+    """The first `MAX_SHOWN` findings, one line each, and how many more there are. The format is
+    `kcut.findings`, which `kcut build` uses too (001.52)."""
+    for line in finding_lines(issues):
+        out.line(tag, line)

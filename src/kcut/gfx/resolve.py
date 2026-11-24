@@ -59,11 +59,14 @@ class ResolvedGraphics:
     issues: list[Issue]
     notices: list[Notice]
     empty: bool
+    graphics_rel: str = GRAPHICS_REL
 
     @property
     def graphics_json(self) -> str | None:
-        """The file that was read, or `None` for the implicit document."""
-        return GRAPHICS_REL if self.source == "file" else None
+        """The file that was really read (`graphics_rel`: the snapshot's copy for the contact
+        sheet of `kcut qa`, `edit/graphics.json` otherwise), or `None` for the implicit document
+        (001.52)."""
+        return self.graphics_rel if self.source == "file" else None
 
 
 def resolve(
@@ -73,18 +76,20 @@ def resolve(
     *,
     inventory: Inventory | None = None,
     log: Path | None = None,
+    graphics_rel: str = GRAPHICS_REL,
 ) -> ResolvedGraphics:
-    """Read `edit/graphics.json` (or take the implicit document), check it against `edl` and
-    resolve it. `inventory` and `log` are the ones the command already has; without them the
-    inventory is loaded here."""
+    """Read `graphics_rel` (`edit/graphics.json`; the copy of a build's snapshot for the contact
+    sheet of `kcut qa`, 001.51) or take the implicit document if it is not there, check it against
+    `edl` and resolve it. `inventory` and `log` are the ones the command already has; without
+    them the inventory is loaded here."""
     cfg = project.config
     issues: list[Issue] = []
     notices: list[Notice] = []
-    path = project.layout.edit / "graphics.json"
+    path = project.root / graphics_rel
     source: Literal["file", "default"] = "file" if os.path.lexists(path) else "default"
     doc: GraphicsDoc | None = default_doc()
     if source == "file":
-        data = read_json(resolve_in_project(project.root, GRAPHICS_REL), MAX_GRAPHICS_BYTES)
+        data = read_json(resolve_in_project(project.root, graphics_rel), MAX_GRAPHICS_BYTES)
         doc, found = parse_graphics(data)
         issues += found
     on = (
@@ -119,7 +124,7 @@ def resolve(
         version=version, source=source, fps=edl.fps, w=edl.out_w, h=edl.out_h, frames=edl.frames,
         brand=brand, captions=on, captions_cfg=cfg.captions, style=_style(cfg.captions, brand),
         cues=cues, chunks=chunks, shown=shown, masked=cfg.privacy.mask_pii, images=images,
-        issues=issues, notices=notices, empty=not cues and not on,
+        issues=issues, notices=notices, empty=not cues and not on, graphics_rel=graphics_rel,
     )  # fmt: skip
 
 

@@ -29,6 +29,7 @@ from kcut.edl.kept import kept_words
 from kcut.edl.model import Edl, VoiceClip
 from kcut.edl.refuse import refuse_edl
 from kcut.errors import CheckFailed, ProjectError, UsageError
+from kcut.gfx.resolve import GRAPHICS_REL
 from kcut.ingest.inventory import Inventory, Notice
 from kcut.pack.pii import mask_pii
 from kcut.paths import resolve_in_project, same_path
@@ -91,8 +92,10 @@ def run_qa(
 
     limit = measure_timeout_s(edl.frames / edl.fps)
     # 001.49, point 1: again right before ffprobe (two `assert_writable`, the inventory and the gate
-    # ran since the first look); the size of the file comes from this same look
-    video = probed = _video_path(project, video_rel)
+    # ran since the first look). 001.50, point 2: the size of the file is read here, right after
+    # that look, and `file_mb` comes from this number; the video is not `stat`ed again afterwards
+    video = _video_path(project, video_rel)
+    video_bytes = os.lstat(video).st_size
     facts = facts_of(run_probe(video, log, limit))
     if facts.video is None:
         raise CheckFailed(f"{video_rel} no tiene video: no hay qué auditar")
@@ -126,7 +129,14 @@ def run_qa(
     size = _size(facts, edl)
     if not project.config.privacy.mask_pii:  # only then is the sheet made from the video
         video = _video_path(project, video_rel)
-    sheet = contact_sheet(project, edl, version, inventory, video, frames, size, notices, log)
+    # 001.51: the EDL of the snapshot is judged with the graphics of the snapshot, never with
+    # `edit/graphics.json` (a snapshot without one means the implicit document)
+    graphics_rel = (
+        f"qa/v{version}/inputs/graphics.json" if rel == _snapshot_rel(version) else GRAPHICS_REL
+    )
+    sheet = contact_sheet(
+        project, edl, version, inventory, video, frames, size, notices, log, graphics_rel
+    )
     write_sheet(project, contact_rel, sheet)  # None (`contact_skipped`): the old sheet goes
     timings["contact"] = time.monotonic() - mark
     progress.update(5)
@@ -136,7 +146,7 @@ def run_qa(
         edl=rel,
         generated=datetime.now().isoformat(timespec="seconds"),
         checks=tuple(checks),
-        file_mb=round(probed.stat().st_size / 2**20, 1),
+        file_mb=round(video_bytes / 2**20, 1),
         duration_display=fmt_tc(frames, edl.fps),
         contact_sheet=None if sheet is None else contact_rel,
         timings_s={name: round(seconds, 1) for name, seconds in timings.items()},

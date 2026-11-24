@@ -130,3 +130,30 @@ def test_qa_relook_a_salida_that_changes_right_before_the_ear_stops_the_ear(
         remove_dir_link(root / "salida")
     assert code == 3 and doc["error"]["kind"] == "ProjectError", doc
     assert len(calls) == 4 and heard == []
+
+
+def test_qa_relook_the_size_in_the_report_is_the_one_taken_at_the_look_before_ffprobe(
+    built: Path, tmp_path: Path, kcut_json: Run, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """001.50 point 2: masked, the sheet never looks at `salida/` again, so a `salida/` that turns
+    into a junction while the sheet is made must not change `file_mb`: the size is read at the
+    look right before ffprobe and no `stat` of the video is made after it."""
+    root = copy_of(built, tmp_path)
+    real_bytes = (root / VIDEO).stat().st_size
+    elsewhere = tmp_path / "otra carpeta"
+    elsewhere.mkdir()
+    real_sheet = qa_run.contact_sheet
+
+    def sheet(*args: Any, **kwargs: Any) -> Any:
+        _swap_salida(root, elsewhere)  # after the last tool that reads the video
+        (elsewhere / "v1.mp4").write_bytes(b"\0" * (real_bytes + 2**20))  # 1 MB bigger
+        return real_sheet(*args, **kwargs)
+
+    monkeypatch.setattr(qa_run, "contact_sheet", sheet)
+    try:
+        code, doc, _ = kcut_json("qa", VIDEO, *project_args(root))
+    finally:
+        remove_dir_link(root / "salida")
+    assert code == 0, doc
+    assert doc["file_mb"] == round(real_bytes / 2**20, 1), doc
+    assert doc["file_mb"] != round((real_bytes + 2**20) / 2**20, 1)

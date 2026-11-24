@@ -10,13 +10,16 @@ exits 1; `pass` and `incomplete` (some check was skipped) exit 0. Only `salida/v
 from __future__ import annotations
 
 import argparse
+import contextlib
 from pathlib import PurePosixPath
 from typing import Any
 
 from kcut.console import Out, Progress
-from kcut.project import open_project
+from kcut.ingest.cache_guard import assert_in_cache
+from kcut.project import Project, open_project
 from kcut.qa.report import Check, QaReport
-from kcut.qa.run import STEPS, run_qa
+from kcut.qa.run import STEPS, VIDEO_NAME, run_qa
+from kcut.render.lock import OutputLock
 
 NAME = "qa"
 HELP_ES = "Audita salida/vN.mp4: frames, streams, sonoridad, negros, congelados y lo que se oye"
@@ -44,9 +47,10 @@ def run(args: argparse.Namespace) -> int:
     out = Out(json_mode=args.json)
     project = open_project(args.project)
     progress = Progress(f"qa {args.video}", STEPS, "pasos")
-    report = run_qa(
-        project, args.video, args.edl, progress, out=out, log=getattr(args, "log", None)
-    )
+    with _build_lock(project, args.video):  # 001.51: not while a `kcut build` of it is running
+        report = run_qa(
+            project, args.video, args.edl, progress, out=out, log=getattr(args, "log", None)
+        )
     progress.close()
     for item in report.warnings:
         out.warn(f"{item['code']}: {item['message_es']}")
@@ -57,6 +61,18 @@ def run(args: argparse.Namespace) -> int:
     _verdict(out, report)
     out.result(report.to_json())
     return report.exit_code
+
+
+def _build_lock(project: Project, video: str) -> contextlib.AbstractContextManager[object]:
+    """The lock `build-vN` of the video, taken without waiting (`LockedError`, exit 6). `kcut
+    build` calls `run_qa` with its own lock already taken, so the lock is taken here and not
+    there. A name that is not `salida/vN.mp4` takes none: `run_qa` refuses it (exit 2)."""
+    found = VIDEO_NAME.fullmatch(video)
+    if found is None:
+        return contextlib.nullcontext()
+    name = f"build-v{found.group(1)}"
+    assert_in_cache(project, project.layout.locks / f"{name}.lock")
+    return OutputLock(project.layout.locks, name)
 
 
 def _verdict(out: Out, report: QaReport) -> None:

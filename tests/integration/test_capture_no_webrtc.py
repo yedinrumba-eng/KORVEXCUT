@@ -19,7 +19,14 @@ from kcut.errors import ToolError
 from kcut.gfx import capture as gfx_capture
 from kcut.gfx.capture import Shooter, capture_stills, launch_options
 from kcut.gfx.page import build_page
-from tests.integration.capture_helpers import H, W, page_with, sample_data, with_runtime
+from tests.integration.capture_helpers import (
+    READY_MARK,
+    H,
+    W,
+    page_with,
+    sample_data,
+    with_runtime,
+)
 
 pytestmark = [pytest.mark.chromium, pytest.mark.slow]
 NAMES = [
@@ -29,7 +36,7 @@ NAMES = [
     "RTCSessionDescription",
     "RTCIceCandidate",
 ]
-READY = "window.KC = { register() {} }; window.kcutReady = true;"
+READY = "window.KC = { register() {} }; window.kcutReady = true; " + READY_MARK
 
 
 @contextmanager

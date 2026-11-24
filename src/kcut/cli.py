@@ -30,6 +30,7 @@ COMMAND_MODULES: tuple[str, ...] = (
     "kcut.commands.graphics",
     "kcut.commands.mix",
     "kcut.commands.qa",
+    "kcut.commands.build",
     "kcut.commands.catalog",
 )
 

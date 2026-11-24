@@ -23,6 +23,7 @@ from kcut.config.load import parse_config
 from kcut.errors import ProjectError
 from kcut.ingest.cache_guard import build_folder
 from kcut.paths import Layout
+from kcut.pipeline import picture  # 001.51: the picture steps live here now
 from kcut.project import Project
 from tests.conftest import run_kcut
 from tests.fixtures.links import make_dir_link, make_hard_link, remove_dir_link
@@ -133,19 +134,20 @@ class TestBuildDirSwap:
         folder.rename(folder.with_name("v7-real"))
         make_dir_link(folder, small / ".kcut")
 
-    @pytest.mark.parametrize("after", ["_mezzanines", "_picture", "write_voice"])
+    @pytest.mark.parametrize("after", ["make_mezzanines", "make_picture", "write_voice"])  # 001.51
     def test_build_dir_swap_a_folder_changed_for_a_link_mid_render_is_exit_3_and_writes_nothing(
         self, small: Path, kcut_json: Run, monkeypatch: pytest.MonkeyPatch, after: str
     ) -> None:
         v7 = self._v7(small)
-        real = getattr(render_command, after)
+        owner = render_command if after == "write_voice" else picture  # 001.51
+        real = getattr(owner, after)
 
         def swapping(*args: object, **kwargs: object) -> object:
             result = real(*args, **kwargs)  # the stage runs; then the folder is changed
             self._swap(v7, small)
             return result
 
-        monkeypatch.setattr(render_command, after, swapping)
+        monkeypatch.setattr(owner, after, swapping)  # 001.51
         before = sorted(p.name for p in (small / ".kcut").iterdir())
         try:
             code, doc, err = kcut_json("render", "--no-graphics", *project_args(small))

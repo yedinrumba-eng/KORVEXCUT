@@ -6,6 +6,7 @@ by `edl.parse`, which turns schema errors into `E01` issues instead of raising.
 
 import re
 
+from kcut.console import safe_text
 from kcut.edl.model import Edl
 from kcut.edl.parse import parse_edl
 from kcut.errors import ProjectError
@@ -24,8 +25,16 @@ def find_edl(project: Project, rel: str | None) -> tuple[str, int]:
 
     Without `rel`, the `edit/edl-vN.json` with the highest N (names `edl-v([1-9][0-9]{0,3}).json`);
     none is a ProjectError. With `rel`, that file (relative to the project); N comes from its name,
-    which has to follow the same pattern."""
+    which has to follow the same pattern. A path with characters that `safe_text` would escape
+    (invisible or control ones) is a ProjectError: it would reach `inputs.json` raw (001.51).
+    `safe_text` lets `\n` and `\r` through, so those are refused too and the message is one
+    line (001.52)."""
     if rel is not None:
+        if safe_text(rel) != rel or "\n" in rel or "\r" in rel:
+            shown = " ".join(safe_text(rel).split())
+            raise ProjectError(
+                f"la ruta del EDL tiene caracteres invisibles o de control ({shown})"
+            )
         posix = rel.replace("\\", "/")
         resolve_in_project(project.root, posix)  # a path that leaves the project is refused here
         return posix, _version_of(posix)

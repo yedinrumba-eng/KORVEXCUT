@@ -20,7 +20,7 @@ from kcut.errors import ToolError
 from kcut.gfx import capture as gfx_capture
 from kcut.gfx import seek as gfx_seek
 from kcut.gfx.capture import Shooter, capture_stills
-from tests.integration.capture_helpers import decode_png, with_runtime
+from tests.integration.capture_helpers import READY_MARK, decode_png, with_runtime
 from tests.integration.render_small_cases import small, small_base
 from tests.integration.view_frames_helpers import Run, project_args
 
@@ -28,7 +28,7 @@ pytestmark = [pytest.mark.chromium, pytest.mark.slow]
 __all__ = ["small", "small_base"]
 SIZE = (100, 100)
 MESSAGE = "un cuadro de los gráficos tardó más de 2 s en dibujarse; kcut paró la captura"
-STUBS = "window.KC = { register() {} }; window.kcutReady = true;"
+STUBS = "window.KC = { register() {} }; window.kcutReady = true; " + READY_MARK
 LOOP = STUBS + " window.seek = () => { while (true) {} };"
 PROMISE = STUBS + " window.seek = () => new Promise(() => {});"
 HANGS = pytest.mark.parametrize("seek", [LOOP, PROMISE], ids=["loop", "promise"])
@@ -91,13 +91,16 @@ def test_frame_timeout_the_message_names_the_limit_that_is_set(
 def test_frame_timeout_a_frame_that_takes_a_while_but_ends_is_not_cut(
     tmp_path: Path, two_seconds: None, seek: str
 ) -> None:
-    script = f"window.kcutReady = true; window.seek = {seek};"
+    script = f"window.kcutReady = true; {READY_MARK} window.seek = {seek};"
     found = capture_stills(_page(script), tmp_path, [0, 1], 30, SIZE, tmp_path / "out", None)
     assert sorted(found) == [0, 1] and decode_png(found[0]).shape == (100, 100, 4)
 
 
 def test_frame_timeout_a_seek_that_throws_still_says_what_it_said(tmp_path: Path) -> None:
-    script = 'window.kcutReady = true; window.seek = () => { throw new Error("tarde"); };'
+    script = (
+        f"window.kcutReady = true; {READY_MARK}"
+        ' window.seek = () => { throw new Error("tarde"); };'
+    )
     with pytest.raises(ToolError) as info:
         capture_stills(_page(script), tmp_path, [0], 30, SIZE, tmp_path / "out", None)
     assert "tarde" in info.value.message_es and "tardó más de" not in info.value.message_es
@@ -170,7 +173,7 @@ def _shooter_with(cdp: object) -> Shooter:
 def test_frame_timeout_label_a_seek_that_returns_something_big_is_captured(
     tmp_path: Path, returned: str
 ) -> None:
-    script = f"window.kcutReady = true; window.seek = () => {returned};"
+    script = f"window.kcutReady = true; {READY_MARK} window.seek = () => {returned};"
     found = capture_stills(_page(script), tmp_path, [0, 1], 30, SIZE, tmp_path / "out", None)
     assert sorted(found) == [0, 1] and decode_png(found[1]).shape == (100, 100, 4)
 

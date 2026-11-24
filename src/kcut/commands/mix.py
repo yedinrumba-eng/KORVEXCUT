@@ -11,41 +11,32 @@ the loudness of the voice and of the mix is measured with `ebur128`. It does not
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from pathlib import Path
 
 from kcut import proc
 from kcut.audio.loudnorm import EburMeasure, audio_timeout_s, ebur128_args, parse_ebur128
-from kcut.audio.mixer import STEPS, AudioPlan, mix
-from kcut.audio.music_model import NO_MUSIC
-from kcut.audio.music_schema import parse_music
-from kcut.audio.sfx_events import resolve_events
-from kcut.audio.sfx_schema import parse_sfx
 from kcut.audio.voice_track import require_mix_space
 from kcut.commands.listing import findings_json, list_findings
-from kcut.console import Out, Progress
+from kcut.console import Out
 from kcut.edl.check import check_edl_file
 from kcut.edl.files import find_edl
-from kcut.edl.kept import KeptWords, kept_words
-from kcut.edl.model import Edl
+from kcut.edl.kept import kept_words
 from kcut.edl.refuse import refuse_edl
 from kcut.ingest.cache_guard import assert_in_cache, build_folder
 from kcut.ingest.inventory import Notice
 from kcut.ingest.partials import sweep_orphan_partials
 from kcut.issues import Issue, exit_code, issue_json
-from kcut.jsonio import MAX_MUSIC_BYTES, MAX_SFX_BYTES, read_json
 from kcut.logfile import append_log
-from kcut.paths import resolve_in_project, to_rel
-from kcut.project import Project, load_inventory, open_project
+from kcut.paths import to_rel
+from kcut.pipeline.audio import make_mix, read_plan  # 001.51: shared with `build`
+from kcut.project import load_inventory, open_project
 from kcut.render.lock import OutputLock
 from kcut.timebase import SAMPLE_RATE
 from kcut.timebase import spf as samples_per_frame
 
 NAME = "mix"
 HELP_ES = "Mezcla la voz, los efectos y la música del corte a un nivel de entrega (mix.wav)"
-SFX_REL = "edit/sfx.json"
-MUSIC_REL = "edit/music.json"
 _F32 = ["-f", "f32le", "-ar", "48000", "-ac", "1"]
 
 
@@ -80,7 +71,7 @@ def run(args: argparse.Namespace) -> int:
             refuse_edl(out, rel, errors)
         edl = checked.edl
         kept = kept_words(project, edl, inventory, notices=notices, log=log)
-        plan, issues = _plan(project, edl, kept)
+        plan, issues = read_plan(project, edl, kept)
         if any(issue.level == "error" for issue in issues):
             _warn_notices(out, notices)  # 001.37, point 12: before it stops, not lost
             return _refused(out, issues)
@@ -90,12 +81,7 @@ def run(args: argparse.Namespace) -> int:
         if swept and log is not None:
             append_log(log, f"[orphan_partials] {swept} archivos parciales huérfanos borrados\n")
         require_mix_space(folder, edl)  # a full disk is told now, not after minutes (001.37, 4)
-        progress = Progress(f"mix v{version}", STEPS, "pasos")
-        wav = mix(
-            project, edl, version, progress,
-            plan=plan, inventory=inventory, log=log, issues=issues, notices=notices,
-        )  # fmt: skip
-        progress.close()
+        wav = make_mix(project, edl, version, plan, issues, inventory, notices, log)
         samples = edl.frames * samples_per_frame(edl.fps)
         timeout = audio_timeout_s(samples / SAMPLE_RATE)  # as `normalize` (001.37, point 3)
         voice = _measure(folder / "voice.f32", True, log, timeout)
@@ -120,39 +106,6 @@ def run(args: argparse.Namespace) -> int:
         }
     )
     return 0
-
-
-def _plan(project: Project, edl: Edl, kept: KeptWords) -> tuple[AudioPlan, list[Issue]]:
-    """`sfx.json` and `music.json` read, checked against the EDL and resolved, and the issues of
-    both (A01-A08, M01-M05). A file that is not there is nothing to check: no effects, no music."""
-    issues: list[Issue] = []
-    plan = AudioPlan()
-    sfx = _read_optional(project, SFX_REL, MAX_SFX_BYTES)
-    if sfx is not None:
-        doc, found = parse_sfx(sfx[0])
-        issues += found
-        if doc is not None:
-            events, found = resolve_events(doc, kept.words, edl, edl.fps)
-            issues += found
-            windows = tuple((w.start, w.end, w.gain_db) for w in doc.windows)
-            plan = AudioPlan(tuple(events), doc.bus_gain_db, windows, NO_MUSIC)
-    music = _read_optional(project, MUSIC_REL, MAX_MUSIC_BYTES)
-    if music is not None:
-        music_doc, found = parse_music(music[0], project, edl.frames)
-        issues += found
-        if music_doc is not None:
-            plan = AudioPlan(plan.events, plan.bus_gain_db, plan.sfx_windows, music_doc)
-    return plan, issues
-
-
-def _read_optional(project: Project, rel: str, cap: int) -> tuple[object] | None:
-    """The JSON of `rel` (as the only item of a tuple, since the JSON may be `null`), or `None` if
-    the file is not there. One that is there and cannot be read (size over `cap`, not JSON) is a
-    ProjectError, exit 3."""
-    path = resolve_in_project(project.root, rel)
-    if not os.path.lexists(path):
-        return None
-    return (read_json(path, cap),)
 
 
 def _measure(source: Path, raw: bool, log: Path | None, timeout: float) -> EburMeasure:

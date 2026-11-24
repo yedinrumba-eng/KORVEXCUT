@@ -27,6 +27,7 @@ _SEEK = (
     "() => { clearTimeout(id); resolve(); }, (e) => { clearTimeout(id); reject(e); });"
     " }); })()"
 )
+READY_SELECTOR = "html[data-kcut-ready]"  # `runtime.js` sets it with `window.kcutReady`
 _TERMINATED_AFTER = 0.9  # a protocol error after this much of the limit is the end of the script
 
 
@@ -66,3 +67,22 @@ def evaluate_seek(cdp: Any, t: float, timeout_s: float, error: type[Exception]) 
         raise FrameTimeout
     text = str(details.get("text", "")).strip() if isinstance(details, dict) else ""
     raise SeekError(text.splitlines()[0] if text else "la página falló en el seek")
+
+
+def wait_ready(page: Any, timeout_ms: int, error: type[Exception]) -> None:
+    """Wait until the page marks itself ready (`<html data-kcut-ready>`, set by `runtime.js` next to
+    `window.kcutReady = true`); `error` (the base class of the errors of Playwright) with `la
+    página no quedó lista en <N> ms` if `timeout_ms` pass.
+
+    `page.wait_for_selector` and not a poll with `page.evaluate` (001.52): Playwright runs the
+    selector in its own world, which the CSP of the page does not block, and the limit is kept by
+    Playwright and not by the page. A page that blocks its thread between the `load` and the end of
+    its fonts left `page.evaluate` waiting for ever, with the lock `build-vN` taken. Nor
+    `page.wait_for_function`: its retries run an `eval`, which that CSP (no `unsafe-eval`) refuses
+    (001.51)."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    try:
+        page.wait_for_selector(READY_SELECTOR, state="attached", timeout=timeout_ms)
+    except PlaywrightTimeout:
+        raise error(f"la página no quedó lista en {timeout_ms} ms") from None

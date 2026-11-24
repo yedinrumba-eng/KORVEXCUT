@@ -25,7 +25,7 @@ import pytest
 
 from kcut import proc
 from kcut.audio import f32write, mixer
-from kcut.commands import render as render_command
+from kcut.pipeline import picture  # 001.51: the picture steps live here now
 from tests.fixtures.links import make_dir_link, remove_dir_link
 from tests.integration.mix_helpers import BUILD, audio_project
 from tests.integration.render_small_cases import small, small_base
@@ -183,7 +183,7 @@ def test_replace_guard_render_a_folder_changed_after_the_step_is_exit_3_and_move
         _junction(folder, lead)
 
     if step == "picture":
-        real = render_command.compose_video
+        real = picture.compose_video  # 001.51: it was `render_command.compose_video`
         done: list[int] = []
 
         def composed(*args: Any, **kwargs: Any) -> Any:
@@ -192,7 +192,7 @@ def test_replace_guard_render_a_folder_changed_after_the_step_is_exit_3_and_move
             swap()
             return result
 
-        monkeypatch.setattr(render_command, "compose_video", composed)
+        monkeypatch.setattr(picture, "compose_video", composed)  # 001.51
     elif step == "voice":
         done = _after_blocks(monkeypatch, folder, partial_name, swap)
     else:

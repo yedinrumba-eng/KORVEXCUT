@@ -11,7 +11,7 @@ import pytest
 from kcut.errors import ToolError
 from kcut.gfx import capture as gfx_capture
 from kcut.gfx.capture import Shooter, capture_stills
-from tests.integration.capture_helpers import page_with
+from tests.integration.capture_helpers import READY_MARK, page_with
 
 pytestmark = [pytest.mark.chromium, pytest.mark.slow]
 SIZE = (100, 100)
@@ -77,7 +77,9 @@ def test_capture_errors_a_page_that_fails_after_the_first_frame_stops_there(
     tmp_path: Path,
 ) -> None:
     page = (
-        "<!doctype html><html><body><script>window.kcutReady = true; window.seek = (t) => { "
+        "<!doctype html><html><body><script>window.kcutReady = true; "
+        + READY_MARK
+        + " window.seek = (t) => { "
         'if (t >= 1) throw new Error("tarde"); return true; };</script></body></html>'
     )
     with pytest.raises(ToolError) as info:

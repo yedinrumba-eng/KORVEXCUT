@@ -20,6 +20,7 @@ from kcut.errors import ToolError
 from kcut.gfx.capture import capture_stills
 from kcut.gfx.page import build_page
 from tests.integration.capture_helpers import (
+    READY_MARK,
     H,
     W,
     counting_server,
@@ -31,7 +32,11 @@ from tests.integration.capture_helpers import (
 
 pytestmark = [pytest.mark.chromium, pytest.mark.slow]
 SIZE = (100, 100)
-STUBS = "window.KC = { register() {} }; window.kcutReady = true; window.seek = () => true;"
+STUBS = (
+    "window.KC = { register() {} }; window.kcutReady = true; "
+    + READY_MARK
+    + " window.seek = () => true;"
+)
 
 
 def _plant_png(folder: Path) -> Path:

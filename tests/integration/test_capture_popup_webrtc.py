@@ -19,11 +19,18 @@ import pytest
 from kcut.errors import ToolError
 from kcut.gfx.capture import capture_stills, launch_options
 from kcut.gfx.page import build_page
-from tests.integration.capture_helpers import H, W, counting_server, sample_data, with_runtime
+from tests.integration.capture_helpers import (
+    READY_MARK,
+    H,
+    W,
+    counting_server,
+    sample_data,
+    with_runtime,
+)
 
 pytestmark = [pytest.mark.chromium, pytest.mark.slow]
 WEBRTC_FLAG = "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"
-READY = "window.KC = { register() {} }; window.kcutReady = true;"
+READY = "window.KC = { register() {} }; window.kcutReady = true; " + READY_MARK
 
 
 def _waiting(ms: int) -> str:

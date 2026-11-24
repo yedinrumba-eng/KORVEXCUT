@@ -32,7 +32,7 @@ from kcut.errors import MissingDependency, ProjectError, ToolError
 from kcut.gfx import capture as gfx_capture
 from kcut.gfx.capture import OnShot
 from kcut.gfx.layer import GFX_DIR, folder_guard, page_for
-from kcut.gfx.resolve import ResolvedGraphics, resolve
+from kcut.gfx.resolve import GRAPHICS_REL, ResolvedGraphics, resolve
 from kcut.gfx.still import STILLS_WORK, compose, decode_layer
 from kcut.ingest.cache_guard import build_folder
 from kcut.ingest.inventory import Inventory, Notice
@@ -51,10 +51,18 @@ PROXY_ES = (
     "no se pudo armar un frame desde el proxy: "
     "la hoja de contacto no se escribió; corre kcut ingest"
 )
-GRAPHICS_ES = (
-    "edit/graphics.json no se puede leer; la hoja de contacto no se escribió; "
-    "corre kcut graphics check"
-)
+
+
+def graphics_es(graphics_rel: str) -> str:
+    """The fixed warning for a graphics document that cannot be read: it names the document that
+    was really read (001.52). `graphics_rel` is built by kcut from the version, never typed."""
+    return (
+        f"{graphics_rel} no se puede leer; la hoja de contacto no se escribió; "
+        "corre kcut graphics check"
+    )
+
+
+GRAPHICS_ES = graphics_es(GRAPHICS_REL)  # the default document
 
 
 class SheetSkipped(Exception):
@@ -76,20 +84,22 @@ def contact_sheet(
     size: tuple[int, int],
     notices: list[Notice],
     log: Path | None,
+    graphics_rel: str = GRAPHICS_REL,
 ) -> bytes | None:
     """The JPEG of the sheet of `video` (which has `frames` and is `size` = `(width, height)`), or
     `None` if a cell could not be made (then `notices` has `contact_skipped`).
 
     With `privacy.mask_pii = false`: the frames of the video, and `pii_unmasked`. Otherwise: no
     frame of the video (see the module). The sheet has a place for each 2 s of the video, or of
-    the EDL if that is shorter: the proxy has nothing past the cut."""
+    the EDL if that is shorter: the proxy has nothing past the cut. `graphics_rel` is the document
+    of the graphics: the snapshot's when the EDL is the one of the build (001.51)."""
     if not project.config.privacy.mask_pii:
         notices.append(Notice("pii_unmasked", UNMASKED))
         return contact_jpeg(video, frames, edl.fps, size, log)
     length = min(frames, edl.frames)
     cells = masked_cells(
         project, edl, version, inventory, contact_frames(length, edl.fps), cell_size(*size),
-        notices, log,
+        notices, log, graphics_rel,
     )  # fmt: skip
     try:
         return cells_jpeg(cells, length, edl.fps, size)
@@ -107,15 +117,18 @@ def masked_cells(
     cell: tuple[int, int],
     notices: list[Notice],
     log: Path | None,
+    graphics_rel: str = GRAPHICS_REL,
 ) -> Iterator[Image.Image]:
     """The cell of each frame of `sheet_frames`, in order, one at a time: the frame from the proxy,
     with the masked page of the graphics over it where there are graphics. A folder of the cache
     that is a link is a ProjectError (exit 3), as everywhere that kcut writes in `.kcut/`; a cell
     that cannot be made is `SheetSkipped`."""
     try:
-        resolved = resolve(project, edl, version, inventory=inventory, log=log)
+        resolved = resolve(
+            project, edl, version, inventory=inventory, log=log, graphics_rel=graphics_rel
+        )
     except ProjectError:  # the file cannot be read; what it says is not repeated
-        raise SheetSkipped(GRAPHICS_ES) from None
+        raise SheetSkipped(graphics_es(graphics_rel)) from None
     notices.extend(resolved.notices)
     live = set(gfx_capture.active_frames(resolved))
     ctx = fx_context(project, edl)

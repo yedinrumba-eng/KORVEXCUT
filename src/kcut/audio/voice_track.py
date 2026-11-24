@@ -103,6 +103,26 @@ def require_mix_space(folder: Path, edl: Edl) -> None:
         )
 
 
+def require_build_space(folder: Path, edl: Edl, *, layer_bytes: int = 0) -> None:
+    """ProjectError, which says how many bytes are missing, unless the disk of `folder` has room
+    for everything `kcut build` is going to write: the mix of `edl` (`MIX_BYTES_PER_SAMPLE` for each
+    sample of the cut; the voice of the cut is one of its seven files, so it is not counted twice),
+    the graphics layer that is going to be captured (`layer_bytes`, 0 if there is none) and
+    `SPARE_BYTES` once (001.52). One look and one GiB of margin, not one for each file. The
+    figures go before the path (001.30, point 4)."""
+    needed = edl.frames * samples_per_frame(edl.fps) * MIX_BYTES_PER_SAMPLE + layer_bytes
+    needed += SPARE_BYTES
+    free = shutil.disk_usage(folder).free
+    if free < needed:
+        asks = "la mezcla, la capa de gráficos y 1 GiB libre"
+        if layer_bytes <= 0:
+            asks = "la mezcla y 1 GiB libre"
+        raise ProjectError(
+            f"no hay espacio en el disco: faltan {needed - free} bytes ({asks} piden {needed}, "
+            f"hay {free}) en {folder}"
+        )
+
+
 def write_voice(
     project: Project,
     edl: Edl,

@@ -32,7 +32,7 @@ from kcut.gfx.capture_net import only_local as _only_local
 from kcut.gfx.capture_png import max_alpha, write_png
 from kcut.gfx.capture_pw import clean, playwright_error, short
 from kcut.gfx.resolve import ResolvedGraphics
-from kcut.gfx.seek import FrameTimeout, SeekError, evaluate_seek
+from kcut.gfx.seek import FrameTimeout, SeekError, evaluate_seek, wait_ready
 from kcut.jsonio import write_text_atomic
 
 if TYPE_CHECKING:  # Playwright is imported where it is used: `kcut doctor` has to start without it
@@ -240,7 +240,7 @@ class Shooter:
         self._page = page
         try:
             page.goto(page_file.as_uri())
-            page.wait_for_function("window.kcutReady === true", timeout=READY_TIMEOUT_MS)
+            wait_ready(page, READY_TIMEOUT_MS, self._playwright_error)  # 001.51: no eval
             self._cdp = page.context.new_cdp_session(page)
             self._cdp.send(
                 "Emulation.setDefaultBackgroundColorOverride",

@@ -11,37 +11,29 @@ from __future__ import annotations
 
 import argparse
 import time
-from collections.abc import Callable
 from pathlib import Path
 
-from kcut import proc
 from kcut.audio.voice_track import require_disk_space, write_voice
-from kcut.console import Out, Progress
+from kcut.console import Out
 from kcut.edl.check import check_edl_file
 from kcut.edl.files import find_edl
 from kcut.edl.gate import strategy_approved
-from kcut.edl.model import Edl
 from kcut.edl.refuse import refuse_edl
 from kcut.errors import GateError
-from kcut.gfx.layer import Layer, ensure_layer, folder_guard, layer_bytes, raise_for_errors
-from kcut.gfx.overlay import OverlaySource
-from kcut.gfx.resolve import ResolvedGraphics, resolve
+from kcut.gfx.layer import layer_bytes
 from kcut.ingest import workfiles
 from kcut.ingest.cache_guard import build_folder
-from kcut.ingest.inventory import Inventory, Notice
+from kcut.ingest.inventory import Notice
 from kcut.ingest.partials import sweep_orphan_partials
 from kcut.jsonio import refuse_directory
 from kcut.logfile import append_log
 from kcut.paths import to_rel
-from kcut.pipeline.mux import mux_args
+from kcut.pipeline.picture import looks, make_video, mux_replace, resolve_graphics  # 001.51
 from kcut.project import Project, load_inventory, open_project
-from kcut.render.compose import compose_video
-from kcut.render.lock import OutputLock, atomic_replace, discard_partial, prepare_partial
-from kcut.render.mezz import MezzIndex, ensure_mezz, plan_mezz
+from kcut.render.lock import OutputLock
 
 NAME = "render"
 HELP_ES = "Renderiza el corte (cámaras, looks, pantalla) con la voz cruda, para revisarlo"
-_MUX_TIMEOUT_S = 600.0
 # what the render writes in `.kcut/build/vN/`, and the partial files it writes them through
 _DESTINATIONS = (
     "video.mp4",
@@ -99,25 +91,15 @@ def run(args: argparse.Namespace) -> int:
             append_log(log, f"[orphan_partials] {swept} archivos parciales huérfanos borrados\n")
         resolved = None
         if not args.no_graphics:
-            resolved = _graphics(out, project, edl, version, inventory, log)
+            resolved = resolve_graphics(out, project, edl, version, inventory, log)
         # the voice, and the layer of graphics if there is one to capture (001.31, point 5)
         need = 0 if resolved is None else layer_bytes(project, resolved, folder, force=False)
         require_disk_space(folder, edl, layer_bytes=need)
-        layer = None if resolved is None else _layer(project, resolved, folder, version, notices)
-        index = _mezzanines(project, edl, inventory, version, log, notices)
-        video, raw, render = folder / "video.mp4", folder / "voice_raw.f32", folder / "render.mp4"
-        overlay = None
-        if layer is not None:  # each PNG is read minutes from now: its folders are looked at then
-            gfx = layer.index_path.parent
-            guard = folder_guard(project, folder, gfx)  # the whole check, once (001.35, point 6)
-            watch = (project.layout.cache, project.layout.build, folder, gfx)  # their identities
-            overlay = OverlaySource(
-                layer.index_path, edl.out_w, edl.out_h, guard=guard, watch=watch
-            )
-        frames = _picture(project, edl, inventory, index, video, version, log, overlay)
+        video, frames, index = make_video(project, edl, version, resolved, inventory, notices, log)
+        raw, render = folder / "voice_raw.f32", folder / "render.mp4"
         build_folder(project, version)  # looked at again before each write (001.27, point 4)
         workfiles._assert_in_cache(project, raw)
-        write_voice(project, edl, inventory, raw, log, guard=_looks(project, version, raw))
+        write_voice(project, edl, inventory, raw, log, guard=looks(project, version, raw))
         _mux(project, video, raw, render, version, log)
     for item in notices:
         out.warn(f"{item.code}: {item.detail}")
@@ -137,85 +119,6 @@ def run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _graphics(
-    out: Out,
-    project: Project,
-    edl: Edl,
-    version: int,
-    inventory: Inventory,
-    log: Path | None,
-) -> ResolvedGraphics:
-    """What is drawn over the picture: `edit/graphics.json`, or the implicit document if it is
-    not there (subtitles from the transcript, 001.15 point 40). Errors in it are exit 1 (5 for a
-    G10) before anything is rendered; its warnings are printed."""
-    resolved = resolve(project, edl, version, inventory=inventory, log=log)
-    raise_for_errors(out, resolved)
-    for issue in resolved.issues:
-        where = f" {issue.path}" if issue.path else ""
-        out.warn(f"{issue.code}{where}: {issue.message_es}")
-    return resolved
-
-
-def _layer(
-    project: Project,
-    resolved: ResolvedGraphics,
-    folder: Path,
-    version: int,
-    notices: list[Notice],
-) -> Layer | None:
-    """The PNGs of the graphics: captured with Chromium, or those of the cache if the page did not
-    change. `None` if there is nothing to draw (Chromium is not started then)."""
-    notices.extend(resolved.notices)
-    build_folder(project, version)  # looked at again before the first write (001.27, point 4)
-    return ensure_layer(project, resolved, folder, force=False, notices=notices)
-
-
-def _mezzanines(
-    project: Project,
-    edl: Edl,
-    inventory: Inventory,
-    version: int,
-    log: Path | None,
-    notices: list[Notice],
-) -> MezzIndex:
-    """Plan and make the mezzanines, with their own progress line."""
-    jobs = plan_mezz(edl, inventory, project.config)
-    progress = Progress(f"mezzanines v{version}", len(jobs), "rangos")
-    index = ensure_mezz(project, jobs, progress, inv=inventory, log=log, notices=notices)
-    progress.close()
-    return index
-
-
-def _picture(
-    project: Project,
-    edl: Edl,
-    inventory: Inventory,
-    index: MezzIndex,
-    video: Path,
-    version: int,
-    log: Path | None,
-    overlay: OverlaySource | None = None,
-) -> int:
-    """The picture to `video.partial.mp4` and then to `video.mp4`, with the graphics over it if
-    there is an `overlay`; the partial is never left."""
-    build_folder(project, version)  # looked at again before the first write (001.27, point 4)
-    partial = video.with_name("video.partial.mp4")
-    for path in (partial, video):
-        workfiles._assert_in_cache(project, path)
-    refuse_directory(video)  # a folder there is told now, not after the frames are made
-    progress = Progress(f"render v{version}", edl.frames, "frames")
-    look = _looks(project, version, partial, video)
-    try:
-        prepare_partial(partial)
-        frames = compose_video(project, edl, inventory, index, partial, overlay, progress, log=log)
-        progress.close()
-        look()  # 001.38, point 2: the frames took minutes; again right before the move
-        atomic_replace(partial, video)
-    finally:
-        discard_partial(partial, look)
-    return frames
-
-
 def _mux(
     project: Project, video: Path, raw: Path, render: Path, version: int, log: Path | None
 ) -> None:
@@ -225,25 +128,5 @@ def _mux(
     for path in (partial, render):
         workfiles._assert_in_cache(project, path)
     refuse_directory(render)
-    look = _looks(project, version, partial, render)
-    try:
-        prepare_partial(partial)
-        args = mux_args(proc.tool_path("ffmpeg"), video, raw, partial, audio_f32=True)
-        proc.run(args, log=log, timeout_s=_MUX_TIMEOUT_S)
-        look()  # 001.38, point 2: again right before the move, after the ffmpeg
-        atomic_replace(partial, render)
-    finally:
-        discard_partial(partial, look)
-
-
-def _looks(project: Project, version: int, *paths: Path) -> Callable[[], None]:
-    """The check of `build/vN` and of each of `paths`, as something to call later (001.38, point
-    2): the render takes minutes, and the folder can be changed for a link meanwhile. It is called
-    right before a partial file is moved over its final name and right before it is deleted."""
-
-    def look() -> None:
-        build_folder(project, version)
-        for path in paths:
-            workfiles._assert_in_cache(project, path)
-
-    return look
+    look = looks(project, version, partial, render)
+    mux_replace(video, raw, partial, render, audio_f32=True, look=look, log=log)

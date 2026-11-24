@@ -55,6 +55,7 @@ pytestmark = [pytest.mark.ffmpeg, pytest.mark.slow]
 RAW = ("972", "808", "3211")
 TEXT_SUFFIXES = {".json", ".html", ".txt", ".log", ".md", ".toml", ".tsv"}
 WRITTEN_UNDER = ("qa/v1/", ".kcut/build/v1/gfx/", ".kcut/qa_ear/", ".kcut/logs/")
+BUILD_LOCK = ".kcut/locks/build-v1.lock"  # 001.51: `kcut qa` takes the lock of the build
 
 
 def _snapshot(root: Path) -> dict[str, tuple[int, int]]:
@@ -171,7 +172,9 @@ def test_qa_contact_masked_the_report_has_the_sheet_and_no_warning(made: Made) -
 
 
 def test_qa_contact_masked_nothing_is_written_outside_the_folders_of_the_run(made: Made) -> None:
-    outside = [rel for rel in made.changed if not rel.startswith(WRITTEN_UNDER)]
+    outside = [
+        rel for rel in made.changed if not rel.startswith(WRITTEN_UNDER) and rel != BUILD_LOCK
+    ]  # 001.51: only that one file of `.kcut/locks/`, nothing else
     assert outside == [], outside
     for rel in made.changed:
         path = made.root / rel

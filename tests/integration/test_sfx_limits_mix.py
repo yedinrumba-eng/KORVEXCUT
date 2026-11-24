@@ -46,7 +46,7 @@ def test_sfx_limits_mix_a_sfx_json_of_1_mib_and_a_byte_is_exit_3_and_is_not_pars
     def refuse(*_a: Any, **_k: Any) -> None:
         pytest.fail("parse_sfx ran on a file over the cap")
 
-    monkeypatch.setattr("kcut.commands.mix.parse_sfx", refuse)
+    monkeypatch.setattr("kcut.pipeline.audio.parse_sfx", refuse)  # 001.51: it was commands.mix
     code, doc, err = kcut_json("mix", *project_args(root))
     assert code == 3 and doc["error"]["kind"] == "ProjectError", (doc, err)
     assert "pesa más de 1 MB" in doc["error"]["message"] and "events" not in doc["error"]["message"]

@@ -36,6 +36,9 @@ HOSTILE = [
 ]
 WORDS = 36_100
 
+# 001.51: coverage tracing slows pure Python; pytest-cov pauses it while these tests run
+pytestmark = pytest.mark.no_cover
+
 
 def _transcript(texts: list[str], count: int = WORDS) -> list[Word]:
     return [
