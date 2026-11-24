@@ -13,14 +13,15 @@ that give the same samples as one (001.25, point 5).
 """
 
 import shutil
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
 
-from kcut.audio.wavio import read_wav_range, write_f32_blocks
+from kcut.audio.f32write import write_f32_blocks
+from kcut.audio.wavio import read_wav_range
 from kcut.edl.model import Edl, VoiceClip
 from kcut.errors import CheckFailed, ProjectError
 from kcut.ingest import workfiles
@@ -110,10 +111,12 @@ def write_voice(
     log: Path | None,
     *,
     block_samples: int = BLOCK_SAMPLES,
+    guard: Callable[[], None] | None = None,
 ) -> None:
     """Write the voice track of `edl` to `dst` as raw float32 (`write_f32_blocks`: through a
-    partial file and `os.replace`), one block of at most `block_samples` samples at a time."""
-    write_f32_blocks(dst, voice_blocks(project, edl, inv, log, block_samples))
+    partial file and `os.replace`), one block of at most `block_samples` samples at a time.
+    `guard` looks at the folder again right before the move and the delete (001.38, point 2)."""
+    write_f32_blocks(dst, voice_blocks(project, edl, inv, log, block_samples), guard=guard)
 
 
 def voice_blocks(

@@ -26,8 +26,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from kcut import proc
+from kcut.audio.f32write import write_f32
 from kcut.audio.gain import apply_gain_windows
-from kcut.audio.loudnorm import normalize
+from kcut.audio.loudnorm import audio_timeout_s, normalize
 from kcut.audio.mix_graph import build_graph
 from kcut.audio.music_file import load_music_file
 from kcut.audio.music_model import NO_MUSIC, MusicDoc
@@ -35,7 +36,7 @@ from kcut.audio.music_synth import synth_music
 from kcut.audio.sfx_bus import build_sfx_bus
 from kcut.audio.sfx_events import SfxEvent
 from kcut.audio.voice_track import write_voice
-from kcut.audio.wavio import read_f32, write_f32, write_wav_s16_mono
+from kcut.audio.wavio import read_f32, write_wav_s16_mono
 from kcut.config.model import VoiceChain
 from kcut.console import Progress
 from kcut.edl.model import Edl
@@ -62,8 +63,6 @@ FILES = (
 )  # fmt: skip
 _F32_IN = ["-f", "f32le", "-ar", str(SAMPLE_RATE), "-ac", "1"]
 _F32_OUT = ["-f", "f32le", "-ar", str(SAMPLE_RATE), "-ac", "1"]
-_TIMEOUT_FLOOR_S = 60.0
-_TIMEOUT_PER_AUDIO_S = 10.0
 
 
 @dataclass(frozen=True)
@@ -154,7 +153,7 @@ def _mix(
         assert_in_cache(project, target)
         refuse_directory(target)
     ffmpeg = proc.tool_path("ffmpeg")
-    timeout = _TIMEOUT_PER_AUDIO_S * total / SAMPLE_RATE + _TIMEOUT_FLOOR_S
+    timeout = audio_timeout_s(total / SAMPLE_RATE)  # one formula for every ffmpeg on audio (001.38)
     music = plan.music
     has_music = music.mode != "none"
 
@@ -163,7 +162,10 @@ def _mix(
         _fit(project, dst, total, spf)
 
     _look_again(project, path["voice_raw.f32"])
-    write_voice(project, edl, inventory, path["voice_raw.f32"], log)
+    write_voice(
+        project, edl, inventory, path["voice_raw.f32"], log,
+        guard=_guard(project, path["voice_raw.f32"]),
+    )  # fmt: skip
     progress.update(1)
     chain = voice_chain(audio.voice)
     make(path["voice_chain.f32"], lambda out: chain_args(ffmpeg, path["voice_raw.f32"], out, chain))
@@ -176,11 +178,11 @@ def _mix(
     if has_music:
         track = _music_track(project, plan, edl, log, issues)
         _look_again(project, path["music.f32"])  # after the synthesis, right before the write
-        write_f32(path["music.f32"], track)
+        write_f32(path["music.f32"], track, guard=_guard(project, path["music.f32"]))
     progress.update(3)
     bus = _sfx_track(plan, total, spf)
     _look_again(project, path["sfx.f32"])
-    write_f32(path["sfx.f32"], bus)
+    write_f32(path["sfx.f32"], bus, guard=_guard(project, path["sfx.f32"]))
     progress.update(4)
     graph, _ = build_graph(has_music, music.duck.enabled, music.duck)
     sources = [path["voice.f32"], *([path["music.f32"]] if has_music else []), path["sfx.f32"]]
@@ -206,6 +208,16 @@ def _look_again(project: Project, target: Path) -> None:
     assert_in_cache(project, target)
 
 
+def _guard(project: Project, target: Path) -> Callable[[], None]:
+    """`_look_again` on `target`, as something to call later (001.38, point 2): what `write_f32`
+    and `discard_partial` call right before they move or delete a partial file."""
+
+    def look() -> None:
+        _look_again(project, target)
+
+    return look
+
+
 def _through_partial(
     project: Project, dst: Path, args_for: ArgsFor, log: Path | None, timeout: float
 ) -> None:
@@ -215,9 +227,10 @@ def _through_partial(
     prepare_partial(partial)
     try:
         proc.run(args_for(partial), log=log, timeout_s=timeout)
+        _look_again(project, partial)  # 001.38, point 2: right before the move, after the ffmpeg
         atomic_replace(partial, dst)
     finally:
-        discard_partial(partial)
+        discard_partial(partial, _guard(project, partial))
 
 
 def _fit(project: Project, path: Path, total: int, spf: int) -> None:
@@ -236,7 +249,7 @@ def _fit(project: Project, path: Path, total: int, spf: int) -> None:
     kept = min(len(samples), total)
     fixed[:kept] = samples[:kept]
     _look_again(project, path)
-    write_f32(path, fixed)
+    write_f32(path, fixed, guard=_guard(project, path))
 
 
 def _db(x: Track, gain_db: float) -> Track:
@@ -276,8 +289,9 @@ def _to_wav(project: Project, source: Path, wav: Path) -> None:
     prepare_partial(partial)
     try:
         write_wav_s16_mono(partial, samples, SAMPLE_RATE)
+        _look_again(project, partial)  # 001.38, point 2: right before the move
         atomic_replace(partial, wav)
     except OSError as exc:
         raise ProjectError(f"no pude escribir la mezcla: {exc.strerror}") from None
     finally:
-        discard_partial(partial)
+        discard_partial(partial, _guard(project, partial))

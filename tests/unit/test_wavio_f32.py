@@ -9,7 +9,8 @@ from typing import Any
 import numpy as np
 import pytest
 
-from kcut.audio.wavio import read_f32, write_f32, write_f32_blocks
+from kcut.audio.f32write import write_f32, write_f32_blocks
+from kcut.audio.wavio import read_f32
 from kcut.errors import ProjectError
 from tests.unit.voice_nopath_cases import *  # noqa: F403  (001.27: test_voice_track.py is at 300)
 from tests.unit.wavio_nopath_cases import *  # noqa: F403  (001.28: 300-line rule)

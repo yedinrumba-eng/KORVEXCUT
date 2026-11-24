@@ -39,14 +39,14 @@ class TestFilterChecks:
         monkeypatch.setattr(proc, "run", FakeFfmpeg())
         required, optional = checks.check_filters()
         assert (required.id, required.required, required.ok) == ("filters", True, True)
-        assert required.detail == "22/22"
+        assert required.detail == "23/23"  # 001.38: `apad` joined the 22 required filters
         assert required.fix_es is None
         assert (optional.id, optional.required, optional.ok) == ("filters_optional", False, True)
         assert optional.detail == "2/2"
 
-    def test_required_list_has_22_filters(self) -> None:
-        assert len(checks.REQUIRED_FILTERS) == 22
-        assert len(set(checks.REQUIRED_FILTERS)) == 22
+    def test_required_list_has_23_filters(self) -> None:  # 001.38: was ..._has_22_filters
+        assert len(checks.REQUIRED_FILTERS) == 23  # 001.38: was 22, `apad` joined the list
+        assert len(set(checks.REQUIRED_FILTERS)) == 23  # 001.38: was 22
 
     def test_missing_required_filter_is_detected(
         self, monkeypatch: pytest.MonkeyPatch, fake_tools: None
@@ -55,7 +55,7 @@ class TestFilterChecks:
         monkeypatch.setattr(proc, "run", FakeFfmpeg(filters=(*present, "flite")))
         required, optional = checks.check_filters()
         assert required.ok is False
-        assert required.detail == "20/22 faltan: zscale, vibrance"
+        assert required.detail == "21/23 faltan: zscale, vibrance"  # 001.38: was 20/22
         assert required.fix_es == "usa el build full de gyan.dev"
         assert optional.ok is False
         assert optional.required is False

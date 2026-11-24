@@ -29,6 +29,7 @@ REQUIRED_FILTERS = (
     "acompressor",
     "highpass",
     "asplit",
+    "apad",
     "anullsink",
     "amix",
     "aresample",

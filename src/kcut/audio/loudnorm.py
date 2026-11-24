@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kcut import proc
-from kcut.errors import ProjectError, ToolError
+from kcut.errors import CheckFailed, ProjectError, ToolError
 from kcut.ff.args import fnum
 from kcut.ingest.cache_guard import assert_in_cache, assert_own_folder
 from kcut.ingest.inventory import Notice
@@ -36,6 +36,19 @@ _LRA_LINE = re.compile(r"^\s*LRA:\s+(\S+)\s+LU\b", re.MULTILINE)
 _PEAK_LINE = re.compile(r"^\s*Peak:\s+(\S+)\s+dBFS", re.MULTILINE)
 _TIMEOUT_FLOOR_S = 60.0
 _TIMEOUT_PER_AUDIO_S = 10.0  # seconds allowed for each second of audio, besides the floor
+# What the second pass of `loudnorm` accepts back (ffmpeg 8.1.1: `ffmpeg -h filter=loudnorm`), by
+# field of the measure of the first pass. `measured_I` goes from -99 to 0 and has its own error.
+_MAX_MEASURED_LUFS = 0.0
+_RANGES = {
+    "input_tp": (-99.0, 99.0),
+    "input_lra": (0.0, 99.0),
+    "input_thresh": (-99.0, 0.0),
+    "target_offset": (-99.0, 99.0),
+}
+TOO_LOUD_ES = (
+    "la mezcla pasa de 0 LUFS antes de normalizar; baja las ganancias de la música o de los efectos"
+)
+OUT_OF_RANGE_ES = "loudnorm dio una medición fuera de rango"
 
 
 @dataclass(frozen=True)
@@ -95,7 +108,12 @@ def pass2_args(
 def parse_pass1(stderr: str) -> LoudnormMeasure | None:
     """The measure of the last `{...}` block of the stderr of the first pass. `None` is silence
     (`input_i` is `-inf`, `nan` or under -60 LUFS): it is not normalized, and the caller says so.
-    No block, or one that cannot be read, is a ToolError (it does not repeat the stderr)."""
+    No block, or one that cannot be read, is a ToolError (it does not repeat the stderr).
+
+    The measure is also checked against the ranges that the second pass accepts (001.38, point 1),
+    not only that it is finite. An `input_i` over 0 LUFS is a mix that is too loud (a CheckFailed
+    that says what to lower: it is an error of the plan, and normalizing with a clipped value would
+    give a wrong result without a word); any other field out of range is a ToolError."""
     blocks = _JSON_BLOCK.findall(stderr)
     if not blocks:
         raise ToolError("loudnorm no dio medición")
@@ -104,15 +122,21 @@ def parse_pass1(stderr: str) -> LoudnormMeasure | None:
         loudness = _number(data["input_i"])
         if not math.isfinite(loudness) or loudness < SILENCE_LUFS:
             return None
-        return LoudnormMeasure(
-            loudness,
-            _number(data["input_tp"]),
-            _number(data["input_lra"]),
-            _number(data["input_thresh"]),
-            _number(data["target_offset"]),
-        )
+        if loudness > _MAX_MEASURED_LUFS:
+            raise CheckFailed(TOO_LOUD_ES)
+        others = {field: _number(data[field]) for field in _RANGES}
     except (ValueError, KeyError, TypeError):
         raise ToolError("loudnorm dio una medición que no se puede leer") from None
+    for field, (low, high) in _RANGES.items():
+        if not low <= others[field] <= high:  # a `nan` is not in any range either
+            raise ToolError(OUT_OF_RANGE_ES)
+    return LoudnormMeasure(
+        loudness,
+        others["input_tp"],
+        others["input_lra"],
+        others["input_thresh"],
+        others["target_offset"],
+    )
 
 
 def audio_timeout_s(seconds: float) -> float:
@@ -180,11 +204,16 @@ def normalize(
     )
     measure = parse_pass1(first.stderr)
     partial = dst.with_name(f"{dst.name}.{os.getpid()}.partial")
+
+    def look() -> None:
+        assert_own_folder(project, dst.parent)
+        for path in (dst, partial):
+            assert_in_cache(project, path)
+
     # 001.37, point 2: the folder is looked at again right before the write, after the first pass
-    # (the folder of `dst` can be changed for a link while `ffmpeg` runs), as `render` does
-    assert_own_folder(project, dst.parent)
-    for path in (dst, partial):
-        assert_in_cache(project, path)
+    # (the folder of `dst` can be changed for a link while `ffmpeg` runs), as `render` does. And
+    # 001.38, point 2: once more after the second pass, right before the move and the delete.
+    look()
     prepare_partial(partial)
     try:
         if measure is None:
@@ -198,6 +227,7 @@ def normalize(
         else:
             args = pass2_args(ffmpeg, src, partial, I, TP, LRA, measure)
             proc.run(args, log=log, timeout_s=timeout)
+        look()
         atomic_replace(partial, dst)
     finally:
-        discard_partial(partial)
+        discard_partial(partial, look)

@@ -11,16 +11,17 @@ from __future__ import annotations
 
 import argparse
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from kcut import proc
 from kcut.audio.voice_track import require_disk_space, write_voice
-from kcut.commands.refuse import refuse_edl
 from kcut.console import Out, Progress
 from kcut.edl.check import check_edl_file
 from kcut.edl.files import find_edl
 from kcut.edl.gate import strategy_approved
 from kcut.edl.model import Edl
+from kcut.edl.refuse import refuse_edl
 from kcut.errors import GateError
 from kcut.gfx.layer import Layer, ensure_layer, folder_guard, layer_bytes, raise_for_errors
 from kcut.gfx.overlay import OverlaySource
@@ -116,7 +117,7 @@ def run(args: argparse.Namespace) -> int:
         frames = _picture(project, edl, inventory, index, video, version, log, overlay)
         build_folder(project, version)  # looked at again before each write (001.27, point 4)
         workfiles._assert_in_cache(project, raw)
-        write_voice(project, edl, inventory, raw, log)
+        write_voice(project, edl, inventory, raw, log, guard=_looks(project, version, raw))
         _mux(project, video, raw, render, version, log)
     for item in notices:
         out.warn(f"{item.code}: {item.detail}")
@@ -203,13 +204,15 @@ def _picture(
         workfiles._assert_in_cache(project, path)
     refuse_directory(video)  # a folder there is told now, not after the frames are made
     progress = Progress(f"render v{version}", edl.frames, "frames")
+    look = _looks(project, version, partial, video)
     try:
         prepare_partial(partial)
         frames = compose_video(project, edl, inventory, index, partial, overlay, progress, log=log)
         progress.close()
+        look()  # 001.38, point 2: the frames took minutes; again right before the move
         atomic_replace(partial, video)
     finally:
-        discard_partial(partial)
+        discard_partial(partial, look)
     return frames
 
 
@@ -222,10 +225,25 @@ def _mux(
     for path in (partial, render):
         workfiles._assert_in_cache(project, path)
     refuse_directory(render)
+    look = _looks(project, version, partial, render)
     try:
         prepare_partial(partial)
         args = mux_args(proc.tool_path("ffmpeg"), video, raw, partial, audio_f32=True)
         proc.run(args, log=log, timeout_s=_MUX_TIMEOUT_S)
+        look()  # 001.38, point 2: again right before the move, after the ffmpeg
         atomic_replace(partial, render)
     finally:
-        discard_partial(partial)
+        discard_partial(partial, look)
+
+
+def _looks(project: Project, version: int, *paths: Path) -> Callable[[], None]:
+    """The check of `build/vN` and of each of `paths`, as something to call later (001.38, point
+    2): the render takes minutes, and the folder can be changed for a link meanwhile. It is called
+    right before a partial file is moved over its final name and right before it is deleted."""
+
+    def look() -> None:
+        build_folder(project, version)
+        for path in paths:
+            workfiles._assert_in_cache(project, path)
+
+    return look

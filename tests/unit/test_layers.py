@@ -124,12 +124,14 @@ def test_layers_the_scan_finds_what_it_is_made_to_find(
 
 def test_layers_the_shared_code_lives_in_neutral_modules() -> None:
     from kcut import issues
-    from kcut.commands import edl, listing, mix, refuse, render, view
+    from kcut.commands import edl, listing, mix, render, view
+    from kcut.edl import refuse  # 001.44: it was `kcut.commands.refuse`
     from kcut.ingest import cache_guard
     from kcut.render import compose, frame_fx, preview, proxy_file
 
     assert callable(cache_guard.build_folder) and callable(cache_guard.assert_own_folder)
-    assert callable(refuse.refuse_edl) and refuse.refuse_edl.__module__ == "kcut.commands.refuse"
+    assert callable(refuse.refuse_edl)
+    assert refuse.refuse_edl.__module__ == "kcut.edl.refuse"  # 001.44
     assert proxy_file.proxy_of.__module__ == "kcut.render.proxy_file"
     assert proxy_file.Proxy == tuple[Path, tuple[int, int]]
     assert view.proxy_of is proxy_file.proxy_of and preview.proxy_of is proxy_file.proxy_of

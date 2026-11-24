@@ -71,7 +71,7 @@ def check_params(
     an `InternalError`, a bug of whoever called, not a mistake in the file."""
     issues: list[Issue] = []
     if not isinstance(params, dict):
-        issues.append(_issue(code, path, f"debe ser un objeto (vino {_shown(params)})"))
+        issues.append(_issue(code, path, f"debe ser un objeto (vino {shown(params)})"))
         return {}, issues
     known = {spec.name for spec in specs}
     for key in params:
@@ -98,7 +98,7 @@ def _issue(code: str, path: str, message: str) -> Issue:
     return Issue(code, "error", path, message)
 
 
-def _shown(value: object) -> str:
+def shown(value: object) -> str:
     """A value as it goes in a message: a text is only its length."""
     if isinstance(value, str):
         return f"<texto, {len(value)} car.>"
@@ -128,7 +128,7 @@ def _check(
     if kind == "bool":
         if isinstance(value, bool):
             return value
-        issues.append(_issue(code, where, f"debe ser verdadero o falso (vino {_shown(value)})"))
+        issues.append(_issue(code, where, f"debe ser verdadero o falso (vino {shown(value)})"))
         return _BAD
     if kind == "color":
         return _color(value, where, code, brand, issues)
@@ -141,7 +141,7 @@ def _check(
 
 def _text(spec: ParamSpec, value: object, where: str, code: str, issues: list[Issue]) -> object:
     if not isinstance(value, str):
-        issues.append(_issue(code, where, f"debe ser texto (vino {_shown(value)})"))
+        issues.append(_issue(code, where, f"debe ser texto (vino {shown(value)})"))
         return _BAD
     if spec.max_len is not None and len(value) > spec.max_len:
         message = f"debe tener como máximo {spec.max_len} caracteres (tiene {len(value)})"
@@ -158,10 +158,10 @@ def _number(spec: ParamSpec, value: object, where: str, code: str, issues: list[
         or (whole and not isinstance(value, int))
     ):
         kind = "un entero" if whole else "un número"
-        issues.append(_issue(code, where, f"debe ser {kind} (vino {_shown(value)})"))
+        issues.append(_issue(code, where, f"debe ser {kind} (vino {shown(value)})"))
         return _BAD
     if not _finite(value):
-        issues.append(_issue(code, where, f"debe ser un número finito (vino {_shown(value)})"))
+        issues.append(_issue(code, where, f"debe ser un número finito (vino {shown(value)})"))
         return _BAD
     if not _in_range(value, spec.lo, spec.hi):
         issues.append(_issue(code, where, _range_message(spec, value)))
@@ -181,7 +181,7 @@ def _in_range(value: float, lo: float | None, hi: float | None) -> bool:
 
 
 def _range_message(spec: ParamSpec, value: float) -> str:
-    seen = _shown(value)
+    seen = shown(value)
     if spec.lo is not None and spec.hi is not None:
         return f"debe estar entre {_num(spec.lo)} y {_num(spec.hi)} (vino {seen})"
     if spec.lo is not None:
@@ -240,7 +240,7 @@ def _items(
     if spec.item is None:
         raise InternalError("check_params: una lista necesita sus ParamSpec en item")
     if not isinstance(value, list):
-        issues.append(_issue(code, where, f"debe ser una lista (vino {_shown(value)})"))
+        issues.append(_issue(code, where, f"debe ser una lista (vino {shown(value)})"))
         return _BAD
     if not _in_range(len(value), spec.lo, spec.hi):
         issues.append(_issue(code, where, _count_message(spec, len(value))))

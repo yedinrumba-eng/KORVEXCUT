@@ -1,6 +1,7 @@
 """What a command says when the EDL it was given has errors (spec 001.31, point 12). It was
-`render._refuse`, a private name that `graphics_capture` imported from another command; here both
-import it by its own name.
+`render._refuse`, a private name that `graphics_capture` imported from another command; here every
+user imports it by its own name. It lives in `edl/`, not in `commands/`, so that `qa/run.py` can
+call it too (001.44: nothing outside `commands/` imports a command).
 """
 
 from __future__ import annotations

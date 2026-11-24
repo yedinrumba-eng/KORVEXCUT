@@ -15,16 +15,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import cv2
-import numpy as np
-from numpy.typing import NDArray
-
-from kcut.commands.refuse import refuse_edl
 from kcut.console import Out, Progress
 from kcut.edl.check import check_edl_file
 from kcut.edl.files import find_edl
 from kcut.edl.model import Edl
-from kcut.errors import ToolError, UsageError
+from kcut.edl.refuse import refuse_edl
+from kcut.errors import UsageError
 from kcut.gfx import capture as gfx_capture
 from kcut.gfx.layer import (
     GFX_DIR,
@@ -36,8 +32,8 @@ from kcut.gfx.layer import (
     require_layer_space,
     warnings_json,
 )
-from kcut.gfx.overlay import alpha_blend
 from kcut.gfx.resolve import ResolvedGraphics, resolve
+from kcut.gfx.still import STILLS_WORK, compose, decode_layer, png_bytes, transparent_png
 from kcut.ingest.cache_guard import assert_in_cache, build_folder
 from kcut.ingest.inventory import Inventory
 from kcut.jsonio import write_bytes_atomic
@@ -48,9 +44,7 @@ from kcut.render.lock import OutputLock
 from kcut.render.preview import base_frame
 
 STILLS = "stills"  # `.kcut/build/vN/gfx/stills/`: where a still goes if `--out` is not given
-STILLS_WORK = "stills_work"  # the page of the stills (masked); Chromium's PNGs stay in memory
 MAX_STILLS = 60  # different frames that one call of `still` makes
-Frame = NDArray[np.uint8]
 
 
 def run_capture(args: argparse.Namespace) -> int:
@@ -234,26 +228,11 @@ def _still(
 ) -> bytes:
     """The PNG of the still of frame `f`. `shot` is the bytes of what Chromium made for it, `None`
     if there is nothing to draw. With `alpha` it is that PNG as it is (RGBA); without, the graphics
-    blended over `base_frame`, as an RGB PNG of the size of the video."""
+    blended over `base_frame`, as an RGB PNG of the size of the video (`gfx/still.py`, 001.40)."""
+    size = (edl.out_w, edl.out_h)
     if alpha:
-        return _transparent(edl) if shot is None else shot
+        return transparent_png(size) if shot is None else shot
     base = base_frame(project, edl, inventory, f, ctx, log=log)
     if shot is None:
-        return _png(base)
-    bgra = cv2.imdecode(np.frombuffer(shot, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-    if bgra is None or bgra.dtype != np.uint8 or bgra.shape != (edl.out_h, edl.out_w, 4):
-        raise ToolError("Chromium no entregó un PNG con alfa del tamaño del video")
-    return _png(alpha_blend(base, np.asarray(bgra)))
-
-
-def _transparent(edl: Edl) -> bytes:
-    """An RGBA PNG of the size of the video with alpha 0 everywhere: no graphics in a still."""
-    return _png(np.zeros((edl.out_h, edl.out_w, 4), dtype=np.uint8))
-
-
-def _png(picture: Frame) -> bytes:
-    """`picture` (BGR or BGRA) as the bytes of a PNG, encoded in memory (never `cv2.imwrite`)."""
-    done, encoded = cv2.imencode(".png", picture)
-    if not done:
-        raise ToolError("no pude codificar el PNG del still")
-    return bytes(encoded.tobytes())
+        return png_bytes(base)
+    return png_bytes(compose(base, decode_layer(shot, size)))

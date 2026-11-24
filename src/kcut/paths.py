@@ -97,6 +97,12 @@ class Layout:
         return self.cache / "storyboard"
 
     @property
+    def qa_ear(self) -> Path:
+        """Where `kcut qa` keeps what it heard in the render (001.15): not `transcripts/`, whose
+        ids are the ones of clips."""
+        return self.cache / "qa_ear"
+
+    @property
     def logs(self) -> Path:
         return self.cache / "logs"
 
@@ -123,6 +129,7 @@ class Layout:
             self.frames,
             self.build,
             self.storyboard_cache,
+            self.qa_ear,
             self.logs,
             self.locks,
         )

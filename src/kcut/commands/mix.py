@@ -24,12 +24,12 @@ from kcut.audio.sfx_events import resolve_events
 from kcut.audio.sfx_schema import parse_sfx
 from kcut.audio.voice_track import require_mix_space
 from kcut.commands.listing import findings_json, list_findings
-from kcut.commands.refuse import refuse_edl
 from kcut.console import Out, Progress
 from kcut.edl.check import check_edl_file
 from kcut.edl.files import find_edl
 from kcut.edl.kept import KeptWords, kept_words
 from kcut.edl.model import Edl
+from kcut.edl.refuse import refuse_edl
 from kcut.ingest.cache_guard import assert_in_cache, build_folder
 from kcut.ingest.inventory import Notice
 from kcut.ingest.partials import sweep_orphan_partials

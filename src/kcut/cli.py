@@ -29,6 +29,8 @@ COMMAND_MODULES: tuple[str, ...] = (
     "kcut.commands.render",
     "kcut.commands.graphics",
     "kcut.commands.mix",
+    "kcut.commands.qa",
+    "kcut.commands.catalog",
 )
 
 _EXIT_INTERRUPTED = 130

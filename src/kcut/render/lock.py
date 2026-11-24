@@ -10,6 +10,7 @@ import contextlib
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
 from typing import Self
@@ -110,30 +111,52 @@ class OutputLock:
             return
 
 
+def _reason(exc: OSError) -> str:
+    """Why a file operation failed, in words and with no path: the `strerror` of the error, or the
+    name of its class if it has none (the text of an `OSError` repeats the path, and the cut of a
+    message to 300 characters takes the reason away in a deep folder; 001.38, point 3)."""
+    return exc.strerror or type(exc).__name__
+
+
 def atomic_replace(partial: Path, final: Path) -> None:
     """Move `partial` over `final` in one step. A `final` that a player has open (Windows says
-    `PermissionError`) or that is a folder is a ProjectError that says what to do (0.10.5)."""
+    `PermissionError`) or that is a folder is a ProjectError that says what to do (0.10.5), and so
+    is any other `OSError` (001.38, point 2): `no pude mover el archivo ({reason})`, never an
+    unexpected failure (exit 10)."""
     refuse_directory(final)
     try:
         os.replace(partial, final)
     except PermissionError:
         raise ProjectError(f"cierra el archivo {final} en el reproductor y repite") from None
+    except OSError as exc:
+        raise ProjectError(f"no pude mover el archivo ({_reason(exc)})") from None
 
 
 def prepare_partial(path: Path) -> None:
     """Clear the place of a partial file before it is written: a folder there is a ProjectError,
     an old file is deleted, and one the system will not let go (read only, open in another
-    program) is a ProjectError that says so (001.25, point 11). Never an unexpected failure."""
+    program) is a ProjectError that says so (001.25, point 11), with the reason before the path
+    (`no pude borrar ({reason}) {path}`, 001.38, point 3). Never an unexpected failure."""
     refuse_directory(path)
     try:
         path.unlink(missing_ok=True)
     except OSError as exc:
-        raise ProjectError(f"no pude borrar {path}: {exc}; ciérralo o bórralo y repite") from None
+        raise ProjectError(f"no pude borrar ({_reason(exc)}) {path}") from None
 
 
-def discard_partial(path: Path) -> None:
+def discard_partial(path: Path, guard: Callable[[], None] | None = None) -> None:
     """Delete a partial file at the end, whatever happened: it never hides the error that ended
-    the work, and a file that stays is only a file that stays."""
+    the work, and a file that stays is only a file that stays.
+
+    `guard` (001.38, point 2) looks at the folder again, right before the delete: the work took
+    minutes, and the folder can be a link to somebody else's now, with a file named like the
+    partial in it. If it raises a ProjectError the name is not ours any more and nothing is
+    deleted (and the error is not raised: it would hide the one that ended the work)."""
+    if guard is not None:
+        try:
+            guard()
+        except ProjectError:
+            return
     with contextlib.suppress(OSError):
         path.unlink(missing_ok=True)
 

@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from kcut.audio import voice_track, wavio
+from kcut.audio import f32write, voice_track
 from kcut.audio.voice_track import BLOCK_SAMPLES, build_voice, require_disk_space, write_voice
 from kcut.config.template import render_template
 from kcut.errors import CheckFailed, ProjectError
@@ -287,6 +287,6 @@ class TestVoiceReadError:
             yield from blocks
 
         with pytest.raises(ProjectError) as info:
-            wavio.write_f32_blocks(dst, going())
+            f32write.write_f32_blocks(dst, going())
         assert "no pude leer" in info.value.message_es and "escribir" not in info.value.message_es
         assert not dst.exists() and list(tmp_path.glob("*.partial")) == []

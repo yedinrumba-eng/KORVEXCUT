@@ -70,5 +70,6 @@ class TestDoctorCommand:
         assert cli.main(["doctor"]) == 1
         out = capsys.readouterr().out
         assert "[OK] python:" in out
-        assert "[FALTA] filters: 21/22 faltan: zscale - usa el build full de gyan.dev" in out
+        # 001.38: was 21/22, `apad` joined the 22 required filters
+        assert "[FALTA] filters: 22/23 faltan: zscale - usa el build full de gyan.dev" in out
         assert "[AVISO] filters_optional:" in out

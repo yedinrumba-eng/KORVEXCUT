@@ -1,10 +1,12 @@
-"""Read and write mono audio: 16-bit wav via stdlib `wave`, raw float32 for intermediates (DS4)."""
+"""Read and write mono audio: 16-bit wav via stdlib `wave`, raw float32 for intermediates (DS4).
 
-import contextlib
+Reading raw float32 is `read_f32` here; writing it (`write_f32`, `write_f32_blocks`) is in
+`f32write.py`, split from this file by the 300-line rule (001.38, point 2)."""
+
 import os
 import struct
 import wave
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import BinaryIO
@@ -13,7 +15,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from kcut.errors import ProjectError
-from kcut.jsonio import refuse_directory
 
 _S16_FULL_SCALE = 32768.0
 PEAK_BLOCK_FRAMES = 1_048_576
@@ -236,57 +237,3 @@ def read_f32(path: Path, *, label: str = "el audio") -> NDArray[np.float32]:
     if len(data) % 4 != 0:
         raise ProjectError(f"{label}: tamaño inválido para float32 ({len(data)} bytes)")
     return np.frombuffer(data, dtype="<f4").astype(np.float32)
-
-
-def write_f32(path: Path, x: NDArray[np.float32]) -> None:
-    """Write raw float32 little-endian mono samples (no clipping: peaks survive until loudnorm)."""
-    write_f32_blocks(path, [x])
-
-
-def write_f32_blocks(path: Path, blocks: Iterable[NDArray[np.float32]]) -> None:
-    """Write the blocks, one after the other, as raw float32 little-endian mono samples.
-
-    Never in place (001.25, point 3): the samples go to `<name>.<pid>.partial`, created new, and
-    `os.replace` puts the finished file over `path`. A hard link or a link planted at `path` is
-    replaced and not written through, and two processes do not write the same partial. Only one
-    block is in memory at a time. A folder at `path` or at the partial, a file that cannot be
-    deleted or replaced, and a disk that fails are a ProjectError; the partial is never left.
-
-    What fails while a block is being made (`blocks` reads a wav) is not a failure to write: an
-    `OSError` from `blocks` is a ProjectError that says it could not read (001.26, point 6).
-    """
-    refuse_directory(path)
-    partial = path.with_name(f"{path.name}.{os.getpid()}.partial")
-    refuse_directory(partial)
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        partial.unlink(missing_ok=True)  # never write through a stale file or a planted link
-        with partial.open("xb") as handle:
-            for block in _made(blocks):
-                handle.write(np.asarray(block, dtype="<f4").tobytes())
-        os.replace(partial, path)
-    except PermissionError:
-        raise ProjectError(f"cierra el archivo {path} en el reproductor y repite") from None
-    except OSError as exc:
-        # 001.37, point 10: the reason goes before the path, as in `require_disk_space`: `cli`
-        # cuts a message to 300 characters and, in a deep folder, the cut took the reason away
-        raise ProjectError(f"no pude escribir ({_reason(exc)}) en {path}") from None
-    finally:
-        with contextlib.suppress(OSError):
-            partial.unlink(missing_ok=True)
-
-
-def _made(blocks: Iterable[NDArray[np.float32]]) -> Iterator[NDArray[np.float32]]:
-    """`blocks`, one by one; an `OSError` that makes one of them is a ProjectError about reading,
-    so `write_f32_blocks` does not call it a write. The message has no path: the one in the error
-    can carry the name of the original clip, with a phone number in it (001.27, point 9)."""
-    iterator = iter(blocks)
-    while True:
-        try:
-            block = next(iterator)
-        except StopIteration:
-            return
-        except OSError as exc:
-            reason = exc.strerror or type(exc).__name__
-            raise ProjectError(f"no pude leer el audio de entrada: {reason}") from None
-        yield block

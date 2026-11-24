@@ -65,6 +65,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 timeout = 300
+tmp_path_retention_policy = "failed"
 markers = [
     "ffmpeg: necesita ffmpeg",
     "chromium: necesita Chromium de Playwright",

@@ -34,7 +34,7 @@ from kcut.audio.sfx_schema import GAIN_DB_RANGE as WINDOW_DB_RANGE
 from kcut.audio.sfx_schema import MAX_WINDOWS
 from kcut.errors import InternalError
 from kcut.issues import Issue
-from kcut.params import ParamSpec, _shown, check_params
+from kcut.params import ParamSpec, check_params, shown
 from kcut.project import Project
 from kcut.schema_util import UNKNOWN_KEY, describe_value, join_path
 
@@ -119,7 +119,7 @@ def _number(
     if not isinstance(value, int | float) or isinstance(value, bool):
         # 001.37, point 6: a text is only its length, as in `sfx_schema` (`describe_value` cut the
         # repr to 40 characters and so repeated up to 37 of the file)
-        issues.append(_m("M01", path, f"debe ser un número (vino {_shown(value)})"))
+        issues.append(_m("M01", path, f"debe ser un número (vino {shown(value)})"))
         return None
     low, high = span
     if not low <= value <= high:

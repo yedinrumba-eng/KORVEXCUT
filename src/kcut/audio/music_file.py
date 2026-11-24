@@ -15,6 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from kcut import proc
+from kcut.audio.loudnorm import audio_timeout_s
 from kcut.audio.music_model import FileCfg
 from kcut.errors import CheckFailed
 from kcut.ff.args import fnum
@@ -27,8 +28,6 @@ from kcut.timebase import SAMPLE_RATE
 Track = NDArray[np.float32]
 M06 = "el archivo de música es más corto que el video y no tiene loop: el resto queda en silencio"
 EMPTY = "el archivo de música no tiene audio desde src_in_f"
-_TIMEOUT_FLOOR_S = 60.0
-_TIMEOUT_PER_AUDIO_S = 10.0
 
 
 def music_args(ffmpeg: Path, path: Path, src_in_f: int, fps: int, total: int) -> list[str]:
@@ -62,7 +61,7 @@ def load_music_file(
     item = require_approved(project, cfg.path)  # M04: a GateError if it is not in the manifest
     path = resolve_in_project(project.root, item.file)
     fps = SAMPLE_RATE // spf
-    timeout = _TIMEOUT_PER_AUDIO_S * (total / SAMPLE_RATE + 1) + _TIMEOUT_FLOOR_S
+    timeout = audio_timeout_s(total / SAMPLE_RATE + 1)  # the formula of every ffmpeg on audio
     args = music_args(proc.tool_path("ffmpeg"), path, cfg.src_in_f, fps, total)
     raw = proc.run(args, log=log, timeout_s=timeout).stdout
     block = np.frombuffer(raw[: len(raw) // 4 * 4], dtype="<f4").astype(np.float32)
