@@ -42,8 +42,8 @@
 - [x] **S1.9a** — (parte a de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
       · alcance entregado (resumen de cierre): `kcut qa` y `kcut catalog`, más el paso 0 desde la revisión de S1.8b; `kcut build` y e2e sintético van en S1.9b (filas 1–7)
       · verificado: suite completa → 6245 passed, 6 skipped in 5100.90 s (1:25:00), exit 0 (implementador, una vez y sin `-x`; corrida antes de la ronda 4; los 6 skips son de symlinks sin privilegio, WinError 1314) · ruff check, ruff format y mypy limpios · tope de 300 líneas → `[]` · 4 rondas de revisión · ronda 4 sin suite completa: unit 244 passed; `tests/integration -k qa_` 75 passed, 2 skipped · cierre en 001.47
-- [ ] **S1.9b** — (parte b de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
-      · paso 0 cerrado 24/11/2026 (filas 8–24 de 001.47 a 001.50; commits `c6a66e0` y `ae44f21`, con push): suite completa → 6278 passed, 6 skipped in 3836.07 s (1:03:56), exit 0 · basetemp 0.3 GiB · pendiente: fila 25 del spec 001.50 y filas 1–7
+- [x] **S1.9b** — (parte b de S1.9) `kcut qa` + `kcut build` + `kcut catalog` + e2e sintético
+      · paso 0 cerrado 24/11/2026 (filas 8–24 de 001.47 a 001.50; commits `c6a66e0` y `ae44f21`, con push): suite completa → 6278 passed, 6 skipped in 3836.07 s (1:03:56), exit 0 · basetemp 0.3 GiB · cierre (001.51 a 001.53; código `4319af0`, spec `277f40b`): suite completa → 6343 passed, 7 skipped in 4379.13 s (1:12:59), exit 0 · `Total coverage: 98.03%` · ruff check, ruff format y mypy limpios · tope de 300 líneas → `[]` · revisión 3 aprobada (0 CRÍTICO, 0 ALTO, 0 MEDIO) · fila 25 del spec 001.50 (deuda 61): no reportada en el cierre
 - [ ] **S1.10** — `kcut storyboard` (Puerta 1 visual)
 
 Cada slice se cierra con sus criterios del spec en ✅ y la salida real pegada.
@@ -75,6 +75,7 @@ Plugin de Claude Code, entrevista, menú de ideas (desde `kcut catalog`), agente
 | 28/10/2026 | S1.8b | Audio, la mitad música: acordes y síntesis portados de `piloto/music.py`, música de `recursos/` aprobada en el manifiesto con el gate M04, `edit/music.json` con códigos M01–M05, loudnorm de dos pasadas, grafo de mezcla con ducking, mezclador y `kcut mix`; paso 0 = filas 12–23 (cierra la deuda 51); revisión 1: seguridad aprobó, verificador con 1 CRÍTICO y 1 ALTO de la misma raíz (el grafo de ducking no era determinista: 5 salidas distintas en 100 corridas idénticas, y 61 perdieron hasta 0.49 s de la cola de la música) → ronda 1 (001.37: `apad` en las dos entradas del compresor, timeout en cada llamada a ffmpeg, chequeo de disco antes de mezclar, `MemoryError` da exit 3, `-protocol_whitelist file`, y los MEDIO/BAJO de seguridad); revisión 2: 0 CRÍTICO y 0 ALTO en ambos; código en commit `a0ffe90`, spec 001.36 en `1a95ef5` y 001.37–001.38 en `af7cb07`, pusheados (`origin/main` en `af7cb07`) | suite completa → 5788 passed, 4 skipped, exit 0 (implementador y verificador; los 4 skips son symlinks sin privilegio); ducking 60/60 corridas idénticas (verificador) y 108/108 (seguridad); diez corridas completas de `kcut mix` dieron los 8 archivos idénticos; fila 5 pasó 8/8; diferencia 0 con la cuantización del piloto |
 | 24/11/2026 | S1.9a | `kcut qa` (streams, loudness, intervalos de negro y de congelado, pase de Whisper cuyas palabras se comparan con las conservadas, hoja de contacto con gráficos; todo enmascarado según D19, y la hoja saca frames del proxy con la máscara encendida); el EDL pasa por el mismo gate que `render`, `mix` y `graphics` antes de medir (`refuse_edl` movido a `src/kcut/edl/refuse.py`); `kcut catalog`; `matte_captions` sale del catálogo (decisión de Yedin, 23/11/2026); paso 0 desde la revisión de S1.8b; 4 rondas de revisión (en la 3: seguridad 0 CRÍTICO, 0 ALTO, 0 MEDIO y 1 BAJO; verificador 1 ALTO solo de test; ronda 4: 3 tests nuevos sin cambiar aserciones, verificador sin hallazgos); commits `aa6b71c` y `7deb8e4` en `main`, con push (`7504878..c3bcb7c`) | suite completa → 6245 passed, 6 skipped in 5100.90 s (1:25:00), exit 0 (antes de la ronda 4; los 6 skips son de symlinks sin privilegio, WinError 1314) · ruff check → All checks passed! · ruff format → 557 files already formatted · mypy → Success: no issues found in 189 source files · tope de 300 líneas → `[]` · ronda 4 sin suite completa: unit 244 passed; `tests/integration -k qa_` 75 passed, 2 skipped · Whisper real con los alineamientos raros del BAJO: solo palabras sintéticas |
 | 24/11/2026 | S1.9b (paso 0) | Cierre del paso 0 de S1.9b (filas 8–24 de 001.47 a 001.50): hoja de contacto con PNG uno a uno, `kcut qa` vuelve a mirar los enlaces de `salida/` antes de cada herramienta, `console.clean` pública y `qa/report._safe` borrado, `limit_s` obligatorio, `KeptWords.hidden` sin default, `refuse_edl(remedy=)`, tests de tiempo con `process_time`, `tests/tmp_cleanup.remove_tree`, comentarios D23 → D24; commits `c6a66e0` y `ae44f21`, con push (`c3bcb7c..ae44f21`); revisión 2 (filas 20–24): seguridad y verificador aprobados, 0 CRÍTICO, 0 ALTO, 1 BAJO (fila 25 del spec 001.50, pendiente) | suite completa con `--durations=30` → 6278 passed, 6 skipped in 3836.07s (1:03:56), exit 0 (los 6 skips son symlinks sin privilegio, WinError 1314); basetemp al final 0.3 GiB (antes 25.9 GiB); disco antes de la suite 105.6 GB libres |
+| 24/11/2026 | S1.9b | `kcut build`: picture, mix, mux y QA en un solo comando; `pipeline/` compartido por render, mix y build; snapshot de entradas en `qa/vN/inputs/` con una segunda lectura al final (exit 1 si una entrada cambió); rechazo temprano antes del trabajo pesado (carpeta en un destino, rutas de `qa/vN/` que son enlaces, chequeo de disco único: mezcla + capa + 1 GiB); espera de `html[data-kcut-ready]` con tope (exit 4 si la página se bloquea); avisos `<código> <ruta>: <mensaje>` desde `kcut/findings.py`; lock `build-vN` compartido con `kcut qa`; e2e de build con tope de 900 s. Rondas: 001.51 (filas 26–35), 001.52 (filas 36–45), revisión 3 aprobada (seguridad 1 BAJO, verificador 2 BAJO, 0 CRÍTICO, 0 ALTO, 0 MEDIO); código `4319af0`, spec `277f40b` (001.53) | suite completa → 6343 passed, 7 skipped in 4379.13s (1:12:59), exit 0, `Total coverage: 98.03%` (los 7 skips son symlinks sin privilegio, WinError 1314) · ruff check → All checks passed! · ruff format → 586 files already formatted · mypy → Success: no issues found in 196 source files · tope de 300 líneas → `[]` · disco antes de la suite: 105.0 GB libres · 22 de 22 mutantes del verificador caen |
 
 ---
 
@@ -500,6 +501,7 @@ Pasa con una tarea del JS que la página dejó para después del frame anterior.
 - **Mitigado hoy por:** el JS de kcut prohíbe las APIs que dejan tareas diferidas (`setTimeout`, `setInterval`, `requestAnimationFrame`, `requestIdleCallback`, `MessageChannel`, `postMessage`, `Worker`); S1.8a paso 0 fila 9 agrega observers y promesas en componentes. La captura CDP no lleva timeout, por decisión 001.34 (`page.screenshot` costó 1.88×).
 - **Cura real:** un vigilante que mate el árbol de procesos de Chromium por pid al pasar el tope — ~2 h.
 - **Cuándo:** si un componente empieza a usar temporizadores.
+- **Avance (S1.9b, ronda 2):** la espera de la marca lista ya tiene tope (`wait_for_selector` con `timeout`, fila 37 de 001.52). Sigue sin tope el `cdp.send` después de la marca lista: deuda 62. Deuda abierta.
 
 ### 46. Ventanas de microsegundos entre mirar y usar en la caché ⚪
 
@@ -667,13 +669,57 @@ Lo más lento son los setups de render real: `tests/e2e/test_av_sync.py` (94.0 s
 - **Cura real:** compartir los renders de esas fixtures o achicar sus medios sintéticos, midiendo antes — ~3 h.
 - **Cuándo:** cuando estorbe; no antes de cerrar F1.
 
-### 61. El tamaño del video del reporte de QA se lee al final ⚪
+### 61. El tamaño del video del reporte de QA se lee al final ⚪ ✅ pagada
 
 `file_mb` del reporte de `kcut qa` se lee con un `stat` al final de la corrida, no en el momento de la mirada de antes de ffprobe.
 
 - **Mitigado hoy por:** solo se escapa un número (MB con un decimal) de un archivo que se tiene que llamar `vN.mp4`, sin contenido ni PII; y pide cambiar `salida/` por un junction a mitad de la corrida.
 - **Cura real:** fila 25 del spec 001.50 — ~1 h.
 - **Cuándo:** primero en las filas 1–7 de S1.9b.
+- **Pagada 24/11/2026** (fila 25 de 001.50, commit `4319af0`): `qa/run.py` lee el tamaño en la mirada de antes de ffprobe. `-k qa_relook` → `7 passed` (implementador, ronda 1), y el verificador la volvió a pasar en la revisión 2.
+
+### 62. La captura no tiene watchdog después de la marca lista ⚪
+
+- Después de `wait_ready`, `self._cdp.send("Emulation.setDefaultBackgroundColorOverride", ...)` en `gfx/capture.py:245` no tiene tope. Una página que se marca lista y bloquea su hilo 30 ms después cuelga la captura con el lock `build-vN` tomado. Seguridad lo reprodujo: seguía viva a los 81 s.
+- **Mitigado hoy por:** el contenido no puede meter script en la página, y el JS de kcut no deja tareas diferidas después de marcarse lista. No es regresión: la línea es igual en `a863ca1`.
+- **Cura real:** watchdog que, al pasar el tope, mata por pid el Chromium de esta captura y sale con exit 4. Va en un módulo aparte de `gfx/`, porque `capture.py` tiene 300 líneas — ~2 h.
+- **Cuándo:** paso 0 de S1.10 (fila nueva, 001.53 punto 3a). Relacionada con la 45.
+
+### 63. `_chromium_pids` cuenta todo Chromium de la máquina ⚪
+
+- `tests/integration/test_capture_ready_late.py:39` cuenta todo Chromium de `ms-playwright`. Si otra sesión de Playwright arranca durante el caso (b) y vive más de 10 s, el test falla sin culpa del código.
+- **Mitigado hoy por:** el fallo solo pasa si otra sesión de Playwright corre al mismo tiempo.
+- **Cura real:** contar solo el Chromium de este test — ~0.5 h. El explorer del paso 0 de S1.10 propone aislarlo por carpeta temporal (`TEMP`/`TMP` propios del test, que Playwright pone en la línea de comandos del navegador; probado en Windows), porque en POSIX un Chromium huérfano deja de ser descendiente. `psutil` no está instalado ni declarado.
+- **Cuándo:** paso 0 de S1.10 (fila nueva, 001.53 punto 3b).
+
+### 64. `resolve_graphics` repite el formato de los avisos ⚪
+
+- `src/kcut/pipeline/picture.py:42` arma `<código> <ruta>: <mensaje>` a mano y sin el tope `MAX_SHOWN`. Es la tercera copia del formato.
+- **Mitigado hoy por:** con 50 avisos de gráficos o menos, la salida es idéntica a la de `finding_lines`; solo cambia el tope.
+- **Cura real:** pasar a `kcut.findings.finding_lines` — ~0.5 h.
+- **Cuándo:** paso 0 de S1.10 (fila nueva, 001.53 punto 3c).
+
+### 65. `mypy tests/` no está limpio ⚪
+
+- Da `attr-defined` por los re-exports de `kcut.pipeline.build` (`snapshot_inputs`, `clear_stale`, `assert_writable`) y `union-attr` en `tests/fixtures/synth_graphics.py:129`.
+- **Mitigado hoy por:** la configuración de mypy solo revisa `src`, que sale limpio (`Success: no issues found in 196 source files`).
+- **Medido 24/11/2026** (explorer del paso 0 de S1.10): `mypy tests/` da 164 errores en 77 archivos. 78 de los 79 `attr-defined` son "does not explicitly export attribute" en 42 archivos: los tests importan submódulos (`os`, `proc`, ...) a través del módulo del código. Después vienen 45 `arg-type` y el resto de a pocos.
+- **Cura real:** en el paso 0 de S1.10, los 9 que tocan este slice (6 re-exports de `kcut.pipeline.build` y `kcut.pipeline.picture`, el `union-attr` de `synth_graphics.py:129`, el `syntax` de `tests/unit/test_capture_index.py:186` y el `attr-defined` de `tests/unit/test_qa_transcript_step.py:219`). Los otros 155, en un slice de tipos aparte — ~4 h.
+- **Cuándo:** los 9, paso 0 de S1.10 (001.53 punto 4); los 155, cuando se decida meter `tests/` en el gate de mypy.
+
+### 66. Los e2e de `kcut build` son lentos 🟡
+
+- Las fixtures `prepared` y `built` se rehacen por módulo, de 3 a 6 min cada una. La suite completa tarda 4379.13 s (1:12:59).
+- **Mitigado hoy por:** tope de 900 s por módulo e2e de build (`pytestmark` con `pytest.mark.timeout(900)`); el tope global de 300 s se queda (lección 46).
+- **Cura real:** compartir las fixtures entre módulos (scope de sesión) — ~2-3 h.
+- **Cuándo:** junto con la deuda 60 (tiempo de la suite completa), cuando estorbe; no antes de cerrar F1.
+
+### 67. Regla de seguridad: `safe_text` no enmascara PII (regla, no bug)
+
+- `safe_text` escapa control y bidi, pero no enmascara PII y deja pasar `\n`.
+- **Mitigado hoy por:** los avisos `Issue` de hoy son seguros porque no citan texto de los archivos del usuario.
+- **Cura real:** un aviso nuevo que cite ese texto pasa por la máscara de D19 antes de salir.
+- **Severidad:** ninguna; es una regla, no un bug. **Cuándo:** en cada aviso nuevo que cite texto del usuario. Ver lección 48.
 
 ---
 
@@ -927,6 +973,23 @@ Lo más lento son los setups de render real: `tests/e2e/test_av_sync.py` (94.0 s
 - **Por qué engañaba:** el código, el comentario y el spec decían "misma mirada", y el mutante del verificador ("`file_mb` desde la mirada temprana") era equivalente: `_video_path` siempre devuelve la misma ruta (`<raíz>/salida/vN.mp4`), así que ningún test podía caer.
 - **Causa real:** el spec nombró de dónde sale el dato (la ruta, que no cambia) y no el momento en que se toma. Lo que cambia entre la mirada y el uso es el archivo, no la ruta.
 - **Fix:** en un TOCTOU, el spec nombra el momento en que se toma el dato, no la variable de la que sale. El tamaño se lee justo en la mirada (fila 25 del spec 001.50, deuda 61).
+
+### 46. Un test e2e pegado al tope global de pytest-timeout
+- **Síntoma:** la primera prueba de cada módulo e2e de `kcut build` tardó 289–295 s dentro del tope global de 300 s. Bajo carga, pytest-timeout mataba la corrida completa y dejaba un `kcut build` huérfano con el lock tomado.
+- **Por qué engañaba:** parecía un fallo aleatorio.
+- **Causa real:** las fixtures pesadas (`prepared` y `built`) se pagaban dentro de la primera prueba, dentro de los 300 s del tope global.
+- **Fix:** `pytestmark` con `pytest.mark.timeout(900)` en esos módulos; el tope global se queda en 300 s.
+
+### 47. Un bucle de espera con `page.evaluate` no tiene tope
+- **Síntoma:** si la página bloqueaba su hilo principal, la espera no terminaba.
+- **Por qué engañaba:** el bucle tenía un tope de tiempo en el papel. `page.evaluate` no vuelve mientras la página está bloqueada, así que el bucle nunca llegaba a mirar el reloj.
+- **Causa real:** `page.evaluate` no tiene tope propio.
+- **Fix:** `page.wait_for_selector("html[data-kcut-ready]", state="attached", timeout=...)`. Playwright corre el selector en su propio mundo (la CSP no lo bloquea) y lleva el tope.
+
+### 48. Regla de seguridad: los avisos que citen texto del usuario pasan por la máscara
+- **Regla:** `safe_text` escapa control y bidi, pero no enmascara PII y deja pasar `\n`.
+- **Hoy:** los avisos `Issue` son seguros porque no citan texto de los archivos del usuario.
+- **Fix:** regla que queda, un aviso nuevo que cite ese texto pasa por la máscara de D19 antes de salir (deuda 67). No hay cambio de código.
 
 ---
 
