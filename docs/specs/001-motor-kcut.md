@@ -112,7 +112,7 @@ src/kcut/commands/graphics.py                                                  S
 src/kcut/gfx/capture.py  overlay.py                                            S1.6b
 src/kcut/gfx/capture_index.py  layer.py  src/kcut/commands/graphics_capture.py   S1.6b (partidos por la regla de 300 líneas; 001.31)
 src/kcut/gfx/seek.py  capture_png.py                                          S1.6b (partidos de capture.py por la regla de 300 líneas; 001.32)
-src/kcut/render/proxy_file.py  src/kcut/commands/refuse.py                    S1.6b (001.31: `proxy_of` y `refuse_edl` en módulos neutros)
+src/kcut/render/proxy_file.py  src/kcut/edl/refuse.py                         S1.6b (001.31: `proxy_of` y `refuse_edl` en módulos neutros; 001.44: `refuse_edl` pasa de `commands/refuse.py` a `edl/refuse.py`)
 tests/unit/test_layers.py                                                     S1.6b (001.31: ningún módulo fuera de `commands/` importa `kcut.commands`)
 src/kcut/render/preview.py                                                     S1.6b (001.15: frame base desde el proxy para `graphics still` y el storyboard)
 src/kcut/gfx/components_showpiece.py                                           S1.7 (001.15)
@@ -127,6 +127,7 @@ src/kcut/commands/mix.py                                                       S
 src/kcut/qa/__init__.py  streams.py  loudness.py  detect.py  transcript_diff.py  ear.py  contact.py  report.py  run.py   S1.9a (ear: 001.15)
 src/kcut/catalog/__init__.py  model.py  static_items.py  planned.py  collect.py               S1.9a
 src/kcut/commands/qa.py  catalog.py                                            S1.9a
+src/kcut/qa/contact_gfx.py  outputs.py  src/kcut/gfx/still.py  src/kcut/audio/f32write.py  S1.9a (la hoja con gráficos, escribir y borrar el reporte y la hoja, la composición del still compartida y `write_f32*` partidos de wavio.py; 001.38–001.43)
 src/kcut/pipeline/snapshot.py  build.py                                        S1.9b
 src/kcut/commands/build.py                                                     S1.9b
 src/kcut/storyboard/__init__.py  beats.py  notes.py  panel.py  html.py  sheet.py  run.py     S1.10
@@ -586,7 +587,7 @@ llama `[sys.executable, "-I", "-X", "utf8", "-m", "kcut", *args]` con `encoding=
  "checks": [
   {"id": "python", "required": true, "ok": true, "detail": "3.12.10", "fix_es": null},
   {"id": "ffmpeg", "required": true, "ok": true, "detail": "8.1.1 C:\\...\\ffmpeg.exe", "fix_es": null},
-  {"id": "filters", "required": true, "ok": true, "detail": "22/22", "fix_es": null}
+  {"id": "filters", "required": true, "ok": true, "detail": "23/23", "fix_es": null}
  ]}
 ```
 
@@ -2942,6 +2943,25 @@ Checks y umbrales (`[qa]` de `kcut.toml`):
   `n = (frames + 2·fps − 1) // (2·fps)`: el frame `k` es el frame `2·k·fps` del video (medido con
   ffmpeg 8.1.1: sin `round=up`, `fps=1/2` da los frames 29, 89, 149… y no siempre `n`). Se reduce con
   Pillow; rótulo `fmt_tc(2·k·fps)` y `f<2·k·fps>`; JPEG calidad 85 con `write_bytes_atomic`.
+  (001.39, D19) Claude lee la hoja, así que no muestra texto sin enmascarar: un frame de la hoja
+  que cae dentro de `active_frames` del documento de gráficos de esa versión (calculado con
+  `resolve`, sin Chromium) se arma como `graphics still`: frame base desde el proxy
+  (`render/preview.base_frame`) más la capa de la página **enmascarada** (`masked=True`); los
+  demás frames salen de `salida/vN.mp4` como arriba. Con `privacy.mask_pii = false`, todos
+  salen del video y el reporte lleva el aviso `pii_unmasked`.
+  (001.41) Con `privacy.mask_pii = true` **ningún** frame de la hoja sale de `salida/vN.mp4`: todos
+  se arman desde el proxy (`render/preview.base_frame`), y los que caen en `active_frames` llevan
+  encima la página enmascarada. Lo grabado en el MP4 puede venir de otros gráficos, de otra
+  configuración o de otro transcript que los de ahora, y solo el MP4 conserva el texto crudo (D19).
+  Esto reemplaza "los demás frames salen de `salida/vN.mp4`" de 001.39. Sin proxy, la hoja se salta.
+  Con `mask_pii = false`, todos salen del video y el reporte lleva `pii_unmasked`.
+  (001.40) `masked=True` tapa los subtítulos, que salen del transcript; los `params` de los cues
+  quedan como los escribió Claude, igual que en `graphics still` y que en S1.6a. La composición
+  (decodificar lo que da Chromium y mezclarlo sobre `base_frame`) vive en `gfx/still.py`, que
+  usan `graphics still` y la hoja. Si no se puede armar un frame con gráficos (falta Chromium o
+  el proxy), la hoja no se escribe, `contact_sheet` es `null` y `warnings` lleva
+  `contact_skipped` con el motivo en texto fijo; nunca se cae a un frame del video, que lleva el
+  texto crudo. Los gráficos salen de `edit/graphics.json`.
 
 ### Formato `kcut catalog --json` (D8: única fuente de verdad)
 
@@ -2954,8 +2974,8 @@ Checks y umbrales (`[qa]` de `kcut.toml`):
    "status": "available", "since": "S1.6", "cost": "bajo",
    "cost_note_es": "captura HTML ~55 ms por frame mientras esta en pantalla",
    "params": [{"name": "text", "kind": "str", "required": true, "default": null, "lo": null, "hi": null, "help_es": "texto del titulo"}]},
-  {"category": "camera", "id": "face_follow", "name_es": "Reencuadre siguiendo la cara",
-   "purpose_es": "Mantener la cara centrada en 9:16", "avoid_es": "Todavia no existe",
+  {"category": "transition", "id": "crossfade", "name_es": "Fundido cruzado",
+   "purpose_es": "Pasar de una toma a otra mezclando las dos", "avoid_es": "Todavia no existe",
    "status": "planned", "since": "F2", "cost": "medio", "cost_note_es": "", "params": []}
  ]}
 ```
@@ -2963,9 +2983,9 @@ Categorías: `graphic`, `look`, `sfx`, `music`, `camera`, `transition`, `workflo
 Disponibles en 001: graphic {`captions`, `title`, `label`, `kinetic`, `endcard`, `steps`, `sticker`,
 `holo_board`, `globe`} · look {los 6} · sfx {los 13} · music {`synth`, `file`, `none`} · camera
 {`zoom`, `push`, `reframe` (cx/cy/anchor), `screen_card`, `broll_push`, `color_card`} · transition
-{`cut`, `fade_black`} · workflow {`qa`; `storyboard` lo agrega S1.10}. Planeados: camera
-{`face_follow` F2, `hand_track` F2, `privacy_blur` F2}, transition {`crossfade` F2, `whip` F2},
-graphic {`lower_third` F2, `matte_captions` F2}, music {`beat_cut` F4}.
+{`cut`, `fade_black`} · workflow {`qa`; `storyboard` lo agrega S1.10}. Planeados (001.39: sin `face_follow`, `hand_track` ni `privacy_blur`, descartados en D22):
+transition {`crossfade` F2, `whip` F2},
+graphic {`lower_third` F2}, music {`beat_cut` F4} (001.42: sin `matte_captions`).
 
 ### Archivos
 
@@ -3056,8 +3076,30 @@ encuentre `tests`).
 | 13 | Paso 0 (001.38 punto 3): `render/lock.prepare_partial` dice `no pude borrar ({motivo}) {ruta}`, con `motivo` = `strerror` (o el nombre de la clase), sin repetir la ruta. Test: un proyecto en una carpeta de 200 caracteres o más y `unlink` parcheado para dar `PermissionError` → el mensaje que imprime `kcut` (ya recortado a 300) trae el motivo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k prepare_partial_reason` → exit 0 | ❌ |
 | 14 | Paso 0 (001.38 punto 4): el tope de tiempo de ffmpeg sobre audio sale de una sola fórmula, `audio/loudnorm.audio_timeout_s`: `audio/mixer.py` y `audio/music_file.py` la usan y no tienen constantes propias. Test: `mixer` y `music_file` no definen `_TIMEOUT_FLOOR_S` ni `_TIMEOUT_PER_AUDIO_S`, y un espía de `proc.run` ve en cada llamada el `timeout_s` que da `audio_timeout_s` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k audio_timeout_shared` → exit 0 | ❌ |
 | 15 | Paso 0 (001.38 punto 5): `apad` entra en `REQUIRED_FILTERS` de `doctor/checks.py`, como dice §1.1 desde 001.38. Test: con la lista de filtros de ffmpeg parcheada sin `apad`, `kcut doctor` lo nombra como faltante | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k doctor_apad` → exit 0 | ❌ |
-| 16 | Paso 0 (001.38 punto 6): `kcut/params._shown` pasa a pública como `params.shown` (mismo cuerpo), y sus usos (`params.py`, `audio/music_schema.py` y los que haya) la importan con ese nombre; no queda `_shown` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_params.py tests/unit -q -k "params or music_schema"` → exit 0, y `git grep -nw "_shown" -- src` sin resultados | ❌ |
+| 16 | Paso 0 (001.38 punto 6): `kcut/params._shown` pasa a pública como `params.shown` (mismo cuerpo), y sus usos (`params.py`, `audio/music_schema.py` y los que haya) la importan con ese nombre; no queda `_shown` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_params.py tests/unit -q -k "params or music_schema"` → exit 0, y `git grep -nw "_shown" -- src/kcut/params.py src/kcut/audio/music_schema.py` sin resultados (001.39: `schema_util._shown` es otra función y no se toca) | ❌ |
 | 17 | Paso 0 (001.38): toda aserción vieja que cambie en este paso lleva `# 001.38` y no se debilita; las filas 11–16 pasan con sus comandos; la suite completa da exit 0 | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider` → exit 0 | ❌ |
+| 18 | 001.39 punto 2 (D19) y 001.40 punto 1: la hoja de contacto no muestra texto del transcript sin enmascarar. Un frame de la hoja que cae en `active_frames` del documento de gráficos de la versión se arma como `graphics still` (frame base desde el proxy más la página con `masked=True`, compuestos con `gfx/still.py`); los demás salen del video. Con `privacy.mask_pii = false`, todos del video y aviso `pii_unmasked` en el reporte. Sin Chromium o sin proxy: `contact_sheet: null`, aviso `contact_skipped` y el reporte sale con los demás checks. Tests: un transcript sintético cuyas palabras dicen un teléfono (`ocho cero nueve cinco cinco cinco uno dos tres cuatro`, o los dígitos) en un tramo con subtítulos que la hoja muestrea → un espía ve que ese frame se arma con la página enmascarada y que la página no trae esos dígitos; un frame sin gráficos sale del video (sus píxeles son los del frame del MP4 reducido); con `mask_pii = false` → ningún frame se arma y el reporte trae `pii_unmasked`; con el arranque de Chromium parcheado para fallar → `contact_sheet: null`, `contact_skipped` y exit 0 si lo demás pasa; ninguna página cruda se escribe fuera de `.kcut/build/vN/gfx/`. `graphics still` usa `gfx/still.py` y sus filas (S1.6b-7, S1.6b-8, S1.7-10) siguen pasando | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k contact_masked` → exit 0 | ❌ |
+| 19 | 001.39 punto 3 (D22): el catálogo no lista `face_follow`, `hand_track` ni `privacy_blur`: los descartó Yedin el 26/10/2026 y lo descartado no se re-propone (R6). Test: ninguno de los tres ids sale en `collect_catalog()` ni en `kcut catalog --json`, y los planeados son los de la lista del spec | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_catalog.py -q -k planned` → exit 0 | ❌ |
+| 20 | 001.39: toda aserción vieja que cambie por las filas 18 y 19 lleva `# 001.39` y no se debilita; las filas 1–19 pasan con sus comandos; la suite completa da exit 0 | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider` → exit 0 | ❌ |
+| 21 | Ronda 1 (001.41 punto 1; el ALTO del verificador): `qa/run._video_path` mira los enlaces **antes** de resolver: `project.root / "salida"` y `project.root / <video>` no pueden ser symlink ni junction, el archivo no puede tener más de un nombre, y la ruta resuelta tiene que ser `same_path` con `root resuelto / salida / <nombre>`. Si no, ProjectError (exit 3) `salida/vN.mp4 es un enlace; kcut qa no lo mide`, sin correr ffprobe ni ffmpeg. Tests: `salida/` cambiado por un junction a `crudo/` con un `v1.mp4` adentro, llamando a `_video_path` y por `kcut qa` → exit 3 y 0 herramientas corridas; el hard link de antes sigue en exit 3; el symlink de archivo, si el sistema no deja crearlo, se salta con motivo | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k qa_video_link` → exit 0 | ❌ |
+| 22 | Ronda 1 (001.41 punto 2; el ALTO de seguridad): con `mask_pii = true` ningún frame de la hoja sale de `salida/vN.mp4`; todos se arman desde el proxy, y los de `active_frames` con la página enmascarada. Sin proxy, `contact_skipped`. Tests: se renderiza v1 con subtítulos sobre un transcript que dice un teléfono, se apagan los subtítulos en `edit/graphics.json` (y en otro caso se agrega un `captions.hide`), se corre `kcut qa salida/v1.mp4` → ningún `FrameReader` abre `salida/v1.mp4` para la hoja (un espía lo cuenta) y ninguna celda trae los dígitos; con `mask_pii = false` las celdas salen del video y el reporte trae `pii_unmasked`. Las filas 18 y 5 siguen pasando | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k contact_never_from_video` → exit 0 | ❌ |
+| 23 | Ronda 1 (001.41 punto 3): `kcut qa salida/vN.mp4 --edl <EDL de otra versión>` es UsageError (exit 2) `el EDL es de la versión M y el video de la N; usa el EDL de la misma versión`, antes de medir. El test que usaba un EDL v2 sobre `salida/v1.mp4` (`qa_writable_cases`) pasa a v1 con `# 001.41` sin debilitarse. Test: `--edl edit/edl-v2.json` sobre `salida/v1.mp4` → exit 2 y 0 herramientas corridas | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k qa_edl_version` → exit 0 | ❌ |
+| 24 | Ronda 1 (001.41 punto 4): cuando la hoja se salta (`contact_sheet: null`), se borra el `qa/vN/contact.jpg` que haya de una corrida anterior (por la ruta que ya pasó `assert_writable`). Test: una corrida con `mask_pii = false` deja una hoja; la siguiente, con `mask_pii = true` y sin proxy → `contact_sheet: null`, `contact_skipped` y `qa/v1/contact.jpg` ya no existe | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k contact_stale_removed` → exit 0 | ❌ |
+| 25 | Ronda 1 (001.41 punto 5): `assert_writable` se vuelve a llamar justo antes de escribir `qa/vN/contact.jpg` y justo antes de escribir `qa/vN/report.json`. Test: un gancho que corre durante el oído cambia `qa/v1` por un junction a una carpeta de fuera → exit 3 y la carpeta de fuera queda vacía | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k qa_write_guard` → exit 0 | ❌ |
+| 26 | Ronda 1 (001.41 punto 6): si `edit/graphics.json` no se puede leer, la hoja se salta (`contact_skipped` con el texto fijo `edit/graphics.json no se puede leer; la hoja de contacto no se escribió; corre kcut graphics check`) y el reporte sale con los demás checks. Test: un `graphics.json` con JSON roto → exit según los demás checks, `contact_sheet: null` y ese aviso | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k contact_graphics_unreadable` → exit 0 | ❌ |
+| 27 | Ronda 1 (001.41 punto 7): el oído extrae como mucho el largo del EDL más 2 s de audio (`limit_s` en `wav_args`): no se confía en la duración declarada del archivo. Test: un `salida/v1.mp4` con 300 s de audio y un EDL de 11.5 s → el wav que llega al oído dura como mucho 13.5 s | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k ear_limit` → exit 0 | ❌ |
+| 28 | Ronda 1 (001.41 punto 8): `qa/vN/report.json` se escribe con sus textos pasados por `safe_text`, como lo que se imprime. Test: una palabra oída con U+202E, U+200B, caracteres de la zona "tag" (U+E0020…U+E007F) y un ESC → `report.json` en disco no trae ninguno | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k report_safe_text` → exit 0 | ❌ |
+| 29 | Ronda 1 (001.41 punto 9): el planeado `crossfade` del catálogo dice lo del ejemplo del spec (`medio`, `Pasar de una toma a otra mezclando las dos`), y un test amarra los rangos de cámara y transición de `catalog/static_items.py` a `edl/fields.py` (si uno cambia, el test falla) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_catalog.py -q` → exit 0 | ❌ |
+| 30 | Ronda 1 (001.41 punto 10): el tope de tiempo de ffprobe y de los filtros de QA es 120 s + 5 s por segundo de video (antes 30 s por segundo). Test: `measure_timeout_s` de un EDL de 600 s da 3120 s | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k qa_timeout` → exit 0 | ❌ |
+| 32 | 001.42 (Yedin, 23/11/2026): el catálogo no lista `matte_captions`, que pide segmentar a la persona, la misma clase que D22 descartó. Los planeados quedan `crossfade`, `whip`, `lower_third` y `beat_cut`. Test: `matte_captions` no sale en `collect_catalog()` ni en `kcut catalog --json`, y los planeados son exactamente esos cuatro | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_catalog.py -q -k planned` → exit 0 | ❌ |
+| 31 | Cierre de la ronda 1 (001.41): toda aserción vieja que cambie lleva `# 001.41` y no se debilita; las filas 21–30 y 32 pasan con sus comandos; las filas 9 y 10 pasan; la suite completa da exit 0 | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider` → exit 0 | ❌ |
+| 33 | Ronda 2 (001.43 punto 2; MEDIO de seguridad): `kcut qa` pasa el EDL que va a usar (`--edl`, el snapshot `qa/vN/inputs/edl-vN.json` o `edit/edl-vN.json`) por `check_edl_file` contra el inventario de hoy, como `render`, `mix` y `graphics`. Con errores: exit 1 por `refuse_edl` (hasta 5 errores impresos y el `CheckFailed` que los nombra), **antes de medir**: ninguna herramienta corre y no se escribe ni se borra nada en `qa/vN/`. Los avisos del check no se imprimen ni cambian nada. `run_qa` recibe el `Out` del comando como parámetro obligatorio por nombre (`out`) para llamar a `refuse_edl`. (001.44) `refuse_edl` y `MAX_NAMED` se mudan tal cual, sin cambiar textos ni comportamiento, de `src/kcut/commands/refuse.py` a `src/kcut/edl/refuse.py`; `render`, `mix`, `graphics_capture` y `qa/run.py` los importan de ahí; `commands/refuse.py` se borra (sin reexportar); en `test_layers_the_shared_code_lives_in_neutral_modules` la aserción del módulo pasa a `kcut.edl.refuse` con `# 001.44`. Tests (`qa_edl_gate`): un EDL v1 con `"frames": 1080000` y tramos que suman menos (E08); un snapshot con un `look` que no existe; un `edit/edl-v1.json` que por dentro dice `"version": 2`; un `output` de 60000×60000. Cada uno → exit 1, `error.kind` `CheckFailed`, el espía de herramientas vacío y `qa/v1/` sin `report.json` ni `contact.jpg` nuevos | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k qa_edl_gate` → exit 0 | ❌ |
+| 34 | Ronda 2 (001.43 punto 3; MEDIO de seguridad): en `diff_transcript`, el `heard` de un tramo es el texto fijo `[tapado]` (constante `HIDDEN_HEARD` de `qa/transcript_diff.py`) si alguna palabra esperada del tramo, o la palabra esperada justo antes o justo después del tramo, está tapada (`shown[id] != text`). Vale para `replace` e `insert`. Con `privacy.mask_pii = false` nada está tapado y `heard` sigue como hoy. Tests (`heard_hidden`): esperado `llamame al 809 555` con `809` y `555` tapados (`***`) y oído `llamame al 809555` → el `heard` del tramo es `[tapado]` y ni `809555` ni `555` salen en `transcript_check(...)` ni en `QaReport.to_json()`; un `insert` de `5` justo después de una palabra tapada → `[tapado]`; un tramo lejos de toda palabra tapada conserva su `heard` enmascarado como hoy; con `shown` igual al texto (máscara apagada) → `heard` crudo como hoy | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k heard_hidden` → exit 0 | ❌ |
+| 35 | Ronda 2 (001.43 punto 1; el ALTO del verificador): vuelve a haber un test que prueba que un `--edl` explícito gana sobre el EDL por defecto. En `test_qa_writable_a_fail_verdict_still_writes_the_report_and_is_exit_1` (`tests/integration/qa_writable_cases.py`) se planta `qa/v1/inputs/edl-v1.json` con el EDL bueno (copia del `edit/edl-v1.json` original, antes de cambiarlo) y se pasa `--edl edit/edl-v1.json` con el EDL malo, con `# 001.43`. Si el EDL de 1920×1080 ya no pasa el gate de la fila 33, se usa otro cambio que pase `edl check` y haga fallar un check de QA, también con `# 001.43`. Además, el implementador muestra que el test cae con un mutante que ignora `--edl` (usa el snapshot), hecho en proceso y sin tocar archivos del repo, como lo hizo el verificador | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration -q -k fail_verdict` → exit 0; con el mutante → al menos `1 failed` (pegar el último renglón de las dos corridas) | ❌ |
+| 36 | Ronda 2 (001.43 punto 4; MEDIO del verificador): `pyproject.toml` lleva `tmp_path_retention_policy = "failed"` en `[tool.pytest.ini_options]`: la carpeta de cada test que pasa se borra al terminar el test. Medido en la corrida completa de la fila 37: lo que queda en el basetemp pesa menos de 30 GiB (antes 46.4 GiB; 001.45: el tope era 20). (001.44) Antes de la suite completa, una corrida de `tests/integration -k qa_` con el mismo comando de medición da menos de 5 GiB; si da más, se para y se reporta sin correr la suite | la suite completa de la fila 37, y después `.venv/Scripts/python.exe -I -X utf8 -c "import os,sys; t=sys.argv[1]; s=sum(os.lstat(os.path.join(d,f)).st_size for d,_,fs in os.walk(t) for f in fs); print(round(s/2**30,1)); sys.exit(0 if s<30*2**30 else 1)" <basetemp>` → un número menor que 30, exit 0 | ❌ |
+| 37 | Cierre de la ronda 2 (001.43): toda aserción vieja que cambie lleva `# 001.43` (o `# 001.44`) y no se debilita; las filas 33–36 pasan con sus comandos; las filas 9 y 10 pasan; la suite completa da exit 0, corrida una vez sin `-x` con `--basetemp` fuera del repo. (001.45) Vale la corrida del implementador si la revisión 3 no cambia código: el coordinador compara el hash de cada archivo cambiado antes y después de la revisión | revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider --basetemp=<basetemp>` → exit 0 | ❌ |
+| 38 | Ronda 4 (001.46 punto 1; el ALTO del verificador en la revisión 3): vuelve a haber tests que prueban que el `heard` de `diffs[]` sale de la lista enmascarada (T2/D19, fila 6) en un tramo que no toca ninguna palabra esperada tapada, donde la fila 34 no lo cambia por `[tapado]`. Unit, en `tests/unit/test_transcript_diff_heard_hidden.py` (`heard_masked_far`): esperado `hola que tal amigo mio`, oído `hola que 8095551234 amigo mio`, con `shown` igual al texto y `heard_shown` el que da `mask_pii` → un solo tramo `replace` con `expected` `tal` y `heard` igual a lo que `mask_pii` devuelve para `8095551234` (calculado en el test, no escrito a mano), y `8095551234` no sale en `transcript_check(...)` ni en `QaReport.to_json()`. Integración, en `tests/integration/qa_pii_cases.py`: una variante de `SPEECH` donde el oído dice un número de al menos 7 dígitos lejos de toda palabra esperada tapada (por ejemplo después de `gracias`, sin estar en lo esperado) → `report.json`, la salida `--json` y la consola llevan la forma enmascarada que da `mask_pii`, y ni el número crudo ni el tramo de sus dígitos que la máscara tapa salen en ninguno de los tres (ampliar `RAW_DIGITS` o su equivalente). Ninguna aserción existente cambia. El implementador muestra que cada test nuevo cae con su mutante, en proceso y sin tocar archivos del repo: A (`diff_transcript` ignora `heard_shown` y usa el oído crudo) tumba el unit; B (`run._transcript` le pasa al diff el oído crudo) tumba el de integración | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k heard_masked_far` → exit 0; `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration -q -k qa_pii` → exit 0; con el mutante A sobre el unit y con el B sobre `qa_pii` → al menos `1 failed` cada uno (pegar el último renglón de las cuatro corridas) | ❌ |
+| 39 | Cierre de la ronda 4 (001.46 punto 3): la ronda solo cambia archivos de `tests/`. El hash de cada archivo de `src/` y de `pyproject.toml` coincide con el snapshot que el coordinador tomó antes de la revisión 3. Los módulos de test tocados corren enteros, y las filas 9 y 10 pasan. La suite completa no se repite | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "transcript_diff or heard_hidden or qa_"` → exit 0; `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration -q -k qa_` → exit 0; la comparación de hashes → sin diferencias; filas 9 y 10 | ❌ |
 
 Equivalencias: S1.9-1 → a-1 · S1.9-2 → a-2 · S1.9-3 → a-3 · S1.9-4 → a-4 · S1.9-9 → a-9 y b-6.
 
@@ -3072,6 +3114,17 @@ Equivalencias: S1.9-1 → a-1 · S1.9-2 → a-2 · S1.9-3 → a-3 · S1.9-4 → 
 | 5 | `salida/v1.mp4` plantado como symlink a un archivo de `crudo/`, con `--force` → exit 3 y ese archivo de `crudo/` queda igual (T4) (001.15) | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/e2e/test_build_synth.py -q -ra -k writable` → exit 0 (skip con motivo si no se puede crear el enlace) | ❌ |
 | 6 | Lint, formato, tipos | como en S1.1 → exit 0 | ❌ |
 | 7 | Ningún `.py` de `src/` ni de `tests/` pasa de 300 líneas | `.venv/Scripts/python.exe -I -X utf8 -c "import pathlib,sys; bad=[str(p) for d in ('src','tests') for p in pathlib.Path(d).rglob('*.py') if len(p.read_text(encoding='utf-8').splitlines())>300]; print(bad); sys.exit(1 if bad else 0)"` → `[]`, exit 0 | ❌ |
+| 8 | Paso 0 (001.47 punto 1; BAJO de seguridad de 001.43): la hoja de contacto no tiene en memoria todos los PNG de Chromium a la vez. `gfx/capture.capture_stills` entrega cada PNG apenas lo hace, en el orden de `frames`, a una función que recibe `(f, png)` (`on_shot`), dentro de la misma sesión de Chromium de hoy. `qa/contact_gfx.py` compone la celda de cada PNG dentro de esa función y no guarda los bytes. `kcut graphics still` arma su dict con esa misma función y no cambia de comportamiento. Test (`contact_one_shot`): un doble de la captura que pone en cero cada PNG apenas `on_shot` retorna da exactamente la misma hoja que con los PNG intactos | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k "contact_one_shot or graphics_still"` → exit 0 | ❌ |
+| 9 | Paso 0 (001.47 punto 2; BAJO de seguridad de 001.43): `kcut qa` vuelve a mirar los enlaces de `salida/` y de `salida/vN.mp4` justo antes de cada herramienta que lee el video (ffprobe, los filtros de QA, la extracción del oído y los frames de la hoja que salen del video), con la misma comprobación que `qa/run._video_path` (001.41 punto 1), como `look()` de `qa/ear.py`. Si en medio `salida/` pasó a ser un junction → el mismo exit 3 que da `_video_path`, y esa herramienta no corre. Test (`qa_relook`): un espía de `proc.run` que, después de la primera llamada, cambia `salida/` por un junction a otra carpeta con un `v1.mp4` → exit 3, y el espía registra una sola llamada | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/integration -q -k qa_relook` → exit 0 | ❌ |
+| 10 | Paso 0 (001.47 punto 3; BAJO de seguridad de 001.43): en cada renglón de consola de `kcut qa` que muestra texto esperado u oído, ese texto pasa por `" ".join(text.split())` antes de `safe_text`: un salto de línea o un tab dentro de una palabra sale como un espacio y el renglón sigue siendo uno. `report.json` y `--json` no cambian. Test (`qa_console_one_line`): una palabra oída `hola\nmundo` → el renglón dice `oído 'hola mundo'` y la salida no tiene un renglón que empiece con `mundo` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k qa_console_one_line` → exit 0 | ❌ |
+| 11 | Paso 0 (001.47 punto 4; BAJO del verificador de 001.43): `console._clean` pasa a pública como `console.clean`, con el mismo cuerpo, y sus usos en `console.py` la llaman así. `qa/report.py` borra su copia `_safe` y usa `console.clean`. Test: `kcut.console.clean` existe, `kcut.qa.report` no tiene `_safe` ni `kcut.console` tiene `_clean`, y los tests de reporte y consola pasan sin cambiar aserciones | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit -q -k "qa_report or console"` → exit 0 | ❌ |
+| 12 | Paso 0 (001.47 punto 5; BAJO del verificador de 001.43): en `qa/ear.py`, `limit_s` de `hear` y de `_extract` es obligatorio, de tipo `float` y sin valor por defecto. Toda llamada lo pasa. Test (`ear_limit`): `inspect.signature(hear).parameters["limit_s"].default is inspect.Parameter.empty`, y los tests del oído pasan | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k ear_limit` → exit 0 | ❌ |
+| 13 | Paso 0 (001.47 punto 6; BAJO del verificador de 001.43): cuando la hoja de contacto vieja no se deja borrar, `qa/outputs.py` dice `no pude borrar la hoja de contacto vieja {rel} ({reason}); ciérrala y repite`. Test (`old_sheet_message`): con el borrado fallando con `PermissionError` → `ProjectError` con ese texto exacto | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k old_sheet_message` → exit 0 | ❌ |
+| 14 | Paso 0 (001.47 punto 7; BAJO de seguridad de 001.46): una palabra esperada que cae dentro de un número o una dirección enmascarados cuenta como tapada en la regla de la fila S1.9a-34, aunque su texto no cambie (`eh`, `y`). `KeptWords` gana el campo `hidden: frozenset[str]`: los ids del tercer conjunto de `mask_pii_spans`, calculado en `kept_words` en la misma pasada y con el mismo contexto que `shown`. Con `privacy.mask_pii = false` es vacío. `diff_transcript` gana el parámetro obligatorio por nombre `hidden`. Una palabra cuenta como tapada si `shown.get(id, "") != text` o si `id in hidden`. Test (`heard_hidden_bridge`), con `fillers = ("eh",)` y el clip `llamame al 809 eh 555 1234 gracias`: se conserva `llamame al 809 eh` y el oído da `llamame al 809 eh 555` → el `heard` del `insert` es `[tapado]` y `555` no sale en `transcript_check(...)` ni en `QaReport.to_json()`. Lo mismo con el puente `y` y con dos muletillas seguidas | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k "heard_hidden or kept_words"` → exit 0 | ❌ |
+| 15 | Paso 0 (001.47 punto 8; BAJO del verificador de 001.46): `refuse_edl` gana el parámetro por nombre `remedy`, con valor por defecto `corre kcut edl check y corrígelos`, el texto de hoy, así que `render`, `mix` y `graphics` no cambian. `qa/run.py` pasa `remedy="corre kcut build otra vez"` cuando el EDL rechazado es el snapshot `qa/vN/inputs/edl-vN.json`. Test (`qa_edl_gate`): un snapshot con un `look` que no existe → el `CheckFailed` termina en `corre kcut build otra vez`; un `edit/edl-v1.json` rechazado conserva el texto de hoy | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit tests/integration -q -k qa_edl_gate` → exit 0 | ❌ |
+| 16 | Paso 0 (001.47 punto 9; de 001.46 punto 4): los topes de tiempo de `tests/unit/test_pii_perf.py` miden el tiempo de CPU del proceso (`time.process_time()`), no `time.monotonic()`. Así la carga de otro proceso no cuenta. Los topes no cambian (2.0 s, 20.0 s y los demás), y cada línea cambiada lleva `# 001.47` | `.venv/Scripts/python.exe -I -X utf8 -m pytest tests/unit/test_pii_perf.py -q` → exit 0 | ❌ |
+| 17 | Paso 0 (001.47 punto 10; de 001.45 punto 3): toda fixture de alcance `class`, `module`, `package` o `session`, y todo test, que cree una carpeta con `tmp_path_factory.mktemp` la borra al cerrar su alcance, con una sola función nueva `remove_tree(path)` en `tests/tmp_cleanup.py`. Esa función también borra archivos de solo lectura, y si algo no se deja borrar no falla: lo avisa con `warnings.warn`. Medido en la suite completa de la fila 18: primero el desglose de lo que queda en el basetemp, la suma por carpeta de primer nivel, y se pegan las 15 más pesadas; después la medición, que da menos de 10 GiB | `.venv/Scripts/python.exe -I -X utf8 -c "import os,sys; t=sys.argv[1]; r={e.name: sum(os.lstat(os.path.join(d,f)).st_size for d,_,fs in os.walk(e.path) for f in fs) for e in os.scandir(t) if e.is_dir(follow_symlinks=False)}; [print(round(v/2**30,2), k) for k,v in sorted(r.items(), key=lambda x: -x[1])[:15]]" <basetemp>`, y después `.venv/Scripts/python.exe -I -X utf8 -c "import os,sys; t=sys.argv[1]; s=sum(os.lstat(os.path.join(d,f)).st_size for d,_,fs in os.walk(t) for f in fs); print(round(s/2**30,1)); sys.exit(0 if s<10*2**30 else 1)" <basetemp>` → un número menor que 10, exit 0 | ❌ |
+| 18 | Cierre del paso 0 (001.47): toda aserción vieja que cambie lleva `# 001.47` y no se debilita; las filas 8–17 pasan con sus comandos; las filas 6 y 7 pasan. Antes de la suite completa, el disco tiene al menos 40 GB libres; si no, se para y se reporta sin correrla. La suite completa da exit 0, corrida una vez sin `-x`, con `--durations=30` (se pegan los 30 renglones) y con `--basetemp` fuera del repo. Después se corren las dos mediciones de la fila 17 | `.venv/Scripts/python.exe -I -X utf8 -c "import shutil; f=shutil.disk_usage('C:/').free; print(round(f/1e9,1)); raise SystemExit(0 if f>=40e9 else 1)"` → exit 0; revisión del diff + `.venv/Scripts/python.exe -I -X utf8 -m pytest -q -p no:cacheprovider --durations=30 --basetemp=<basetemp>` → exit 0 | ❌ |
 
 Equivalencias: S1.9-5 → b-1 · S1.9-6 → b-2 · S1.9-7 → b-3 · S1.9-8 → b-4 · S1.9-9 → a-9 y b-6.
 
@@ -4873,3 +4926,205 @@ S1.8b cerró en `a0ffe90`, en la segunda revisión. El verificador y seguridad a
     - El hash del archivo en la aprobación del manifiesto (DS9).
     - Partir `mixer.mix`, que es opcional.
     - Seguridad no pudo probar un symlink de archivo en el barrido (falta el privilegio). Lo cubre `lone_file_reason`.
+
+### 001.39 — 28/10/2026 — el BLOQUEADO y dos choques de S1.9a
+
+El implementador hizo las filas 1–15 y la parte de código de la 16. La suite dio `6154 passed, 5 skipped`. Paró en un punto y avisó de dos choques del spec con decisiones ya tomadas. Los tres los resolvió el coordinador.
+
+1. **BLOQUEADO — el `git grep` de la fila 16 era demasiado ancho.** `schema_util._shown` es otra función: acorta enteros enormes y tiene 6 usos. El spec no la nombraba. Error del spec: el grep mira solo los dos archivos que la fila cambia.
+2. **Choque con D19 — la hoja de contacto mostraba texto crudo** (fila 18).
+   - La hoja salía de `salida/vN.mp4`, que lleva grabados los subtítulos y los títulos crudos (001.13 punto 6). Claude la lee (§ de verificación en vivo).
+   - D19 (Yedin, 25/10/2026) dice que todo lo que lee Claude va enmascarado, imágenes incluidas, y que solo el MP4 final conserva el texto. La hoja es la misma clase que `view`, los stills y el storyboard.
+   - Se aplica D19 con la técnica de `graphics still`: los frames con gráficos se arman desde el proxy con la página enmascarada, y los que no tienen gráficos salen del video, que no tiene texto que tapar.
+   - La revisión visual de la composición del MP4 la cubren los tests de S1.6b. Las demás pruebas de `kcut qa` (streams, negro, congelado, av_delta, oído) siguen sobre el video real.
+   - Si Yedin prefiere otra forma, se cambia antes de cerrar S1.9a.
+3. **Choque con D22 — `face_follow`, `hand_track` y `privacy_blur` en los planeados del catálogo** (fila 19). El spec los listaba desde antes de D22 (26/10/2026: "no lo usaremos"). Por R6 salen, y el ejemplo del JSON pasa a un planeado que sigue en pie (`crossfade`).
+4. **Corrección del spec**: el ejemplo de `kcut doctor` dice `23/23`, porque desde 001.38 los filtros son 23.
+5. **Ratificado**, de lo que el implementador decidió sin que el spec lo fijara:
+   - `target_offset` en −99…99;
+   - las guardas por parámetro `guard` y `audio/f32write.py`, partido de `wavio.py` por la regla de 300 líneas;
+   - el mensaje exacto de `prepare_partial`;
+   - las firmas extra de QA (`parse_freeze` con `total_f`, porque un congelado hasta el final no imprime `freeze_end`);
+   - el redondeo de `match` y de `av_delta`;
+   - el idioma del oído por mayoría de las fuentes;
+   - los topes de tiempo de ffprobe y del oído;
+   - el endurecimiento de `salida/vN.mp4` como enlace (exit 3 antes de ffmpeg);
+   - `kcut qa` sin el lock `build-vN`;
+   - los textos y costos del catálogo.
+
+   Los revisores los miran igual.
+6. **Para el Gate 1 de spec 002**: Claude no lee `.kcut/qa_ear/`, que guarda las palabras oídas en crudo, igual que `.kcut/transcripts/`.
+7. **A la deuda**: el catálogo no lista los `item` anidados de un `ParamSpec` (`kinetic.lines`, `steps.items`). Lo necesita spec 002 para que el plugin sepa armar esos parámetros.
+
+### 001.40 — 28/10/2026 — el segundo BLOQUEADO de S1.9a
+
+El implementador hizo las filas 16 y 19 y paró en la 18 antes de escribir código, con evidencia. Era un error del spec, y lo decidió el coordinador.
+
+1. **La fila 18 pedía tapar el texto de un `title`, y `masked=True` no toca los `params`** (fila 18 reemplazada).
+   - S1.6a fija que los `params` de los cues quedan como los escribió Claude (`data_json`), y `graphics still` hace lo mismo.
+   - D19 protege lo que Claude no debe ver crudo, que es el texto del transcript, y ese llega a la página por los subtítulos. El texto de un `title` lo escribió Claude, o una persona en `edit/graphics.json`, un archivo que Claude ya lee. Mostrarlo en la hoja no destapa nada nuevo.
+   - La hoja tapa entonces lo mismo que `graphics still`: los subtítulos. El test usa un teléfono dicho en el transcript, no uno escrito en un `title`.
+   - `graphics check --json` sí enmascara los `params` (`_masked`). Es más de lo necesario, y queda como está.
+2. **Sin Chromium o sin proxy, la hoja no se escribe.** Hasta S1.9a, `kcut qa` no necesitaba ninguno de los dos. Hacer caer todo el reporte por la hoja sería perder los demás checks, y caer a un frame del MP4 mostraría el texto crudo. Sale `contact_sheet: null` con el aviso `contact_skipped`.
+3. **Los gráficos salen de `edit/graphics.json`.** Para S1.9b: si `kcut build` guarda una copia de los gráficos en `qa/vN/inputs/`, la hoja usa esa copia, como el EDL.
+4. **La composición del still pasa a `gfx/still.py`.** `graphics_capture._still` es privado de `commands/`, y `tests/unit/test_layers.py` prohíbe importarlo.
+
+### 001.41 — 28/10/2026 — ronda 1 de S1.9a
+
+El implementador hizo las filas 1–20, y la suite dio `6189 passed, 5 skipped` en su corrida y en la del verificador. Los dos revisores devolvieron con 1 ALTO cada uno, sin CRÍTICO. Todo entra en esta ronda (filas 21–31). Lo que no es contrato lo decidió el coordinador.
+
+1. **ALTO del verificador (y BAJO de seguridad) — el chequeo de enlaces de `salida/vN.mp4` miraba la ruta ya resuelta** (fila 21).
+   - `resolve_in_project` hace `.resolve()`, así que un symlink o un junction llegaba ya convertido en su destino.
+   - El verificador lo probó con `salida/` como junction a `crudo/`: `_video_path` lo aceptó. Seguridad lo frenó por `open_project`, pero la defensa del propio `qa` no servía.
+   - Medir un archivo de `crudo/` viola T3.
+2. **ALTO de seguridad (y MEDIO del verificador) — la hoja decidía qué tapar con los gráficos de ahora** (fila 22).
+   - Se renderiza v1 con subtítulos, después se apagan los subtítulos o se edita `graphics.json`, y `kcut qa salida/v1.mp4` sacaba esos frames del MP4 con el texto grabado y crudo.
+   - Seguridad lo reprodujo: el teléfono completo, legible, con exit 0 y sin aviso.
+   - Comparar con el hash del índice de la capa no alcanza. Un `graphics capture` posterior reescribe el índice de la misma versión, y la configuración y el transcript también pueden cambiar.
+   - Decisión: con el enmascarado encendido, la hoja no toma ningún píxel del MP4. Todos los frames se arman desde el proxy, que hace el mismo recorte, zoom, look y fundidos que el render (S1.6b, 001.15). Es D19 al pie de la letra: solo el MP4 conserva el texto crudo.
+   - Los demás checks de `kcut qa` siguen sobre el video real.
+3. **MEDIO del verificador — `--edl` de otra versión** (fila 23). Mezclaba dos cortes en la hoja y en el diff. Se rechaza la decisión de 001.39 punto 5.
+4. **MEDIO de los dos — la hoja vieja quedaba en disco** (fila 24). Seguridad dejó una hoja cruda de una corrida con `mask_pii = false` al lado de un reporte que decía `null`.
+5. **BAJO de los dos — `assert_writable` una sola vez** (fila 25). El oído tarda minutos, y en ese tiempo `qa/v1` se podía cambiar por un junction. Es la misma clase que 001.38 punto 2.
+6. **BAJO del verificador — `graphics.json` ilegible tumbaba `kcut qa` después de medir todo** (fila 26). Se rechaza esa decisión de la ronda anterior: la hoja se salta, como en 001.40 punto 2.
+7. **BAJO de seguridad — el oído extraía todo el audio que el archivo declarara** (fila 27). Con 300 s de audio y un EDL de 11.5 s, Whisper habría transcrito los 300.
+8. **BAJO de seguridad — `report.json` sin `safe_text`** (fila 28). Lo impreso ya lo pasaba. Para que el disco lo tuviera, hacía falta un `qa_ear` plantado.
+9. **BAJO del verificador — `crossfade` y los rangos copiados a mano** (fila 29). Rige D8: una sola fuente de verdad.
+10. **BAJO del verificador — el tope de tiempo de QA era demasiado ancho** (fila 30). Con 30 s por segundo, un video de 10 minutos le daba 5 h a cada ffmpeg.
+11. **El árbol de §0.2** suma `qa/contact_gfx.py`, `gfx/still.py` y `audio/f32write.py`.
+12. **Ratificado**: el resto de las decisiones de S1.9a, como las aceptó el verificador.
+    - Rechazadas: `--edl` de otra versión (punto 3) y `graphics.json` ilegible con exit 3 (punto 6).
+    - Aclaración: la implementación del enlace de `salida/vN.mp4` estaba rota; la decisión sigue (punto 1).
+13. **Pregunta para Yedin, sin código**: el planeado `matte_captions` (F2, subtítulos detrás de la persona) necesita segmentar a la persona. D22 descartó el rastreo de manos y la detección de caras. ¿Va también fuera?
+14. **A la deuda**:
+    - Una hoja de un video de más de unos 68 minutos pasaría de 65 535 px de alto, que JPEG no admite.
+    - `mypy tests` da 149 errores, casi todos re-exports implícitos. El contrato de mypy es `src`.
+    - Los PNG de Chromium de toda la hoja quedan en memoria a la vez.
+
+### 001.42 — 23/11/2026 — `matte_captions` fuera del catálogo
+
+Yedin respondió la pregunta de 001.41 punto 13: sí, `matte_captions` sale. Pide segmentar a la persona en cada frame, la misma clase de visión sobre la persona que D22 descartó (rastreo de manos, detección de caras, blur de caras). Queda como D23 y por R6 no se re-propone. Entra en la ronda 1 de S1.9a como fila 32, y la fila 31 la cubre.
+
+### 001.43 — 23/11/2026 — ronda 2 de S1.9a
+
+La ronda 1 dio `6231 passed, 6 skipped` en la corrida del implementador y en la del verificador. Seguridad aprobó sin CRÍTICO ni ALTO, con 2 MEDIO y 3 BAJO. El verificador devolvió con 1 ALTO, solo de test. Entran en esta ronda el ALTO, los dos MEDIO de seguridad y el MEDIO del disco (filas 33–37). Lo que no es contrato lo decidió el coordinador.
+
+1. **ALTO del verificador — una aserción quedó más débil** (fila 35).
+   - Al pasar el test del veredicto `fail` de un EDL v2 a v1 (001.41 punto 3), el `--edl` explícito y el EDL por defecto quedaron iguales.
+   - Un `_edl_rel` que valida la versión del `--edl` y después lo ignora pasaba toda la suite. El verificador lo probó con un mutante.
+   - El producto está bien; el arreglo es del test.
+2. **MEDIO de seguridad — `kcut qa` no validaba el EDL** (fila 33).
+   - Solo lo parseaba, así que el tope del oído (fila 27) y los timeouts (fila 30) salían del `frames` que el archivo declara.
+   - Con `"frames": 1080000` y tramos que suman 345, el oído recibía 36 002 s en vez de 13.5, y cada herramienta 50 h de timeout.
+   - Por la misma causa, un `look` desconocido reventaba con exit 10 después de medir todo, y un `output` gigante pedía GB de memoria.
+   - Decisión: el mismo gate que `render`, `mix` y `graphics`, contra el inventario de hoy, también para el snapshot de `build`. Si el inventario cambió desde el build, el gate rechaza, y es lo honesto: el diff del transcript y la hoja usan el transcript y el proxy de hoy, y compararían el corte contra otra cosa. Se corre `kcut build` otra vez.
+   - El gate también caza un `edl-vN.json` que por dentro dice otra versión (`edl/refs.py`), la salvedad del verificador a la fila 23.
+3. **MEDIO de seguridad — `heard` podía sacar crudo un trozo de un número** (fila 34).
+   - El lado esperado se enmascara con el contexto del clip entero. El oído se enmascara solo con lo que quedó en el render, y `mask_pii` pide 7 dígitos seguidos.
+   - Un corte que parte un teléfono, oído como `809555`, salía así en el reporte, en `--json` y en la consola (D19).
+   - Decisión: si el tramo toca una palabra esperada tapada, su `heard` no se muestra.
+4. **MEDIO del verificador — la suite llenaba el disco** (fila 36).
+   - Una corrida completa deja 46.4 GiB en el basetemp. El disco pasó de 48 GB libres a 1.5 GB.
+   - La caída de la primera corrida de la ronda 1 tiene el patrón de disco lleno, no de test intermitente. Fallaron los tests que escriben archivos y después se perdió `stderr`. Es inferencia: no se reprodujo.
+   - Está fuera del alcance escrito de S1.9a, pero es el gate mismo del slice: sin esto la fila 37 no se puede correr con confianza.
+5. **MEDIO del verificador — `qa/outputs.py` no estaba en §0.2**. Se ratifica y entra al árbol. Solo tiene lo que piden las filas 24 y 25.
+6. **Ratificado**:
+   - El test de la fila 22 no renderiza v1 con subtítulos: pinta el MP4 de verde (`burn_green`), exige que ninguna celda sea verde y espía `FrameReader`. Prueba lo mismo que pide la fila, o más.
+   - El resto de las decisiones de la ronda 1 queda como lo aceptó el verificador: `masked_cells` y `SheetSkipped`, `min(frames del video, frames del EDL)`, los textos de `PROXY_ES` y `GRAPHICS_ES`, y cualquier `ProjectError` de `resolve` tomado como `graphics.json` ilegible.
+7. **Al paso 0 de S1.9b**, como filas nuevas:
+   - **BAJO de seguridad:**
+     - La hoja debe pedir los PNG de Chromium de uno en uno, sin tenerlos todos en memoria.
+     - Repetir el chequeo de enlaces de `salida/vN.mp4` justo antes de cada herramienta, como el `look()` de 001.38.
+     - Una palabra con salto de línea se junta en una sola línea en la consola (`" ".join(text.split())`).
+   - **BAJO del verificador:**
+     - Una sola `_clean` pública en `console.py`, que `qa/report.py` y `qa/outputs.py` usen en vez de su copia.
+     - `limit_s` de `hear` pasa a ser obligatorio.
+     - El mensaje de la hoja que no se deja borrar dice "ciérrala y repite".
+
+### 001.44 — 24/11/2026 — el BLOQUEADO de la ronda 2 de S1.9a
+
+El implementador paró en la fila 33. `run_qa` tiene que llamar a `refuse_edl`, pero `refuse_edl` vive en `commands/refuse.py`, y `test_layers` prohíbe que algo fuera de `commands/` importe un comando, aunque sea dentro de una función. El error es del spec: 001.43 no miró dónde vivía `refuse_edl`.
+
+1. **Decisión del coordinador**: `refuse_edl` y `MAX_NAMED` se mudan sin cambios a `src/kcut/edl/refuse.py`, un módulo neutro, como pide el docstring de `test_layers` para el código que comparten dos comandos. Los cuatro que lo usan (`render`, `mix`, `graphics_capture` y `qa/run.py`) lo importan de ahí y `commands/refuse.py` se borra.
+   - **Por qué no reexportar:** dos nombres para la misma función es lo que D8 evita.
+   - **Por qué no la opción B** (`commands/qa.py` hace el gate): repetiría la elección del EDL, que vive en `qa/run.py`.
+   - **Por qué no aflojar `test_layers`:** eso sería debilitar un test.
+   - La aserción del módulo en `test_layers` cambia de nombre, sin aflojarse, con `# 001.44`.
+2. **El disco antes de la suite** (fila 36). El mínimo de "50 GB libres" de la ronda es decimal: 51.2 GB, que son 47.7 GiB, pasan. Pero la suite sin la política deja 46.4 GiB, así que el margen es poco.
+   - Antes de la suite completa se comprueba con una parte que la política funciona: `tests/integration -k qa_` tiene que dejar menos de 5 GiB.
+   - Si no, se para sin correr la suite. Hay fixtures de módulo y de sesión (`tmp_path_factory.mktemp`) a las que la política no les aplica.
+3. **Ratificado** de lo que el implementador ya hizo (fila 34):
+   - Un `delete` no cambia, porque su `heard` ya es `""`.
+   - Una palabra cuyo id no está en `shown` cuenta como tapada, igual que `expected` ya usaba `shown.get(id, "")`.
+   - Las tres aserciones de `heard` que pasaron a `HIDDEN_HEARD` con `# 001.43` son la regla nueva de la fila 34, no aflojan nada: siguen comprobando `op`, `expected` y `at_f`.
+
+### 001.45 — 24/11/2026 — la fila 36 midió 25.9 GiB
+
+La ronda 2 dio `6245 passed, 6 skipped in 5100.90s (1:25:00)` en la suite completa, con exit 0. Las filas 33, 34 y 35 pasan, el mutante de la fila 35 da `1 failed`, y las filas 9 y 10 pasan. La parte `tests/integration -k qa_` dejó 1.7 GiB, por debajo de 5. Pero la medición de la fila 36 sobre la suite completa dio 25.9 GiB, exit 1, contra el tope de 20.
+
+1. **Decisión del coordinador: el tope pasa a 30 GiB.**
+   - El 20 de 001.43 fue una estimación del coordinador, sin medir. La política sí funciona: de 46.4 GiB a 25.9 GiB, un 44 % menos.
+   - Lo que queda no lo toca la política. Por inferencia, sin medir: las carpetas de fixtures de módulo y de sesión (`tmp_path_factory.mktemp`), y lo que `rmtree(..., ignore_errors=True)` no logra borrar en Windows. El implementador listó solo las seis carpetas más pesadas, y ninguna pasa de 0.14 GiB.
+   - Con el tope nuevo, la fila 36 pasa con la medición que ya se hizo, sin volver a correr la suite: el comando imprime el número, y lo único que cambia es el umbral.
+   - Es un gate de higiene de la suite, no un test del producto. Ninguna aserción cambia.
+2. **El disco en la revisión 3.**
+   - Hoy quedan 36.6 GB libres (decimales). Antes de la suite del implementador eran 51.2, y su basetemp ya se borró. La diferencia está fuera del repo y fuera de las carpetas de esta sesión.
+   - Por eso el verificador no repite la suite completa: corre los comandos de las filas 33 a 36, 9 y 10, y vale la suite del implementador (fila 37).
+   - Si la revisión pide cambiar código, la suite completa se corre una vez al final, con el disco comprobado antes: al menos 40 GB libres, que son los 25.9 GiB medidos más margen. Si no hay ese disco, se para y se le dice a Yedin.
+3. **Al paso 0 de S1.9b**, como filas nuevas:
+   - El desglose de lo que queda en el basetemp después de la suite completa: suma por carpeta de primer nivel.
+   - Las fixtures de módulo y de sesión borran su carpeta al cerrar su alcance. El tope nuevo se fija con esa medición.
+   - La suite pasó de unos 57 minutos a 85. Medir con `--durations=30` dónde se va el tiempo.
+4. **Para la revisión 3**, decisiones que el spec no fijaba:
+   - El gate de la fila 33 va después de `_edl_rel` y antes de `facts_of`. Los `assert_writable` siguen primero, y no escriben nada.
+   - En la fila 35, el EDL de 1920×1080 ya no pasa el gate (E03), así que se usó el "otro cambio" que la fila permite. El EDL malo lleva `frames` 344, con el último clip y el último tramo en 29 frames, y el check que falla es `frames`. Por eso la aserción sobre `video_stream` pasó a `frames`, con `# 001.43`.
+
+### 001.46 — 24/11/2026 — ronda 4 de S1.9a (corta, solo tests)
+
+La revisión 3 fue la última de las tres de regla. Seguridad aprobó con 0 CRÍTICO, 0 ALTO, 0 MEDIO y 1 BAJO. El verificador devolvió con 1 ALTO, solo de test. El código de producto de la ronda 2 lo dio por bueno, y aceptó las dos decisiones de 001.45 punto 4.
+
+1. **ALTO del verificador — la máscara del lado oído quedó sin test** (fila 38).
+   - Las tres aserciones que pasaron a `HIDDEN_HEARD` con `# 001.43` eran las únicas que probaban que el `heard` de `diffs[]` sale de la lista enmascarada.
+   - Lo probó con dos mutantes que pasan en verde: A, `diff_transcript` ignora `heard_shown`, da `243 passed`; B, `run._transcript` le pasa al diff el oído crudo, da `5 passed`.
+   - 001.44 punto 3 dijo que esas aserciones "no aflojan nada". Se equivocó: el cambio era legítimo por la regla nueva, pero faltó el caso que compensa.
+   - Decisión: una ronda 4 corta, porque el ALTO es chico, localizado y solo de tests. El producto no cambia.
+2. **La revisión de la ronda 4** la hace solo el verificador, sobre las filas 38 y 39. Seguridad no repite, porque no cambia código de producto.
+3. **La suite completa no se repite** (fila 39).
+   - La corrida de la fila 37 fue sobre el mismo `src/` y el mismo `pyproject.toml`; la fila 39 lo comprueba con los hashes.
+   - Los tests nuevos corren dentro de sus módulos completos.
+   - El disco tiene 36.6 GB libres, por debajo de los 40 GB que pide 001.45 punto 2.
+4. **Al paso 0 de S1.9b**, como filas nuevas, además de las de 001.43 punto 7 y 001.45 punto 3:
+   - **BAJO de seguridad — una muletilla dentro de un número.** `mask_pii` deja `eh` igual, así que esa palabra no cuenta como tapada. Con `809 eh 555`, un trozo oído al otro lado de la muletilla sale crudo. Lo mismo pasa con el puente `y` y con dos muletillas seguidas.
+     - Arreglo: cuenta como tapada toda palabra que cae dentro de un número enmascarado. El tercer conjunto de `mask_pii_spans` ya trae los puentes y separadores, y viaja en `KeptWords`.
+     - Queda un residuo por diseño: si no hay ninguna palabra esperada tapada cerca, un trozo de menos de 7 dígitos sale crudo. Ejemplo: se conserva `llamame al` y se oye `llamame al 809 555`. El spec de S1.9b decide si se cubre.
+   - **BAJO del verificador — el mensaje cuando se rechaza el snapshot.** `refuse_edl` dice "corre kcut edl check y corrígelos", pero para el snapshot el remedio es `kcut build` (001.43 punto 2).
+   - **Tests de tiempo bajo carga.** `tests/unit/test_pii_perf.py::TestPiiHostileLinear::test_pii_hostile_each_shape_alone_is_fast_too[h5|h7|h8]` tiene un tope de 2.0 s y midió entre 1.91 y 2.78 s mientras otro revisor corría tests de integración. No está en el diff de S1.9a. Hay que medirlo con la máquina libre y decidir el tope.
+
+### 001.47 — 24/11/2026 — cierre de S1.9a y paso 0 de S1.9b
+
+S1.9a cerró en `aa6b71c`, en la ronda 4.
+- **Revisión 3:** seguridad aprobó con 0 CRÍTICO, 0 ALTO, 0 MEDIO y 1 BAJO. El verificador devolvió con 1 ALTO, solo de test.
+- **Ronda 4** (001.46): agregó tres tests, sin cambiar ninguna aserción. El verificador aprobó sin hallazgos, y sus dos mutantes ahora caen.
+- **Suite:** `6245 passed, 6 skipped in 5100.90s (1:25:00)` en la corrida del implementador (fila 37). Es sobre el mismo `src/` y el mismo `pyproject.toml` del commit; los hashes de la fila 39 dan exit 0.
+- **La suite no se repitió**, porque el disco tiene 36.5 GB libres (001.45 punto 2 y 001.46 punto 3). Después de la ronda 4 corrieron enteros los módulos tocados: `244 passed` en unit, y `75 passed, 2 skipped` en `tests/integration -k qa_`.
+- **Pendiente:** 10 BAJO y mediciones. Van aquí, al paso 0 de S1.9b (filas 8–18). Lo que no es contrato lo decidió el coordinador.
+
+1. **La hoja pide los PNG de uno en uno** (fila 8; 001.43 punto 7).
+2. **Los enlaces de `salida/` se miran otra vez antes de cada herramienta** (fila 9; 001.43 punto 7).
+3. **Una palabra con salto de línea sale en un solo renglón** (fila 10; 001.43 punto 7).
+4. **Una sola `clean`, pública, en `console.py`** (fila 11; 001.43 punto 7). La única copia está en `qa/report.py` (`_safe`); `qa/outputs.py` no tiene copia, porque usa `QaReport.to_json`.
+5. **`limit_s` de `hear` es obligatorio** (fila 12; 001.43 punto 7).
+6. **"ciérrala y repite"** en el mensaje de la hoja que no se deja borrar (fila 13; 001.43 punto 7).
+7. **Las muletillas y los puentes dentro de un número cuentan como tapados** (fila 14; 001.46 punto 4).
+   - Queda un residuo por diseño, y se decide no cubrirlo: si cerca no hay ninguna palabra esperada tapada, un trozo oído de menos de 7 dígitos sale tal cual.
+   - Es el mismo umbral de `mask_pii` que rige todo lo que Claude lee, transcripts incluidos. Bajarlo solo para `heard` taparía cantidades y horas en el reporte y no protegería nada que el transcript no muestre ya.
+8. **El remedio del snapshot rechazado es `kcut build`** (fila 15; 001.46 punto 4). Va con un parámetro con valor por defecto, para que `render`, `mix` y `graphics` no cambien.
+9. **Los tests de tiempo miden CPU del proceso** (fila 16; 001.46 punto 4).
+   - Midieron entre 1.91 y 2.78 s contra un tope de 2.0 mientras otro revisor corría tests de integración.
+   - `process_time()` no cuenta la carga de los demás procesos, y el tope no cambia.
+   - El código que se mide es Python puro, sin procesos hijos.
+10. **Lo que deja la suite en el basetemp** (fila 17; 001.45 punto 3).
+    - Las fixtures de alcance mayor que la función borran su carpeta, y la suite completa se mide con desglose. El tope de 10 GiB es una meta.
+    - Si no se llega, el desglose dice dónde está el peso y el coordinador decide con ese dato.
+    - El tiempo de la suite (de unos 57 min a 85) se mira con `--durations=30` en la misma corrida (fila 18).
+11. **El disco antes de la suite de la fila 18** es de al menos 40 GB libres. Hoy hay 36.5, así que el implementador para ahí si nadie libera espacio.
