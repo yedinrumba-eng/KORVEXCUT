@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from kcut.errors import ToolError
 from kcut.ff.args import wav_args
 from tests.conftest import run_kcut
 from tests.fixtures.synth_media import make_tagged_mov
+from tests.tmp_cleanup import remove_tree
 
 pytestmark = pytest.mark.ffmpeg
 
@@ -18,11 +20,15 @@ LEAKS = ("18.4861", "069.9312", "iPhone15", "Metadata:")
 
 
 @pytest.fixture(scope="module")
-def tagged(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    root = tmp_path_factory.mktemp("privacy") / "proyecto ñandú"
-    assert run_kcut("new", str(root)).returncode == 0
-    make_tagged_mov(root / "crudo" / "iphone.mov")
-    return root
+def tagged(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    folder = tmp_path_factory.mktemp("privacy")
+    root = folder / "proyecto ñandú"
+    try:
+        assert run_kcut("new", str(root)).returncode == 0
+        make_tagged_mov(root / "crudo" / "iphone.mov")
+        yield root
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 @pytest.fixture(scope="module")

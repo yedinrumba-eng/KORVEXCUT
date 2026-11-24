@@ -7,6 +7,7 @@ to the sample. Row 14 does the same with a clip whose video starts half a second
 """
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ from tests.fixtures.synth_late_video import (
     FLASH_CLOCK_FRAME,
     make_late_video,
 )
+from tests.tmp_cleanup import remove_tree
 
 pytestmark = [pytest.mark.ffmpeg, pytest.mark.slow, pytest.mark.e2e]
 FPS = 30
@@ -82,10 +84,18 @@ class TestExample:
 
 
 @pytest.fixture(scope="module")
-def late_render(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def late_render(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    """The project of `_late_render`, in a folder deleted when the module closes (001.47)."""
+    folder = tmp_path_factory.mktemp("late-av")
+    try:
+        yield _late_render(folder / "proyecto ñandú")
+    finally:
+        remove_tree(folder)
+
+
+def _late_render(root: Path) -> Path:
     """A project with one clip whose video starts 0.5 s after its audio (S1.4-14), plus a beep at
     the instant of its flash, and an EDL: voice 30 to 75 and a synchronized camera over it."""
-    root = tmp_path_factory.mktemp("late-av") / "proyecto ñandú"
     assert run_kcut("new", str(root)).returncode == 0
     make_late_video(root / "crudo" / "tarde.mov")
     done = run_kcut("ingest", "--project", str(root), "--json")

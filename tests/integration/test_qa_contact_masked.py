@@ -17,6 +17,7 @@ answers an opaque magenta layer (`qa_contact_helpers`), except in the last test.
 
 import json
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,7 @@ from tests.integration.qa_contact_helpers import (
 )
 from tests.integration.qa_helpers import VIDEO, built, check_of, copy_of
 from tests.integration.view_frames_helpers import Run, project_args
+from tests.tmp_cleanup import remove_tree
 from tests.unit.qa_fakes import NoModel
 
 __all__ = ["built"]
@@ -87,19 +89,23 @@ def planted(built: Path, tmp_path: Path) -> Path:
 
 
 @pytest.fixture(scope="module")
-def made(built: Path, tmp_path_factory: pytest.TempPathFactory) -> Made:
+def made(built: Path, tmp_path_factory: pytest.TempPathFactory) -> Iterator[Made]:
     """`kcut qa salida/v1.mp4` once on the project with the phone in its transcript."""
-    root = copy_of(built, tmp_path_factory.mktemp("qamasked"))
-    plant_words(root)
-    before = _snapshot(root)
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(ear, "Engine", NoModel)
-        spy = install_solid_layer(patch)
-        code = cli.main(["qa", VIDEO, *project_args(root), "--json"])
-    after = _snapshot(root)
-    changed = sorted(rel for rel, stat in after.items() if before.get(rel) != stat)
-    doc = json.loads((root / "qa" / "v1" / "report.json").read_text(encoding="utf-8"))
-    return Made(code, doc, root, spy, changed)
+    folder = tmp_path_factory.mktemp("qamasked")
+    try:
+        root = copy_of(built, folder)
+        plant_words(root)
+        before = _snapshot(root)
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(ear, "Engine", NoModel)
+            spy = install_solid_layer(patch)
+            code = cli.main(["qa", VIDEO, *project_args(root), "--json"])
+        after = _snapshot(root)
+        changed = sorted(rel for rel, stat in after.items() if before.get(rel) != stat)
+        doc = json.loads((root / "qa" / "v1" / "report.json").read_text(encoding="utf-8"))
+        yield Made(code, doc, root, spy, changed)
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 def _plain_sheet(root: Path) -> bytes:

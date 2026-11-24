@@ -14,6 +14,7 @@ the video, and the report says `pii_unmasked`. Chromium is a double that answers
 """
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,7 @@ from tests.integration.qa_contact_helpers import (
 )
 from tests.integration.qa_helpers import VIDEO, built, copy_of
 from tests.integration.view_frames_helpers import Run, project_args
+from tests.tmp_cleanup import remove_tree
 from tests.unit.qa_fakes import NoModel
 
 __all__ = ["built"]
@@ -48,12 +50,16 @@ def _no_whisper(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(scope="module")
-def burned(built: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
+def burned(built: Path, tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     """The finished video, painted green, with a phone number in the transcript of a1."""
-    root = copy_of(built, tmp_path_factory.mktemp("qaburned"))
-    plant_words(root)
-    burn_green(root / VIDEO)
-    return root
+    folder = tmp_path_factory.mktemp("qaburned")
+    try:
+        root = copy_of(built, folder)
+        plant_words(root)
+        burn_green(root / VIDEO)
+        yield root
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 @pytest.fixture

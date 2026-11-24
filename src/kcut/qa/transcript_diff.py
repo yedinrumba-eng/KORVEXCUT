@@ -14,7 +14,7 @@ is `""` there (an address swallowed it) adds nothing to the text. The heard text
 touches a masked expected word is `HIDDEN_HEARD` (001.43).
 """
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
@@ -54,9 +54,13 @@ def diff_transcript(
     shown: Mapping[str, str],
     heard: Sequence[Word],
     heard_shown: Sequence[str],
+    *,
+    hidden: Collection[str],
 ) -> TranscriptDiff:
     """Compare `expected` with `heard`. `shown` is the masked text of each expected word by id and
-    `heard_shown` the masked text of each heard word (same length and order as `heard`)."""
+    `heard_shown` the masked text of each heard word (same length and order as `heard`). `hidden`
+    are the ids of the expected words inside a masked number whose text did not change (`eh`, `y`:
+    `KeptWords.hidden`, 001.47); they count as masked as the ones `shown` changed."""
     if len(heard_shown) != len(heard):
         raise ValueError("heard_shown tiene que tener un texto por cada palabra oída")
     wanted = _tokens([word.text for word in expected])
@@ -75,7 +79,9 @@ def diff_transcript(
             DiffItem(
                 op=tag,
                 expected=_join(shown.get(expected[at].id, "") for at in words),
-                heard=_heard_text(tag, [heard_shown[at] for at in heard_at], expected, near, shown),
+                heard=_heard_text(
+                    tag, [heard_shown[at] for at in heard_at], expected, near, shown, hidden
+                ),
                 at_f=_position(expected, words, wanted, i1),
             )
         )
@@ -118,14 +124,21 @@ def _heard_text(
     expected: Sequence[KeptWord],
     near: Sequence[int],
     shown: Mapping[str, str],
+    hidden: Collection[str],
 ) -> str:
     """What a stretch shows as heard: `HIDDEN_HEARD` for a `replace` or an `insert` if one of the
     expected words in `near` (the stretch and the word right before and right after it) is masked
-    (001.43, point 3). The masked side knows the clip's context and the heard side does not, so a
-    cut that splits a number could leave a piece of it raw."""
-    if op != "delete" and any(shown.get(expected[at].id, "") != expected[at].text for at in near):
+    (001.43, point 3). A word is masked if `shown` changed its text or if it is in `hidden`
+    (001.47: a filler or a bridge inside a number). The masked side knows the clip's context and
+    the heard side does not, so a cut that splits a number could leave a piece of it raw."""
+    if op != "delete" and any(_masked(expected[at], shown, hidden) for at in near):
         return HIDDEN_HEARD
     return _join(texts)
+
+
+def _masked(word: KeptWord, shown: Mapping[str, str], hidden: Collection[str]) -> bool:
+    """True if the word is masked: `shown` changed its text (or swallowed it) or it is `hidden`."""
+    return shown.get(word.id, "") != word.text or word.id in hidden
 
 
 def _unique(indexes: Sequence[int]) -> list[int]:

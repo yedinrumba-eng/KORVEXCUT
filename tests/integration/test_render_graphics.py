@@ -14,6 +14,7 @@ The renders run in this process (`kcut_json`) so that a double can watch what Ch
 
 import json
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,7 @@ from tests.fixtures.synth_graphics import write_graphics_v1
 from tests.integration.graphics_helpers import plant_words
 from tests.integration.render_small_cases import small, small_base
 from tests.integration.view_frames_helpers import Run, project_args
+from tests.tmp_cleanup import remove_tree
 
 pytestmark = [pytest.mark.ffmpeg, pytest.mark.chromium, pytest.mark.slow]
 __all__ = ["small", "small_base"]
@@ -89,16 +91,22 @@ class _Spy:
 
 
 @pytest.fixture(scope="module")
-def with_graphics(tmp_path_factory: pytest.TempPathFactory, rendered_example: Rendered) -> Rendered:
+def with_graphics(
+    tmp_path_factory: pytest.TempPathFactory, rendered_example: Rendered
+) -> Iterator[Rendered]:
     """A copy of the example project, rendered once with the fixture graphics and the transcript
     planted: `(project root, the JSON that render printed)`. The render takes half a minute."""
-    root = tmp_path_factory.mktemp("gfxrender") / "proyecto ñandú"
-    shutil.copytree(rendered_example[0], root)
-    plant_words(root)
-    write_graphics_v1(root, False)
-    done = run_kcut("render", "--project", str(root), "--json")
-    assert done.returncode == 0, done.stderr
-    return root, json.loads(done.stdout)
+    folder = tmp_path_factory.mktemp("gfxrender")
+    root = folder / "proyecto ñandú"
+    try:
+        shutil.copytree(rendered_example[0], root)
+        plant_words(root)
+        write_graphics_v1(root, False)
+        done = run_kcut("render", "--project", str(root), "--json")
+        assert done.returncode == 0, done.stderr
+        yield root, json.loads(done.stdout)
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 class TestRenderOfTheExampleWithGraphics:

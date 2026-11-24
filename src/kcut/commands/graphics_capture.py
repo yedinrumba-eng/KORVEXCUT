@@ -148,9 +148,10 @@ def _make_stills(
         page = page_for(resolved, masked=True)  # the subtitles as Claude may read them
         size = (edl.out_w, edl.out_h)
         work = gfx / STILLS_WORK
-        shots = gfx_capture.capture_stills(
-            page, work, frames, edl.fps, size, work, progress, guard=work_guard
-        )
+        gfx_capture.capture_stills(
+            page, work, frames, edl.fps, size, work, progress,
+            on_shot=shots.__setitem__, guard=work_guard,
+        )  # fmt: skip
         progress.close()
     made: list[dict[str, object]] = []
     for f in frames:

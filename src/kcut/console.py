@@ -66,14 +66,14 @@ def _visible(match: re.Match[str]) -> str:
     return f"\\U{code:08x}"
 
 
-def _clean(value: object) -> object:
+def clean(value: object) -> object:
     """A copy of a JSON-like value with `safe_text` applied to every string, keys included."""
     if isinstance(value, str):
         return safe_text(value)
     if isinstance(value, Mapping):
-        return {_clean(k): _clean(v) for k, v in value.items()}
+        return {clean(k): clean(v) for k, v in value.items()}
     if isinstance(value, list | tuple):
-        return [_clean(item) for item in value]
+        return [clean(item) for item in value]
     return value
 
 
@@ -95,7 +95,7 @@ class Out:
         keys included, goes through `safe_text` first; `ensure_ascii` stays off, so accents do
         not change."""
         if self.json_mode:
-            print(json.dumps(_clean(obj), ensure_ascii=False, indent=1, allow_nan=False))
+            print(json.dumps(clean(obj), ensure_ascii=False, indent=1, allow_nan=False))
 
     def warn(self, text: str) -> None:
         """Print a warning to stderr, in both modes."""

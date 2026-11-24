@@ -205,6 +205,9 @@ def _kept(
         v for c in doc.cues for v in (c.start, c.end)
     ]
     if not captions_on and not any(isinstance(v, dict) and "word" in v for v in values):
-        return KeptWords(words=[], shown={}, missing=(), masked=project.config.privacy.mask_pii)
+        return KeptWords(
+            words=[], shown={}, missing=(), masked=project.config.privacy.mask_pii,
+            hidden=frozenset(),
+        )  # fmt: skip
     inv = inventory if inventory is not None else load_inventory(project, log)
     return kept_words(project, edl, inv, notices=notices, log=log)

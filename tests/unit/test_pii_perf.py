@@ -48,24 +48,24 @@ def _transcript(texts: list[str], count: int = WORDS) -> list[Word]:
 class TestPiiHostileLinear:
     def test_pii_hostile_36100_words_of_200_characters_in_under_20_seconds(self) -> None:
         words = _transcript(HOSTILE)
-        started = time.monotonic()
+        started = time.process_time()  # 001.47: CPU of this process, not the clock
         shown, _ = mask_pii(words, ("eh", "o sea"))
-        elapsed = time.monotonic() - started
+        elapsed = time.process_time() - started  # 001.47
         assert len(shown) == WORDS and elapsed < 20.0, f"{elapsed:.1f} s"
 
     @pytest.mark.parametrize("text", HOSTILE, ids=[f"h{i}" for i in range(len(HOSTILE))])
     def test_pii_hostile_each_shape_alone_is_fast_too(self, text: str) -> None:
         words = _transcript([text], WORDS // 10)  # a tenth of the words: 2 s is already too much
-        started = time.monotonic()
+        started = time.process_time()  # 001.47
         mask_pii(words)
-        assert time.monotonic() - started < 2.0
+        assert time.process_time() - started < 2.0  # 001.47
 
     def test_pii_hostile_a_long_run_of_numbers_and_bridges_is_linear(self) -> None:
         texts = ["809", "eh", "555", "eh", "1234", "y", "double", "five"]
         words = _transcript(texts)
-        started = time.monotonic()
+        started = time.process_time()  # 001.47
         shown, ids = mask_pii(words, ("eh",))
         assert (
-            time.monotonic() - started < 20.0 and len(ids) > WORDS * 0.45
+            time.process_time() - started < 20.0 and len(ids) > WORDS * 0.45  # 001.47
         )  # four words of every eight
         assert shown[0].text == "***"

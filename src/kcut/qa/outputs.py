@@ -25,7 +25,9 @@ def write_sheet(project: Project, rel: str, sheet: bytes | None) -> None:
         path.unlink(missing_ok=True)
     except OSError as exc:
         reason = exc.strerror or type(exc).__name__
-        raise ProjectError(f"no pude borrar la hoja de contacto vieja {rel} ({reason})") from None
+        raise ProjectError(
+            f"no pude borrar la hoja de contacto vieja {rel} ({reason}); ciérrala y repite"
+        ) from None
 
 
 def write_report(project: Project, rel: str, report: QaReport) -> None:

@@ -8,6 +8,7 @@ which is at the 300-line limit; the module that imports it has to bring `built`.
 
 import json
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,7 @@ from kcut.transcribe.model import Word
 from tests.integration.graphics_helpers import plant_words
 from tests.integration.qa_helpers import VIDEO, check_of, copy_of
 from tests.integration.view_frames_helpers import Run, project_args
+from tests.tmp_cleanup import remove_tree
 from tests.unit.qa_fakes import NoModel, install_ear
 
 __all__ = [
@@ -45,10 +47,14 @@ SPEECH = [  # what the double of the ear "hears": the same words, with one digit
 
 
 @pytest.fixture(scope="module")
-def pii_project(built: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
-    root = copy_of(built, tmp_path_factory.mktemp("qapii"))
-    plant_words(root)  # what a1 says: a phone number in digits
-    return root
+def pii_project(built: Path, tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    folder = tmp_path_factory.mktemp("qapii")
+    try:
+        root = copy_of(built, folder)
+        plant_words(root)  # what a1 says: a phone number in digits
+        yield root
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 @pytest.fixture

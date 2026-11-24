@@ -43,6 +43,7 @@ FRAME_TIMEOUT_S = 30.0  # the most that the `seek` of one frame may take (001.31
 MAX_REPORTED = 5  # page errors that a ToolError lists
 WEBRTC_POLICY = "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"
 Guard = Callable[[], None]  # looks at the folders again; raises a ProjectError if they changed
+OnShot = Callable[[int, bytes], None]  # `(frame, its PNG)`, called as soon as the PNG is made
 
 
 def launch_options() -> dict[str, object]:
@@ -102,18 +103,28 @@ def capture_stills(
     out_dir: Path,
     progress: Progress | None,
     *,
+    on_shot: OnShot | None = None,
     guard: Guard | None = None,
 ) -> dict[int, bytes]:
-    """As `capture`, but every frame is kept, empty ones too, and in memory: `{frame: its PNG}`.
-    Nothing that Chromium makes is written (001.33, point 2): `work_dir` gets only the page, and
-    the caller makes the stills from the bytes. The caller keeps the count small (`graphics still`
-    makes at most 60 frames). `out_dir` is not used any more: it stays so that the call is the one
-    it was."""
+    """As `capture`, but every frame is kept, empty ones too, and in memory. Nothing that Chromium
+    makes is written (001.33, point 2): `work_dir` gets only the page, and the caller makes the
+    stills from the bytes. `out_dir` is not used any more: it stays so that the call is the one it
+    was.
+
+    With `on_shot` (001.47, point 1) each PNG is handed to `on_shot(f, png)` as soon as it is made,
+    in the order of `frames` and inside the same Chromium session, and it is not kept: the result
+    is `{}`, and the caller decides what to hold (the contact sheet keeps one small cell, not the
+    PNG). Without it the result is `{frame: its PNG}`, and the caller keeps the count small
+    (`graphics still` makes at most 60 frames)."""
     found: dict[int, bytes] = {}
     _check(guard)
     with Shooter(page_html, work_dir, fps, size, guard=guard) as shooter:
         for done, f in enumerate(frames, start=1):
-            found[f] = shooter.shoot(f)
+            png = shooter.shoot(f)
+            if on_shot is None:
+                found[f] = png
+            else:
+                on_shot(f, png)
             if progress is not None:
                 progress.update(done)
         shooter.finish()

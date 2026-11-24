@@ -97,6 +97,29 @@ def test_qa_edl_gate_the_refusal_leaves_a_report_that_was_already_there_alone(
     assert code == 1 and seen == [] and old.read_bytes() == b"vieja"
 
 
+@pytest.mark.parametrize(
+    ("rel", "remedy"),
+    [
+        pytest.param(SNAPSHOT, "corre kcut build otra vez", id="the_snapshot_asks_for_a_build"),
+        pytest.param(EDIT, "corre kcut edl check y corrígelos", id="an_edl_of_edit_as_always"),
+    ],
+)
+def test_qa_edl_gate_the_remedy_in_the_message_is_the_one_that_fits_the_file(
+    built: Path, tmp_path: Path, kcut_json: Run, rel: str, remedy: str
+) -> None:
+    """001.47 point 8: a snapshot that does not pass is cured by `kcut build` (001.43 point 2);
+    an EDL of `edit/` keeps the text that `render`, `mix` and `graphics` have."""
+    root = copy_of(built, tmp_path)
+    document = json.loads((root / EDIT).read_text(encoding="utf-8"))
+    _look(document)
+    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+    (root / rel).write_text(json.dumps(document), encoding="utf-8")
+    code, doc, _ = kcut_json("qa", VIDEO, *project_args(root))
+    assert code == 1 and doc["error"]["kind"] == "CheckFailed", doc
+    message = doc["error"]["message"]
+    assert message.startswith(f"{rel} tiene ") and message.endswith(f"; {remedy}"), message
+
+
 def test_qa_edl_gate_the_example_edl_passes_the_gate(
     built: Path, tmp_path: Path, kcut_json: Run
 ) -> None:

@@ -60,7 +60,9 @@ def fake_kept(
     def fake(*_a: Any, **_k: Any) -> KeptWords:
         calls.append(1)
         text = {w.id: w.text for w in given} | (shown or {})
-        return KeptWords(words=given, shown=text, missing=missing, masked=True)
+        return KeptWords(
+            words=given, shown=text, missing=missing, masked=True, hidden=frozenset()
+        )  # 001.49
 
     monkeypatch.setattr(resolve_module, "kept_words", fake)
     return calls

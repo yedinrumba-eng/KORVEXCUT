@@ -156,6 +156,6 @@ class TestRepr:
 
     def test_edl_kept_repr_the_words_are_still_there_to_be_read(self) -> None:
         word = KeptWord("a1:w0001", "8095551234", 1, 30, 60, "a1", 1000, 2000)
-        kept = KeptWords([word], {"a1:w0001": "********34"}, (), True)
+        kept = KeptWords([word], {"a1:w0001": "********34"}, (), True, frozenset())  # 001.49
         assert kept.words[0].text == "8095551234" and kept.words == [word]
         assert "8095551234" not in repr(kept) and "********34" in repr(kept)

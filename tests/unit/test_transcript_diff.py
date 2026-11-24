@@ -46,7 +46,7 @@ def _same(words: Sequence[KeptWord]) -> dict[str, str]:
 
 def _diff(expected: Sequence[str], heard: Sequence[str]) -> TranscriptDiff:
     kept, ear = _kept(expected), _heard(heard)
-    return diff_transcript(kept, _same(kept), ear, [w.text for w in ear])
+    return diff_transcript(kept, _same(kept), ear, [w.text for w in ear], hidden=frozenset())
 
 
 def test_transcript_diff_the_same_words_are_a_match_of_one_and_no_diffs() -> None:
@@ -158,12 +158,12 @@ def test_transcript_diff_pii_the_masked_texts_are_in_the_diffs_and_the_raw_ones_
     kept, shown = _masked(PHONE)
     assert shown[kept[3].id] == "**11"  # the masking of the lists is what the test relies on
     ear, ear_shown = _masked_heard(["Llama", "972", "808", "3211", "y", "Higgsfield", "gracias"])
-    result = diff_transcript(kept, shown, ear, ear_shown)
+    result = diff_transcript(kept, shown, ear, ear_shown, hidden=frozenset())
     # 001.43: "ya" comes right after the masked "3211", so what was heard there is not shown
     assert result.items == (DiffItem("replace", "ya", HIDDEN_HEARD, 124),)
     # a difference inside the number: only the masked form is shown
     ear, ear_shown = _masked_heard(["Llama", "972", "808", "3011", "ya", "Higgsfield", "gracias"])
-    result = diff_transcript(kept, shown, ear, ear_shown)
+    result = diff_transcript(kept, shown, ear, ear_shown, hidden=frozenset())
     assert result.items == (DiffItem("replace", "**11", HIDDEN_HEARD, 118),)  # 001.43
 
 
@@ -171,9 +171,9 @@ def test_transcript_diff_pii_match_is_of_the_raw_text_not_of_the_masked_one() ->
     """3211 and 3011 look the same once masked (`**11`): the ratio still sees two numbers."""
     kept, shown = _masked(PHONE)
     ear, ear_shown = _masked_heard(["Llama", "972", "808", "3011", "ya", "Higgsfield", "gracias"])
-    result = diff_transcript(kept, shown, ear, ear_shown)
+    result = diff_transcript(kept, shown, ear, ear_shown, hidden=frozenset())
     assert result.ratio == 6 / 7
-    same = diff_transcript(kept, shown, *_masked_heard(PHONE))
+    same = diff_transcript(kept, shown, *_masked_heard(PHONE), hidden=frozenset())
     assert same.ratio == 1.0 and same.items == ()
 
 
@@ -186,14 +186,15 @@ def test_transcript_diff_pii_a_word_swallowed_by_an_address_adds_no_text() -> No
         shown[word.id] = ""
     shown[kept[3].id] = "j***@***.com"
     ear = _heard(["mi", "correo", "es", "gracias"])
-    result = diff_transcript(kept, shown, ear, [w.text for w in ear])
+    result = diff_transcript(kept, shown, ear, [w.text for w in ear], hidden=frozenset())
     assert result.items == (DiffItem("delete", "j***@***.com", "", 118),)
 
 
 def test_transcript_diff_pii_the_check_has_no_raw_digit_of_the_number() -> None:
     kept, shown = _masked(PHONE)
     ear, ear_shown = _masked_heard(["Llama", "972", "808", "3011", "ya", "Higgsfield", "gracias"])
-    check = transcript_check(diff_transcript(kept, shown, ear, ear_shown), 0.8, "es", FPS)
+    diff = diff_transcript(kept, shown, ear, ear_shown, hidden=frozenset())
+    check = transcript_check(diff, 0.8, "es", FPS)
     text = json.dumps(check.to_json())
     assert "3211" not in text and "3011" not in text and "972" not in text and "808" not in text
 
@@ -205,7 +206,7 @@ def test_transcript_diff_check_the_example_of_the_spec() -> None:
     expected = ["uno", "dos", "tres", "cuatro", "cinco"]
     kept = _kept(expected, first_f=1020, step=6)
     ear = _heard(["uno", "dos", "y", "cuatro", "cinco"])
-    diff = diff_transcript(kept, _same(kept), ear, [w.text for w in ear])
+    diff = diff_transcript(kept, _same(kept), ear, [w.text for w in ear], hidden=frozenset())
     check = transcript_check(diff, 0.5, "es", FPS)
     assert check.to_json() == {
         "id": "transcript",
@@ -229,7 +230,8 @@ def test_transcript_diff_check_the_example_of_the_spec() -> None:
 
 def test_transcript_diff_check_at_display_is_minutes_seconds_and_tenths() -> None:
     kept = _kept(["uno"], first_f=1020)
-    check = transcript_check(diff_transcript(kept, _same(kept), [], []), 0.8, "es", FPS)
+    diff = diff_transcript(kept, _same(kept), [], [], hidden=frozenset())
+    check = transcript_check(diff, 0.8, "es", FPS)
     diffs = check.data["diffs"]
     assert (
         isinstance(diffs, list) and diffs[0]["at_f"] == 1020 and diffs[0]["at_display"] == "00:34.0"
@@ -239,7 +241,8 @@ def test_transcript_diff_check_at_display_is_minutes_seconds_and_tenths() -> Non
 def test_transcript_diff_check_the_limit_is_closed_at_min_transcript_match() -> None:
     kept = _kept(["a", "b", "c", "d", "e"])
     ear = _heard(["a", "b", "c", "d", "x"])
-    diff = diff_transcript(kept, _same(kept), ear, [w.text for w in ear])  # ratio 0.8
+    shown = [w.text for w in ear]
+    diff = diff_transcript(kept, _same(kept), ear, shown, hidden=frozenset())  # ratio 0.8
     assert transcript_check(diff, 0.8, "es", FPS).status == "pass"
     assert transcript_check(diff, 0.81, "es", FPS).status == "fail"
 
@@ -247,12 +250,14 @@ def test_transcript_diff_check_the_limit_is_closed_at_min_transcript_match() -> 
 def test_transcript_diff_check_reports_the_ratio_with_four_decimals() -> None:
     kept = _kept(["a", "b", "c"])
     ear = _heard(["a", "b", "c", "d"])
-    diff = diff_transcript(kept, _same(kept), ear, [w.text for w in ear])  # 6 / 7
+    shown = [w.text for w in ear]
+    diff = diff_transcript(kept, _same(kept), ear, shown, hidden=frozenset())  # 6 / 7
     assert transcript_check(diff, 0.8, "es", FPS).data["match"] == 0.8571
 
 
 def test_transcript_diff_check_the_language_is_the_one_it_was_heard_in() -> None:
     kept = _kept(["hello"])
     ear = _heard(["hello"])
-    check = transcript_check(diff_transcript(kept, _same(kept), ear, ["hello"]), 0.8, "en", FPS)
+    diff = diff_transcript(kept, _same(kept), ear, ["hello"], hidden=frozenset())
+    check = transcript_check(diff, 0.8, "en", FPS)
     assert check.data["language"] == "en" and check.status == "pass" and check.data["diffs"] == []

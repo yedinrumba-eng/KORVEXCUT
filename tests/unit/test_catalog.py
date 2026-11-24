@@ -54,10 +54,10 @@ AVAILABLE = {
 }  # fmt: skip
 PLANNED = {
     "transition": {"crossfade", "whip"},
-    "graphic": {"lower_third"},  # 001.42 (D23): `matte_captions` is out (it was here too)
+    "graphic": {"lower_third"},  # 001.42 (D24): `matte_captions` is out (it was here too)
     "music": {"beat_cut"},
 }  # 001.39 (D22): `camera` lost its three planned ids, so it has none
-DISCARDED = (  # 001.39 (D22): Yedin, 26/10/2026; 001.42 (D23): `matte_captions`, 23/11/2026
+DISCARDED = (  # 001.39 (D22): Yedin, 26/10/2026; 001.42 (D24): `matte_captions`, 23/11/2026
     "face_follow", "hand_track", "privacy_blur", "matte_captions",
 )  # fmt: skip
 BRAND = BrandSection("#E5FF1F", "#2FA8FF", "#0B0B0E", "#FFFFFF")

@@ -8,11 +8,11 @@ before they get here). The document goes through `safe_text` (001.41, point 8) o
 disk as it does on its way to the terminal: the words that were heard are not trusted either.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
-from kcut.console import safe_text
+from kcut.console import clean, safe_text
 
 SCHEMA = "kcut.qa/1"
 Status = Literal["pass", "fail", "skipped"]
@@ -35,17 +35,6 @@ class Check:
         if self.reason_es is not None:
             out["reason_es"] = self.reason_es
         return out
-
-
-def _safe(value: object) -> object:
-    """A copy of a JSON-like value with `safe_text` applied to every string, keys included."""
-    if isinstance(value, str):
-        return safe_text(value)
-    if isinstance(value, Mapping):
-        return {_safe(key): _safe(item) for key, item in value.items()}
-    if isinstance(value, list | tuple):
-        return [_safe(item) for item in value]
-    return value
 
 
 def skipped(check_id: str, reason_es: str) -> Check:
@@ -89,7 +78,7 @@ class QaReport:
     def to_json(self) -> dict[str, object]:
         """The document, every string of it (keys too) through `safe_text`: what is written to
         `qa/vN/report.json` and what `--json` prints are the same."""
-        return {safe_text(key): _safe(value) for key, value in self._document().items()}
+        return {safe_text(key): clean(value) for key, value in self._document().items()}
 
     def _document(self) -> dict[str, object]:
         out: dict[str, object] = {

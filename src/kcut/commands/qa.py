@@ -117,10 +117,9 @@ def _list_diffs(out: Out, check: Check) -> None:
     """The first differences of the transcript (their texts are masked already, T2)."""
     diffs = _list(check.data.get("diffs"))
     for item in diffs[:MAX_SHOWN_DIFFS]:
-        out.line(
-            "INFO",
-            f"{item['at_display']} {item['op']}: esperado '{item['expected']}', "
-            f"oído '{item['heard']}'",
-        )
+        expected = " ".join(str(item["expected"]).split())  # 001.47: one line, always
+        heard = " ".join(str(item["heard"]).split())
+        where = f"{item['at_display']} {item['op']}"
+        out.line("INFO", f"{where}: esperado '{expected}', oído '{heard}'")
     if len(diffs) > MAX_SHOWN_DIFFS:
         out.line("INFO", f"... y {len(diffs) - MAX_SHOWN_DIFFS} más (están en el reporte)")

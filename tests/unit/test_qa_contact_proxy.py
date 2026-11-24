@@ -61,7 +61,8 @@ def test_qa_contact_never_from_video_the_sheet_is_the_proxy_and_the_video_is_not
     assert done is not None and notices == []
     picture = Image.open(io.BytesIO(done))
     assert picture.format == "JPEG" and picture.size == (6 * 216, 384 + 24)
-    assert base.asked == SHEET and shooter.frames == [[120]]
+    # 001.47: the frame with graphics is made inside `on_shot`, so it is asked of the proxy first
+    assert base.asked == [120, *(f for f in SHEET if f != 120)] and shooter.frames == [[120]]
     page = shooter.pages[0]
     assert "**11" in page and not any(digits in page for digits in RAW)
 
@@ -101,7 +102,8 @@ def test_qa_contact_never_from_video_the_sheet_ends_where_the_cut_or_the_video_e
     """A video shorter than the EDL has fewer places; one longer has no more than the proxy has."""
     _, base = install(monkeypatch)
     done, notices = _sheet(project, frames)
-    assert done is not None and notices == [] and base.asked == asked
+    live_first = [f for f in asked if f == 120] + [f for f in asked if f != 120]  # 001.47
+    assert done is not None and notices == [] and base.asked == live_first
     assert Image.open(io.BytesIO(done)).size[0] == len(asked) * 216
 
 

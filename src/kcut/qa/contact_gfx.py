@@ -30,6 +30,7 @@ from PIL import Image
 from kcut.edl.model import Edl
 from kcut.errors import MissingDependency, ProjectError, ToolError
 from kcut.gfx import capture as gfx_capture
+from kcut.gfx.capture import OnShot
 from kcut.gfx.layer import GFX_DIR, folder_guard, page_for
 from kcut.gfx.resolve import ResolvedGraphics, resolve
 from kcut.gfx.still import STILLS_WORK, compose, decode_layer
@@ -117,36 +118,51 @@ def masked_cells(
         raise SheetSkipped(GRAPHICS_ES) from None
     notices.extend(resolved.notices)
     live = set(gfx_capture.active_frames(resolved))
-    shots = _shoot(project, edl, version, resolved, [f for f in sheet_frames if f in live])
     ctx = fx_context(project, edl)
     size = (edl.out_w, edl.out_h)
-    for f in sheet_frames:
+
+    def one(f: int, shot: bytes | None) -> Image.Image:
         try:
             base = base_frame(project, edl, inventory, f, ctx, log=log)
         except (ProjectError, ToolError):
             raise SheetSkipped(PROXY_ES) from None
-        if f in shots:
+        if shot is not None:
             try:
-                base = compose(base, decode_layer(shots[f], size))
+                base = compose(base, decode_layer(shot, size))
             except ToolError:
                 raise SheetSkipped(CHROMIUM_ES) from None
-        yield cell_of(base, cell)
+        return cell_of(base, cell)
+
+    made: dict[int, Image.Image] = {}  # the cells of the frames with graphics: small, not the PNGs
+
+    def on_shot(f: int, shot: bytes) -> None:
+        made[f] = one(f, shot)  # the PNG is used here and not kept (001.47, point 1)
+
+    _shoot(project, edl, version, resolved, [f for f in sheet_frames if f in live], on_shot)
+    for f in sheet_frames:
+        yield made.pop(f) if f in made else one(f, None)
 
 
 def _shoot(
-    project: Project, edl: Edl, version: int, resolved: ResolvedGraphics, wanted: list[int]
-) -> dict[int, bytes]:
-    """The PNG that Chromium draws for each frame of `wanted` (the masked page), `{}` if there is
-    none. The folders go through `folder_guard` (a link there is a ProjectError)."""
+    project: Project,
+    edl: Edl,
+    version: int,
+    resolved: ResolvedGraphics,
+    wanted: list[int],
+    on_shot: OnShot,
+) -> None:
+    """Hand the PNG that Chromium draws for each frame of `wanted` (the masked page) to `on_shot`,
+    one at a time and as soon as it is made; nothing if `wanted` is empty. The folders go through
+    `folder_guard` (a link there is a ProjectError)."""
     if not wanted:
-        return {}
+        return
     build = build_folder(project, version)
     work = build / GFX_DIR / STILLS_WORK
     guard = folder_guard(project, build, build / GFX_DIR, work)
     try:
-        return gfx_capture.capture_stills(
+        gfx_capture.capture_stills(
             page_for(resolved, masked=True), work, wanted, edl.fps, (edl.out_w, edl.out_h), work,
-            None, guard=guard,
+            None, on_shot=on_shot, guard=guard,
         )  # fmt: skip
     except (MissingDependency, ToolError):
         raise SheetSkipped(CHROMIUM_ES) from None

@@ -3,7 +3,7 @@
 Collected from `test_view_frames_synth.py`.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +21,7 @@ from tests.fixtures.synth_late_video import (
     make_short_video,
 )
 from tests.integration.view_frames_helpers import Run, gray, project_args
+from tests.tmp_cleanup import remove_tree
 
 __all__ = [
     "TestFilmstripPastVideoEnd",
@@ -32,14 +33,18 @@ __all__ = [
 
 
 @pytest.fixture(scope="module")
-def late(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def late(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     """A project with one clip, a1, whose video starts 0.5 s after its audio."""
-    root = tmp_path_factory.mktemp("late") / "proyecto ñandú"
-    assert run_kcut("new", str(root)).returncode == 0
-    make_late_video(root / "crudo" / "tarde.mov")
-    ingested = run_kcut("ingest", "--project", str(root), "--json")
-    assert ingested.returncode == 0, ingested.stderr
-    return root
+    folder = tmp_path_factory.mktemp("late")
+    root = folder / "proyecto ñandú"
+    try:
+        assert run_kcut("new", str(root)).returncode == 0
+        make_late_video(root / "crudo" / "tarde.mov")
+        ingested = run_kcut("ingest", "--project", str(root), "--json")
+        assert ingested.returncode == 0, ingested.stderr
+        yield root
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 class TestVideoStartOffset:
@@ -99,14 +104,18 @@ class TestVideoStartOffset:
 
 
 @pytest.fixture(scope="module")
-def short(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def short(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     """A project with one clip, a1, whose video (3 s) is shorter than its container (5 s)."""
-    root = tmp_path_factory.mktemp("short") / "proyecto ñandú"
-    assert run_kcut("new", str(root)).returncode == 0
-    make_short_video(root / "crudo" / "corto.mov")
-    ingested = run_kcut("ingest", "--project", str(root), "--json")
-    assert ingested.returncode == 0, ingested.stderr
-    return root
+    folder = tmp_path_factory.mktemp("short")
+    root = folder / "proyecto ñandú"
+    try:
+        assert run_kcut("new", str(root)).returncode == 0
+        make_short_video(root / "crudo" / "corto.mov")
+        ingested = run_kcut("ingest", "--project", str(root), "--json")
+        assert ingested.returncode == 0, ingested.stderr
+        yield root
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 def _fake_grab(reads: list[int]) -> Callable[..., NDArray[np.uint8]]:

@@ -66,7 +66,9 @@ def test_qa_contact_masked_only_the_frames_with_subtitles_are_asked_for_and_with
     assert len(cells) == len(SHEET)  # 001.41: a cell for every frame of the sheet, not only [120]
     assert [n for n in notices if n.code == "contact_skipped"] == []
     assert shooter.frames == [wanted]  # Chromium is asked for the frame with subtitles and no other
-    assert base.asked == SHEET  # 001.41: the proxy gives every frame (before: only `wanted`)
+    # 001.41: the proxy gives every frame (before: only `wanted`); 001.47: the one with graphics
+    # is made inside `on_shot`, so it comes first, and each frame is asked once
+    assert base.asked == [*wanted, *(f for f in SHEET if f not in wanted)]
     page = shooter.pages[0]
     assert "**11" in page and not any(digits in page for digits in RAW)
     resolved = resolve(project, parsed(), 1, inventory=inventory())

@@ -2,7 +2,7 @@
 phase that will make it. Claude does not offer these as ideas: they are here so that the catalog
 says what is missing and not only what is there. `face_follow`, `hand_track` and `privacy_blur`
 are not here on purpose: Yedin discarded them on 26/10/2026 (D22, spec 001.39), and so is
-`matte_captions` (23/11/2026, D23, spec 001.42: it needs to segment the person, the same class).
+`matte_captions` (23/11/2026, D24, spec 001.42: it needs to segment the person, the same class).
 What is discarded is not proposed again.
 """
 

@@ -44,7 +44,7 @@ def _run(
     """`hidden` are the expected texts that `shown` has as `***`."""
     kept, ear = _kept(expected), _heard(heard)
     shown = {w.id: ("***" if w.text in hidden else w.text) for w in kept}
-    return diff_transcript(kept, shown, ear, [w.text for w in ear])
+    return diff_transcript(kept, shown, ear, [w.text for w in ear], hidden=frozenset())
 
 
 def _report(diff: TranscriptDiff) -> QaReport:
@@ -104,7 +104,7 @@ def test_heard_masked_far_a_number_heard_far_from_a_masked_word_is_shown_masked(
     ear = _heard(["hola", "que", "8095551234", "amigo", "mio"])
     heard_shown = [w.text for w in mask_pii(ear)[0]]
     assert heard_shown[2] != "8095551234" and "8095551234" not in heard_shown[2]
-    diff = diff_transcript(kept, shown, ear, heard_shown)
+    diff = diff_transcript(kept, shown, ear, heard_shown, hidden=frozenset())
     assert diff.items == (DiffItem("replace", "tal", heard_shown[2], 112),)
     assert diff.items[0].heard != HIDDEN_HEARD
     check = json.dumps(transcript_check(diff, 0.8, "es", FPS).data, ensure_ascii=False)

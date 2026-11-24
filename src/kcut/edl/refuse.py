@@ -15,11 +15,14 @@ from kcut.issues import Issue
 MAX_NAMED = 5  # findings of the check that are printed when an EDL is refused
 
 
-def refuse_edl(out: Out, rel: str, errors: list[Issue]) -> NoReturn:
-    """The EDL has errors: print the first ones and stop with exit 1, before any frame is made."""
+REMEDY_ES = "corre kcut edl check y corrígelos"  # what the message ends with, unless told otherwise
+
+
+def refuse_edl(out: Out, rel: str, errors: list[Issue], *, remedy: str = REMEDY_ES) -> NoReturn:
+    """The EDL has errors: print the first ones and stop with exit 1, before any frame is made.
+    `remedy` is the end of the message: the snapshot of a build is cured with `kcut build`, not
+    with `kcut edl check` (001.47, point 8)."""
     for issue in errors[:MAX_NAMED]:
         out.line("ERROR", f"{issue.code} {issue.path}: {issue.message_es}")
     named = ", ".join(sorted({issue.code for issue in errors}))
-    raise CheckFailed(
-        f"{rel} tiene {len(errors)} errores ({named}); corre kcut edl check y corrígelos"
-    )
+    raise CheckFailed(f"{rel} tiene {len(errors)} errores ({named}); {remedy}")

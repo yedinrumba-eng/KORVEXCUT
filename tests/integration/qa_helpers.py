@@ -10,6 +10,7 @@ transcript, so the check `transcript` is skipped there. `copy_of` gives a test i
 import hashlib
 import json
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ from kcut import proc
 from kcut.pipeline.mux import mux_args
 from tests.conftest import run_kcut
 from tests.fixtures.synth_audio import write_audio_plans
+from tests.tmp_cleanup import remove_tree
 
 __all__ = [
     "VIDEO",
@@ -38,23 +40,28 @@ QaRun = tuple[int, dict[str, Any], Path]
 @pytest.fixture(scope="module")
 def built(
     tmp_path_factory: pytest.TempPathFactory, rendered_example: tuple[Path, dict[str, Any]]
-) -> Path:
-    """A copy of the rendered example with its mix and `salida/v1.mp4`."""
-    root = tmp_path_factory.mktemp("qabuilt") / "proyecto ñandú"
-    shutil.copytree(rendered_example[0], root)
-    write_audio_plans(root)
-    done = run_kcut("mix", "--project", str(root), "--json")
-    assert done.returncode == 0, done.stderr
-    args = mux_args(
-        proc.tool_path("ffmpeg"),
-        root / ".kcut/build/v1/video.mp4",
-        root / ".kcut/build/v1/mix.wav",
-        root / VIDEO,
-        audio_f32=False,
-    )
-    proc.run(args, timeout_s=300)
-    assert (root / VIDEO).is_file()
-    return root
+) -> Iterator[Path]:
+    """A copy of the rendered example with its mix and `salida/v1.mp4`; its folder is deleted when
+    the module closes (001.47)."""
+    folder = tmp_path_factory.mktemp("qabuilt")
+    root = folder / "proyecto ñandú"
+    try:
+        shutil.copytree(rendered_example[0], root)
+        write_audio_plans(root)
+        done = run_kcut("mix", "--project", str(root), "--json")
+        assert done.returncode == 0, done.stderr
+        args = mux_args(
+            proc.tool_path("ffmpeg"),
+            root / ".kcut/build/v1/video.mp4",
+            root / ".kcut/build/v1/mix.wav",
+            root / VIDEO,
+            audio_f32=False,
+        )
+        proc.run(args, timeout_s=300)
+        assert (root / VIDEO).is_file()
+        yield root
+    finally:
+        remove_tree(folder)
 
 
 @pytest.fixture(scope="module")

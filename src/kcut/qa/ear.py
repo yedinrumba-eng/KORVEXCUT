@@ -56,11 +56,11 @@ def hear(
     *,
     log: Path | None,
     notices: list[Notice] | None = None,
-    limit_s: float | None = None,
+    limit_s: float,
 ) -> Heard | None:
     """The words in the audio of `video` (a `salida/vN.mp4`), heard in `language`. At most
     `limit_s` seconds of audio are taken (001.41, point 7): the declared length of the file is not
-    trusted.
+    trusted, so the limit is mandatory (001.47, point 5).
 
     `None` if the model of Whisper is not on this machine. A cache file that is not valid for the
     audio (`from_document` against the length of the wav, or other parameters) adds
@@ -102,7 +102,7 @@ def hear(
 
 
 def _extract(
-    project: Project, video: Path, partial: Path, wav: Path, log: Path | None, limit_s: float | None
+    project: Project, video: Path, partial: Path, wav: Path, log: Path | None, limit_s: float
 ) -> None:
     """The audio of `video` as a wav of 16 kHz, through a partial file. The folder is looked at
     again right before the move and the delete (001.38, point 2)."""

@@ -9,7 +9,7 @@ A PNG that is damaged when the render needs it is exit 3 and says how to make it
 
 import json
 import shutil
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,7 @@ from kcut.gfx import capture as gfx_capture
 from tests.conftest import run_kcut
 from tests.integration.render_small_cases import small_base
 from tests.integration.view_frames_helpers import Run, project_args
+from tests.tmp_cleanup import remove_tree
 
 pytestmark = [pytest.mark.ffmpeg, pytest.mark.chromium, pytest.mark.slow]
 __all__ = ["small_base"]
@@ -54,15 +55,19 @@ def _codes(doc: dict[str, Any]) -> list[str]:
 
 
 @pytest.fixture(scope="module")
-def captured(tmp_path_factory: pytest.TempPathFactory, small_base: Path) -> Path:
+def captured(tmp_path_factory: pytest.TempPathFactory, small_base: Path) -> Iterator[Path]:
     """The small project with one label cue, captured once (the index and the PNGs are there)."""
-    root = tmp_path_factory.mktemp("capindex") / "proyecto ñandú"
-    shutil.copytree(small_base, root)
-    _write(root, GRAPHICS)
-    done = run_kcut("graphics", "capture", "--project", str(root), "--json")
-    assert done.returncode == 0, done.stderr
-    assert json.loads(done.stdout)["captured"] is True
-    return root
+    folder = tmp_path_factory.mktemp("capindex")
+    root = folder / "proyecto ñandú"
+    try:
+        shutil.copytree(small_base, root)
+        _write(root, GRAPHICS)
+        done = run_kcut("graphics", "capture", "--project", str(root), "--json")
+        assert done.returncode == 0, done.stderr
+        assert json.loads(done.stdout)["captured"] is True
+        yield root
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 @pytest.fixture

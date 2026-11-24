@@ -3,6 +3,8 @@ ear listens in, and what it asks the diff to show. The words the cut keeps, the 
 transcripts are replaced; the audit is in `test_qa_*.py` and `tests/integration/test_qa_synth.py`.
 """
 
+import dataclasses
+import json
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,7 @@ from kcut.audio.loudnorm import EburMeasure
 from kcut.edl.kept import KeptWords
 from kcut.edl.words import KeptWord
 from kcut.ingest.inventory import Notice
+from kcut.pack.pii import mask_pii_spans
 from kcut.qa import run as qa_run
 from kcut.qa.ear import Heard
 from kcut.transcribe.model import Transcript, Word
@@ -26,7 +29,14 @@ KEPT = [KeptWord(f"a1:w{i:04d}", t, 1, 30 + 6 * i, 34 + 6 * i, "a1", 0, 0) for i
 
 def _kept(words: list[KeptWord] | None = None) -> KeptWords:
     found = KEPT if words is None else words
-    return KeptWords(words=found, shown={w.id: w.text for w in found}, missing=(), masked=True)
+    shown = {w.id: w.text for w in found}
+    return KeptWords(
+        words=found,
+        shown=shown,
+        missing=(),
+        masked=True,
+        hidden=frozenset(),  # 001.49
+    )
 
 
 def _heard(*texts: str) -> Heard:
@@ -71,8 +81,10 @@ def _step(
     tmp_path: Path, measure: EburMeasure | None = LOUD, mask: bool = True, doc: Any = None
 ) -> Any:
     project = with_privacy(make_project(tmp_path), mask)
-    return qa_run._transcript(
-        project, inventory(), parsed(doc), tmp_path / "v1.mp4", measure, [], None
+    (project.root / "salida").mkdir(exist_ok=True)  # 001.47: the step looks at the file again
+    (project.root / "salida" / "v1.mp4").write_bytes(b"not a video: the ear is a fake")
+    return qa_run._transcript(  # 001.47: the relative name (it was `tmp_path / "v1.mp4"`)
+        project, inventory(), parsed(doc), "salida/v1.mp4", measure, [], None
     )
 
 
@@ -176,6 +188,36 @@ def test_qa_transcript_step_the_heard_text_is_masked_as_a_whole_list_unless_it_i
     assert masked == ["***", "***", "**11", "ya"]
     raw = qa_run._heard_shown(with_privacy(make_project(tmp_path / "otro"), False), words)
     assert raw == ["972", "808", "3211", "ya"]
+
+
+def test_qa_transcript_step_hidden_the_filler_inside_a_number_hides_the_heard_piece(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """001.49 point 3: `_transcript` hands `kept.hidden` to the diff. The clip says `llamame al 809
+    eh 555 1234 gracias` and the cut keeps `llamame al 809 eh`; the ear hears `... eh 555`."""
+    texts = ["llamame", "al", "809", "eh", "555", "1234", "gracias"]
+    clip = [Word(f"a1:w{i:04d}", i, t, 0, 0, 0.9) for i, t in enumerate(texts)]
+    shown_words, _, inside = mask_pii_spans(clip, ("eh",))
+    found = [KeptWord(w.id, w.text, 1, 30 + 6 * w.i, 34 + 6 * w.i, "a1", 0, 0) for w in clip[:4]]
+    kept = KeptWords(
+        words=found,
+        shown={w.id: shown_words[w.i].text for w in clip[:4]},
+        missing=(),
+        masked=True,
+        hidden=frozenset(inside & {w.id for w in found}),
+    )
+    assert kept.shown[found[3].id] == "eh" and found[3].id in kept.hidden  # control
+    _wire(monkeypatch, kept=kept, heard=_heard(*texts[:4], "555"))
+    made = make_project(tmp_path)
+    transcribe = dataclasses.replace(made.config.transcribe, fillers=("eh",))
+    config = dataclasses.replace(made.config, transcribe=transcribe)
+    project = dataclasses.replace(made, config=config)
+    (project.root / "salida").mkdir(exist_ok=True)
+    (project.root / "salida" / "v1.mp4").write_bytes(b"not a video: the ear is a fake")
+    check = qa_run._transcript(project, inventory(), parsed(), "salida/v1.mp4", LOUD, [], None)
+    diffs = check.data["diffs"]
+    assert [(d["op"], d["heard"]) for d in diffs] == [("insert", "[tapado]")]
+    assert "555" not in json.dumps(check.to_json())
 
 
 def test_qa_transcript_step_the_warnings_have_no_repeats() -> None:

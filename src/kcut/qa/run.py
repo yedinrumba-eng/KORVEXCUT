@@ -55,6 +55,7 @@ NO_MODEL_ES = (
     "el modelo de Whisper no está en esta máquina; kcut transcribe --allow-download lo baja"
 )
 NO_AUDIO_ES = "el video no tiene audio"
+SNAPSHOT_REMEDY_ES = "corre kcut build otra vez"  # the snapshot of a build that no longer passes
 EDL_VERSION_ES = (
     "el EDL es de la versión {edl} y el video de la {video}; usa el EDL de la misma versión"
 )
@@ -71,7 +72,7 @@ def run_qa(
 ) -> QaReport:
     """Audit `video_rel` (which must be `salida/vN.mp4`) and write its report and contact sheet."""
     version = _version_of(video_rel)
-    video = _video_path(project, video_rel)
+    _video_path(project, video_rel)  # fails early, before anything is read or judged
     report_rel, contact_rel = f"qa/v{version}/report.json", f"qa/v{version}/contact.jpg"
     assert_writable(project, report_rel)  # both before anything is measured, and again right
     assert_writable(project, contact_rel)  # before each is written (`qa/outputs.py`, 001.41)
@@ -80,6 +81,8 @@ def run_qa(
     checked = check_edl_file(project, inventory, rel)  # 001.43: as render, mix and graphics do,
     errors = [issue for issue in checked.issues if issue.level == "error"]  # before any tool runs
     if errors or checked.edl is None:
+        if rel == _snapshot_rel(version):  # 001.47: what a build snapshotted is cured by a build
+            refuse_edl(out, rel, errors, remedy=SNAPSHOT_REMEDY_ES)
         refuse_edl(out, rel, errors)
     edl = checked.edl
     notices: list[Notice] = []
@@ -87,6 +90,9 @@ def run_qa(
     started = time.monotonic()
 
     limit = measure_timeout_s(edl.frames / edl.fps)
+    # 001.49, point 1: again right before ffprobe (two `assert_writable`, the inventory and the gate
+    # ran since the first look); the size of the file comes from this same look
+    video = probed = _video_path(project, video_rel)
     facts = facts_of(run_probe(video, log, limit))
     if facts.video is None:
         raise CheckFailed(f"{video_rel} no tiene video: no hay qué auditar")
@@ -95,25 +101,31 @@ def run_qa(
     progress.update(1)
 
     mark = time.monotonic()
-    measure = measure_video(video, log, limit) if facts.audio is not None else None
+    # 001.47, point 2: `salida/` and the file are looked at again right before each tool that reads
+    # the video, as `_video_path` did before the first one (the tools take minutes)
+    measure: EburMeasure | None = None
+    if facts.audio is not None:
+        measure = measure_video(_video_path(project, video_rel), log, limit)
     checks.append(_loudness(measure, project))
     timings["loudness"] = time.monotonic() - mark
     progress.update(2)
 
     mark = time.monotonic()
     frames = facts.video.frames or edl.frames
-    checks.append(run_detect("black", video, edl, frames, log, limit))
-    checks.append(run_detect("freeze", video, edl, frames, log, limit))
+    checks.append(run_detect("black", _video_path(project, video_rel), edl, frames, log, limit))
+    checks.append(run_detect("freeze", _video_path(project, video_rel), edl, frames, log, limit))
     timings["detect"] = time.monotonic() - mark
     progress.update(3)
 
     mark = time.monotonic()
-    checks.append(_transcript(project, inventory, edl, video, measure, notices, log))
+    checks.append(_transcript(project, inventory, edl, video_rel, measure, notices, log))
     timings["transcript"] = time.monotonic() - mark
     progress.update(4)
 
     mark = time.monotonic()
     size = _size(facts, edl)
+    if not project.config.privacy.mask_pii:  # only then is the sheet made from the video
+        video = _video_path(project, video_rel)
     sheet = contact_sheet(project, edl, version, inventory, video, frames, size, notices, log)
     write_sheet(project, contact_rel, sheet)  # None (`contact_skipped`): the old sheet goes
     timings["contact"] = time.monotonic() - mark
@@ -124,7 +136,7 @@ def run_qa(
         edl=rel,
         generated=datetime.now().isoformat(timespec="seconds"),
         checks=tuple(checks),
-        file_mb=round(video.stat().st_size / 2**20, 1),
+        file_mb=round(probed.stat().st_size / 2**20, 1),
         duration_display=fmt_tc(frames, edl.fps),
         contact_sheet=None if sheet is None else contact_rel,
         timings_s={name: round(seconds, 1) for name, seconds in timings.items()},
@@ -176,10 +188,15 @@ def _edl_rel(project: Project, explicit: str | None, version: int) -> str:
         if found != version:
             raise UsageError(EDL_VERSION_ES.format(edl=found, video=version))
         return rel
-    snapshot = f"qa/v{version}/inputs/edl-v{version}.json"
+    snapshot = _snapshot_rel(version)
     if os.path.lexists(resolve_in_project(project.root, snapshot)):
         return snapshot
     return find_edl(project, f"edit/edl-v{version}.json")[0]
+
+
+def _snapshot_rel(version: int) -> str:
+    """Where `kcut build` snapshots the EDL it built from."""
+    return f"qa/v{version}/inputs/edl-v{version}.json"
 
 
 def _loudness(measure: EburMeasure | None, project: Project) -> Check:
@@ -200,7 +217,7 @@ def _transcript(
     project: Project,
     inventory: Inventory,
     edl: Edl,
-    video: Path,
+    video_rel: str,
     measure: EburMeasure | None,
     notices: list[Notice],
     log: Path | None,
@@ -217,10 +234,12 @@ def _transcript(
     if language is None:
         return skipped("transcript", NO_WORDS_ES)
     limit_s = edl.frames / edl.fps + EAR_MARGIN_S  # 001.41: the audio of the cut, not the file's
+    video = _video_path(project, video_rel)  # 001.47, point 2: again, right before the ear
     heard = hear(project, video, language, log=log, notices=notices, limit_s=limit_s)
     if heard is None:
         return skipped("transcript", NO_MODEL_ES)
-    diff = diff_transcript(kept.words, kept.shown, heard.words, _heard_shown(project, heard.words))
+    shown = _heard_shown(project, heard.words)
+    diff = diff_transcript(kept.words, kept.shown, heard.words, shown, hidden=kept.hidden)
     return transcript_check(diff, project.config.qa.min_transcript_match, heard.language, edl.fps)
 
 

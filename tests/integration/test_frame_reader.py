@@ -6,6 +6,7 @@ space and an accent: what comes out must be exact frames in BGR, not close ones.
 
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ from kcut.errors import ToolError
 from kcut.ff import reader as reader_module
 from kcut.ff.reader import FrameReader, grab, reader_args
 from tests.fixtures.synth_media import _ffmpeg
+from tests.tmp_cleanup import remove_tree
 
 pytestmark = pytest.mark.ffmpeg
 
@@ -27,19 +29,23 @@ _FLASH = "drawbox=x=0:y=0:w=iw:h=ih:color=white:t=fill:enable='eq(n,{n})'"
 
 
 @pytest.fixture(scope="module")
-def clip(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    path = tmp_path_factory.mktemp("lector") / "proyecto ñandú" / "negro.mp4"
-    path.parent.mkdir()
-    graph = f"color=c=black:s=64x48:r=30:d=2,{_FLASH.format(n=FLASH)},format=yuv420p"
-    _ffmpeg(
-        [
-            *("-f", "lavfi", "-i", graph),
-            *("-c:v", "libx264", "-preset", "ultrafast", "-crf", "10", "-g", "5"),
-            *("-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"),
-            str(path),
-        ]
-    )
-    return path
+def clip(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    folder = tmp_path_factory.mktemp("lector")
+    path = folder / "proyecto ñandú" / "negro.mp4"
+    try:
+        path.parent.mkdir()
+        graph = f"color=c=black:s=64x48:r=30:d=2,{_FLASH.format(n=FLASH)},format=yuv420p"
+        _ffmpeg(
+            [
+                *("-f", "lavfi", "-i", graph),
+                *("-c:v", "libx264", "-preset", "ultrafast", "-crf", "10", "-g", "5"),
+                *("-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"),
+                str(path),
+            ]
+        )
+        yield path
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 def _mean(frame: np.ndarray) -> float:

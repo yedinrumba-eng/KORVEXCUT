@@ -7,6 +7,7 @@ small EDL once for the module; `small` is a copy of it for each test.
 
 import json
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ import pytest
 from kcut.audio.wavio import write_wav_s16_mono
 from kcut.ingest.inventory import load_inventory
 from tests.conftest import run_kcut
+from tests.tmp_cleanup import remove_tree
 
 __all__ = ["TestMezzSidecar", "TestShortWav", "small", "small_base"]
 BUILD = ".kcut/build/v1"
@@ -54,14 +56,18 @@ def render_json(root: Path, *extra: str) -> tuple[int, dict[str, Any], str]:
 
 
 @pytest.fixture(scope="module")
-def small_base(tmp_path_factory: pytest.TempPathFactory, view_shared: Path) -> Path:
+def small_base(tmp_path_factory: pytest.TempPathFactory, view_shared: Path) -> Iterator[Path]:
     """The synthetic project with the small EDL, rendered once (the mezzanine and wav48 exist)."""
-    root = tmp_path_factory.mktemp("small") / "proyecto ñandú"
-    shutil.copytree(view_shared, root)
-    small_edl(root)
-    code, doc, err = render_json(root)
-    assert code == 0 and doc["mezz_built"] == 1, err
-    return root
+    folder = tmp_path_factory.mktemp("small")
+    root = folder / "proyecto ñandú"
+    try:
+        shutil.copytree(view_shared, root)
+        small_edl(root)
+        code, doc, err = render_json(root)
+        assert code == 0 and doc["mezz_built"] == 1, err
+        yield root
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 @pytest.fixture

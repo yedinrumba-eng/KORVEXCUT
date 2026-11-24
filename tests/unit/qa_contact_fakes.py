@@ -43,9 +43,12 @@ def _png(bgra: tuple[int, int, int, int]) -> bytes:
 class Chromium:
     """Stands in for `capture_stills`: it records the page and the frames, and answers `layer`."""
 
-    def __init__(self, layer: bytes, fail: Exception | None = None) -> None:
+    def __init__(
+        self, layer: bytes, fail: Exception | None = None, *, zero_after: bool = False
+    ) -> None:
         self.layer = layer
         self.fail = fail
+        self.zero_after = zero_after  # 001.47: each PNG is zeroed as soon as `on_shot` returns
         self.pages: list[str] = []
         self.frames: list[list[int]] = []
 
@@ -59,6 +62,7 @@ class Chromium:
         out_dir: Path,
         progress: Any,
         *,
+        on_shot: Any = None,
         guard: Any = None,
     ) -> dict[int, bytes]:
         if guard is not None:
@@ -67,7 +71,13 @@ class Chromium:
         self.frames.append(list(frames))
         if self.fail is not None:
             raise self.fail
-        return {f: self.layer for f in frames}
+        shots = {f: bytearray(self.layer) for f in frames}  # 001.47: bytes that can be zeroed
+        for f, png in shots.items():
+            if on_shot is not None:
+                on_shot(f, png)
+            if self.zero_after:
+                png[:] = bytes(len(png))  # whoever kept the PNG now holds zeros
+        return {} if on_shot is not None else {f: bytes(png) for f, png in shots.items()}
 
 
 class Proxy:
@@ -90,9 +100,10 @@ def install(
     *,
     chromium: Exception | None = None,
     proxy: Exception | None = None,
+    zero_after: bool = False,
 ) -> tuple[Chromium, Proxy]:
     """Put the doubles in place of Chromium and of the proxy; `layer` is BGRA."""
-    shooter, base = Chromium(_png(layer), chromium), Proxy(proxy)
+    shooter, base = Chromium(_png(layer), chromium, zero_after=zero_after), Proxy(proxy)
     monkeypatch.setattr(gfx_capture, "capture_stills", shooter)
     monkeypatch.setattr(contact_gfx, "base_frame", base)
     monkeypatch.setattr(contact_gfx, "fx_context", lambda project, edl: None)

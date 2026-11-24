@@ -204,3 +204,39 @@ def test_qa_command_contact_masked_the_json_of_a_report_without_the_sheet_has_nu
     document = json.loads(out)
     assert code == 0 and document["contact_sheet"] is None and "contact_sheet" in document
     assert document == report.to_json()
+
+
+def _with_text(expected: str, heard: str) -> Check:
+    data: dict[str, object] = {
+        "match": 0.5,
+        "min": 0.8,
+        "language": "es",
+        "expected_words": 2,
+        "heard_words": 2,
+        "diffs": [
+            {"op": "replace", "expected": expected, "heard": heard, "at_f": 0, "at_display": "0:00"}
+        ],
+    }
+    return Check("transcript", "fail", data)
+
+
+def test_qa_console_one_line_a_line_break_or_a_tab_in_a_word_is_a_space_and_the_line_is_one(
+    monkeypatch: pytest.MonkeyPatch, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """001.47 point 3: `" ".join(text.split())` before `safe_text`, in the console only."""
+    check = _with_text("buenas\ttardes", "hola\nmundo")
+    _, out, _ = _run(monkeypatch, project, _report(check), capsys)
+    assert "[INFO] 0:00 replace: esperado 'buenas tardes', oído 'hola mundo'" in out.splitlines()
+    assert not [line for line in out.splitlines() if line.startswith("mundo")]
+    assert "\\x0a" not in out and "\\x09" not in out  # not escaped: they were spaces already
+
+
+def test_qa_console_one_line_the_json_and_the_report_keep_the_text_as_it_is(
+    monkeypatch: pytest.MonkeyPatch, project: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    report = _report(_with_text("buenas\ttardes", "hola\nmundo"))
+    _, out, _ = _run(monkeypatch, project, report, capsys, "--json")
+    (diff,) = json.loads(out)["checks"][0]["diffs"]
+    assert diff["heard"] == "hola\nmundo"  # `safe_text` leaves the newline, as it always did
+    assert diff["expected"] == "buenas\\x09tardes"  # and escapes the tab, as it always did
+    assert json.loads(out) == report.to_json()

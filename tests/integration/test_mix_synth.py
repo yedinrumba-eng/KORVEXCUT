@@ -8,6 +8,7 @@ be approved (`mix` does not ask for the gate), and nothing of `crudo/` is touche
 
 import json
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -25,6 +26,7 @@ from tests.integration.mix_helpers import (
     read_wav,
 )
 from tests.integration.view_frames_helpers import Run, project_args
+from tests.tmp_cleanup import remove_tree
 
 pytestmark = [pytest.mark.ffmpeg, pytest.mark.slow]
 F32_FILES = (
@@ -48,15 +50,19 @@ class Mixed(NamedTuple):
 
 
 @pytest.fixture(scope="module")
-def mixed(tmp_path_factory: pytest.TempPathFactory, view_shared: Path) -> Mixed:
+def mixed(tmp_path_factory: pytest.TempPathFactory, view_shared: Path) -> Iterator[Mixed]:
     """The synthetic project mixed once for the module; the tests read `.kcut/build/v1/`, and
     none of them changes it."""
-    root = tmp_path_factory.mktemp("mixed") / "proyecto ñandú"
-    shutil.copytree(view_shared, root)
-    audio_project(root)
-    before = tree_hash(root / "crudo")
-    done = run_kcut("mix", "--json", "--project", str(root))
-    return Mixed(root, done.returncode, json.loads(done.stdout), done.stderr, before)
+    folder = tmp_path_factory.mktemp("mixed")
+    root = folder / "proyecto ñandú"
+    try:
+        shutil.copytree(view_shared, root)
+        audio_project(root)
+        before = tree_hash(root / "crudo")
+        done = run_kcut("mix", "--json", "--project", str(root))
+        yield Mixed(root, done.returncode, json.loads(done.stdout), done.stderr, before)
+    finally:
+        remove_tree(folder)  # 001.47
 
 
 def test_mix_synth_the_wav_has_552000_samples_in_16_bits_mono_at_48_khz(mixed: Mixed) -> None:

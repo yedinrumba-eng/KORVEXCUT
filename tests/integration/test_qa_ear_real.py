@@ -42,13 +42,13 @@ def test_qa_ear_real_hears_hello_and_world_and_then_reads_its_cache(
     assert run_kcut("new", str(root)).returncode == 0
     _video(root / "salida" / "v1.mp4")
     project = open_project(str(root))
-    first = hear(project, root / "salida" / "v1.mp4", "en", log=None)
+    first = hear(project, root / "salida" / "v1.mp4", "en", log=None, limit_s=8.0)  # 001.47
     assert first is not None and first.language == "en"
     texts = {norm_token(w.text) for w in first.words}
     assert {"hello", "world"} <= texts, first.words
     assert all(0 <= w.s_ms < w.e_ms <= 6100 for w in first.words)
     assert (root / ".kcut" / "qa_ear" / "v1.wav").is_file()
     monkeypatch.setattr(ear, "Engine", NoModel)  # a second time the model is not even loaded
-    second = hear(project, root / "salida" / "v1.mp4", "en", log=None)
+    second = hear(project, root / "salida" / "v1.mp4", "en", log=None, limit_s=8.0)  # 001.47
     assert second is not None and second.words == first.words
     assert len(list((root / ".kcut" / "qa_ear").glob("*.json"))) == 1

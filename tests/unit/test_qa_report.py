@@ -8,9 +8,22 @@ from pathlib import Path
 
 import pytest
 
+from kcut import console
+from kcut.qa import report as report_module
 from kcut.qa.outputs import write_report
 from kcut.qa.report import Check, QaReport, skipped, verdict_of
 from tests.unit.gfx_resolve_fakes import make_project
+
+
+def test_qa_report_there_is_one_public_clean_in_console_and_no_copy_in_the_report() -> None:
+    """001.47 point 4: `console.clean` (public) is the one function; `qa.report._safe` is gone."""
+    assert callable(console.clean)
+    assert not hasattr(console, "_clean") and not hasattr(report_module, "_safe")
+    assert console.clean({"k\x07": ["a\x1bb", ("c\x00", 3)], "n": None}) == {
+        "k\\x07": ["a\\x1bb", ["c\\x00", 3]],
+        "n": None,
+    }
+
 
 PASS = Check("frames", "pass", {"value": 345, "expected": 345})
 FAIL = Check("loudness", "fail", {"I_LUFS": -20.0})

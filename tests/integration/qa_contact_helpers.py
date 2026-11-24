@@ -79,6 +79,7 @@ def install_solid_layer(monkeypatch: pytest.MonkeyPatch) -> Spy:
         out_dir: Path,
         progress: Any,
         *,
+        on_shot: Any = None,
         guard: Any = None,
     ) -> dict[int, bytes]:
         if guard is not None:
@@ -87,7 +88,11 @@ def install_solid_layer(monkeypatch: pytest.MonkeyPatch) -> Spy:
         spy.frames.append(list(frames))
         spy.work_dirs.append(work_dir)
         assert size == (W, H) and fps == 30
-        return {f: layer for f in frames}
+        if on_shot is None:
+            return {f: layer for f in frames}
+        for f in frames:  # 001.47: each PNG is handed over as it is made and nothing is kept
+            on_shot(f, layer)
+        return {}
 
     monkeypatch.setattr(gfx_capture, "capture_stills", fake)
     return spy
